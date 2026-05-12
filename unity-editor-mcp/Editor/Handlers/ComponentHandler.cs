@@ -401,6 +401,11 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                if (TrySetRigidbodyCompatibilityProperty(component, propertyName, value))
+                {
+                    return true;
+                }
+
                 Type type = component.GetType();
                 
                 // Try field first
@@ -482,6 +487,41 @@ namespace UnityEditorMCP.Handlers
             {
                 object convertedValue = ConvertValue(value, finalProperty.PropertyType);
                 finalProperty.SetValue(current, convertedValue);
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Preserves MCP Rigidbody field names across Unity versions.
+        /// </summary>
+        private static bool TrySetRigidbodyCompatibilityProperty(Component component, string propertyName, JToken value)
+        {
+            if (!(component is Rigidbody rb))
+            {
+                return false;
+            }
+
+            if (propertyName == "drag" || propertyName == "linearDamping")
+            {
+                var convertedValue = (float)ConvertValue(value, typeof(float));
+#if UNITY_6000_0_OR_NEWER
+                rb.linearDamping = convertedValue;
+#else
+                rb.drag = convertedValue;
+#endif
+                return true;
+            }
+
+            if (propertyName == "angularDrag" || propertyName == "angularDamping")
+            {
+                var convertedValue = (float)ConvertValue(value, typeof(float));
+#if UNITY_6000_0_OR_NEWER
+                rb.angularDamping = convertedValue;
+#else
+                rb.angularDrag = convertedValue;
+#endif
                 return true;
             }
 
@@ -595,8 +635,13 @@ namespace UnityEditorMCP.Handlers
 
                 case Rigidbody rb:
                     properties["mass"] = rb.mass;
+#if UNITY_6000_0_OR_NEWER
+                    properties["drag"] = rb.linearDamping;
+                    properties["angularDrag"] = rb.angularDamping;
+#else
                     properties["drag"] = rb.drag;
                     properties["angularDrag"] = rb.angularDrag;
+#endif
                     properties["useGravity"] = rb.useGravity;
                     properties["isKinematic"] = rb.isKinematic;
                     break;

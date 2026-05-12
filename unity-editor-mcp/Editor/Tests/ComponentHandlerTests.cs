@@ -242,7 +242,11 @@ namespace UnityEditorMCP.Tests
             var dict = result as Dictionary<string, object>;
             Assert.IsFalse(dict.ContainsKey("error"));
             Assert.AreEqual(5.0f, rb.mass);
+#if UNITY_6000_0_OR_NEWER
+            Assert.AreEqual(0.5f, rb.linearDamping);
+#else
             Assert.AreEqual(0.5f, rb.drag);
+#endif
             
             var modifiedProps = dict["modifiedProperties"] as string[];
             Assert.Contains("mass", modifiedProps);
