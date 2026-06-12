@@ -1,4 +1,5 @@
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 
 namespace UnityEditorMCP.Helpers
@@ -153,6 +154,50 @@ namespace UnityEditorMCP.Helpers
             return JsonConvert.SerializeObject(response);
         }
         
+        /// <summary>
+        /// Builds the wire envelope for a handler return value, classifying
+        /// error-shaped results (<c>{ error: "...", ... }</c> without
+        /// <c>success: true</c>) as real protocol errors instead of wrapping them
+        /// in a success envelope. The predicate mirrors the Node boundary's
+        /// <c>isHandlerLevelError</c> (mcp-server/src/core/unityConnection.js) —
+        /// keep the two in sync. This is the editor-side wire-truth fix for the
+        /// error-laundering deviation (protocol/README.md §Known deviations).
+        /// </summary>
+        /// <param name="id">Command ID</param>
+        /// <param name="handlerResult">Whatever the handler returned</param>
+        /// <returns>JSON string of the success or error envelope</returns>
+        public static string Result(string id, object handlerResult)
+        {
+            JObject shape = null;
+            if (handlerResult != null)
+            {
+                try
+                {
+                    var token = handlerResult as JToken ?? JToken.FromObject(handlerResult);
+                    shape = token as JObject;
+                    handlerResult = token;
+                }
+                catch
+                {
+                    // Not convertible — treat as an opaque success payload.
+                }
+            }
+
+            if (shape != null &&
+                shape.TryGetValue("error", out var error) && error.Type == JTokenType.String &&
+                !(shape.TryGetValue("success", out var success) &&
+                  success.Type == JTokenType.Boolean && (bool)success))
+            {
+                var code = shape.TryGetValue("code", out var codeToken) && codeToken.Type == JTokenType.String
+                    ? (string)codeToken
+                    : "EDITOR_ERROR";
+                // The original object rides along as details so no fields are lost.
+                return ErrorResult(id, (string)error, code, shape);
+            }
+
+            return SuccessResult(id, handlerResult);
+        }
+
         /// <summary>
         /// Creates a standardized error response (new format)
         /// </summary>

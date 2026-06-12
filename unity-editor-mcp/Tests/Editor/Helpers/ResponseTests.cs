@@ -114,6 +114,59 @@ namespace UnityEditorMCP.Tests.Helpers
         }
         
         [Test]
+        public void Result_SuccessPayload_ProducesSuccessEnvelope()
+        {
+            var json = JObject.Parse(Response.Result("42", new { name = "Cube", count = 3 }));
+            Assert.AreEqual("42", json["id"].Value<string>());
+            Assert.AreEqual("success", json["status"].Value<string>());
+            Assert.AreEqual("Cube", json["result"]["name"].Value<string>());
+        }
+
+        [Test]
+        public void Result_ErrorShapedPayload_IsNotLaunderedAsSuccess()
+        {
+            // The legacy handler convention: failures are { error: "..." } objects.
+            var json = JObject.Parse(Response.Result("42", new { error = "GameObject not found" }));
+            Assert.AreEqual("error", json["status"].Value<string>());
+            Assert.AreEqual("GameObject not found", json["error"].Value<string>());
+            Assert.AreEqual("EDITOR_ERROR", json["code"].Value<string>());
+            Assert.IsNull(json["result"]);
+        }
+
+        [Test]
+        public void Result_ErrorWithCode_PropagatesCode()
+        {
+            var json = JObject.Parse(Response.Result("42", new { error = "compiling", code = "EDITOR_COMPILING" }));
+            Assert.AreEqual("EDITOR_COMPILING", json["code"].Value<string>());
+            Assert.AreEqual("compiling", json["details"]["error"].Value<string>());
+        }
+
+        [Test]
+        public void Result_SuccessTrueWithErrorField_StaysSuccess()
+        {
+            // Mirrors the Node isHandlerLevelError predicate: success:true wins.
+            var json = JObject.Parse(Response.Result("42", new { success = true, error = "just a message field" }));
+            Assert.AreEqual("success", json["status"].Value<string>());
+        }
+
+        [Test]
+        public void Result_NonObjectPayloads_AreSuccess()
+        {
+            Assert.AreEqual("success", JObject.Parse(Response.Result("1", null))["status"].Value<string>());
+            Assert.AreEqual("success", JObject.Parse(Response.Result("2", "plain string"))["status"].Value<string>());
+            Assert.AreEqual("success", JObject.Parse(Response.Result("3", new[] { 1, 2, 3 }))["status"].Value<string>());
+        }
+
+        [Test]
+        public void Result_JObjectErrorPayload_IsClassified()
+        {
+            var payload = new JObject { ["error"] = "boom", ["context"] = "x" };
+            var json = JObject.Parse(Response.Result("42", payload));
+            Assert.AreEqual("error", json["status"].Value<string>());
+            Assert.AreEqual("x", json["details"]["context"].Value<string>());
+        }
+
+        [Test]
         public void Response_ShouldHandleComplexObjects()
         {
             // Arrange
