@@ -45,16 +45,37 @@ namespace UnityEditorMCP.Core
         
         public const int DEFAULT_PORT = 6400;
         private static int currentPort = DEFAULT_PORT;
-        
+
+        // Per-project deterministic port so concurrent editors don't collide on a
+        // single fixed port (C3). Override with the UNITY_MCP_PORT env var.
+        private static int ResolveInitialPort()
+        {
+            var env = Environment.GetEnvironmentVariable("UNITY_MCP_PORT");
+            if (!string.IsNullOrEmpty(env) && int.TryParse(env, out var port) && port > 1024 && port < 65536)
+            {
+                return port;
+            }
+            return EndpointAddressing.DerivePort(ProjectRoot());
+        }
+
+        /// <summary>The project root (the folder that contains Assets/).</summary>
+        private static string ProjectRoot()
+        {
+            var data = Application.dataPath.Replace('\\', '/');
+            const string assets = "/Assets";
+            return data.EndsWith(assets) ? data.Substring(0, data.Length - assets.Length) : data;
+        }
+
         /// <summary>
         /// Static constructor - called when Unity loads
         /// </summary>
         static UnityEditorMCP()
         {
             Debug.Log("[Unity Editor MCP] Initializing...");
+            currentPort = ResolveInitialPort();
             EditorApplication.update += ProcessCommandQueue;
             EditorApplication.quitting += Shutdown;
-            
+
             // Start the TCP listener
             StartTcpListener();
         }
