@@ -59,10 +59,13 @@ for contributors.
 
 ## Status
 
-- Done (all `dotnet test`-verified, 39 tests, + CI lane `csharp-core.yml`):
+- Done (all `dotnet test`-verified, 50 tests, + CI lane `csharp-core.yml`):
   - `UnityEditorMCP.Core` framing, command/result models, dispatcher, logger seam.
   - `CommandQueue` (main-thread marshalling seam) and `ProtocolCompatibility`
     (version negotiation).
+  - `TcpTransport` — the transport half, exercised over a real loopback socket.
+  - `Handshake` — protocol version + editor identity + availability payload, with
+    protocol- and project-path-mismatch checks (the B3/C3 seed).
   - Catalog → C# codegen: `CommandCatalog.g.cs` (editor command list + protocol
     version) generated from the catalog and drift-gated; `CatalogConformance`
     checks registered handlers against it (editor-side analog of the Node gate).
