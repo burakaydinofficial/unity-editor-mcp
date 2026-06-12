@@ -42,6 +42,9 @@ namespace UnityEditorMCP.Core
         /// <summary>Number of registered handlers.</summary>
         public int Count => _handlers.Count;
 
+        /// <summary>The command types that have a registered handler.</summary>
+        public IEnumerable<string> RegisteredTypes => _handlers.Keys;
+
         /// <summary>True if a handler is registered for the given command type.</summary>
         public bool IsRegistered(string type) => type != null && _handlers.ContainsKey(type);
 

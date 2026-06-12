@@ -9,6 +9,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { getServerTools, getEditorCommands, loadCatalog } from './lib/sources.mjs';
+import { buildCatalogSource, OUTPUT as GENERATED_CS } from './generate-csharp-catalog.mjs';
 
 const VERSION = (await readFile(new URL('../VERSION', import.meta.url), 'utf8')).trim();
 
@@ -63,6 +64,22 @@ const note = (side, name, message) => {
 
 if (catalog.protocol !== VERSION) {
   problems.push(`Catalog protocol version "${catalog.protocol}" != VERSION file "${VERSION}".`);
+}
+
+// The committed, generated C# catalog must match the canonical catalog + VERSION.
+{
+  const expected = (await buildCatalogSource()).replace(/\r\n?/g, '\n');
+  let actual = null;
+  try {
+    actual = (await readFile(GENERATED_CS, 'utf8')).replace(/\r\n?/g, '\n');
+  } catch {
+    /* missing file handled below */
+  }
+  if (actual === null) {
+    problems.push('Generated CommandCatalog.g.cs is missing — run: node protocol/scripts/generate-csharp-catalog.mjs');
+  } else if (actual !== expected) {
+    problems.push('Generated CommandCatalog.g.cs is out of date — run: node protocol/scripts/generate-csharp-catalog.mjs');
+  }
 }
 
 for (const name of catalogServer) {
