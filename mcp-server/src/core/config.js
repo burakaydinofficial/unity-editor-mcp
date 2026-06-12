@@ -1,6 +1,16 @@
 /**
  * Configuration for Unity Editor MCP Server
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+// Advertise the real package version to MCP clients (previously hardcoded to
+// '0.1.0', which disagreed with package.json and the Unity package version).
+const pkg = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../package.json'), 'utf8')
+);
+
 export const config = {
   // Unity connection settings
   unity: {
@@ -15,7 +25,7 @@ export const config = {
   // Server settings
   server: {
     name: 'unity-editor-mcp-server',
-    version: '0.1.0',
+    version: pkg.version,
     description: 'MCP server for Unity Editor integration',
   },
   
