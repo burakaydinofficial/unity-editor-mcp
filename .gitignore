@@ -88,3 +88,10 @@ unity-mcp-reference-project/
 
 # Local Claude Code settings (machine-specific; keep the requirements doc tracked)
 .claude/settings.local.json
+
+# .NET build output for the Unity-independent Core test project
+/dotnet/**/bin/
+/dotnet/**/obj/
+# Keep hand-authored project files under dotnet/ (the global *.csproj ignore above
+# is for Unity-generated project files, not ours).
+!/dotnet/**/*.csproj

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Verifies the Unity-INDEPENDENT core of the bridge with plain `dotnet test` —
+    no Unity, no license. It compiles the exact same source files the Unity
+    `UnityEditorMCP.Core` asmdef compiles for the editor, pinned to LangVersion 8
+    so anything that would not build on the 2020.3 floor's C# 8 fails here too.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>8.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Shared source: the editor compiles these via the asmdef; we compile them
+         here for CI/local verification. No DLL artifact, no build step for users. -->
+    <Compile Include="..\..\unity-editor-mcp\Core\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+</Project>
