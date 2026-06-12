@@ -12,6 +12,10 @@ version-divergent Unity API sits behind a `#if UNITY_X_Y_OR_NEWER` guard with
   what the code actually compiles against.
 - **C# language / runtime:** stay within **C# 8 / netstandard 2.0** (the 2020.3
   Mono reality). Code intended to also compile on 2019.4 is limited to **C# 7.3**.
+  This also rules out **netstandard 2.1+ BCL APIs** — e.g. `string.Contains(value,
+  StringComparison)` and the `char` `Contains`/`StartsWith`/`EndsWith` overloads
+  (use `IndexOf(value, StringComparison) >= 0` instead). The compat-lint guards
+  the curated cases; the rest surface on the 2020.3 compile.
 - **No UI Toolkit editor APIs in core paths** (IMGUI-safe) unless guarded.
 - **Node server:** pure JS, no native modules; the protocol tooling
   (`protocol/`) is dependency-free.

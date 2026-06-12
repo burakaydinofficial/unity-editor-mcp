@@ -270,7 +270,8 @@ namespace UnityEditorMCP.Handlers
                 
                 foreach (var window in windows)
                 {
-                    if (window.titleContent.text.Contains(windowName, StringComparison.OrdinalIgnoreCase))
+                    // string.Contains(value, StringComparison) is netstandard2.1+; IndexOf is floor-safe (see COMPATIBILITY.md).
+                    if (window.titleContent.text.IndexOf(windowName, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         targetWindow = window;
                         break;

@@ -24,6 +24,7 @@ const RULES = [
   { re: /\.linearDamping\b/, api: 'Rigidbody.linearDamping', reason: 'renamed from .drag in 6000 — guard with UNITY_6000_0_OR_NEWER' },
   { re: /\.angularDamping\b/, api: 'Rigidbody.angularDamping', reason: 'renamed from .angularDrag in 6000' },
   { re: /\bLightType\.Rectangle\b/, api: 'LightType.Rectangle', reason: 'differs from legacy LightType.Area' },
+  { re: /\.Contains\([^)]*,[^)]*StringComparison/, api: 'string.Contains(value, StringComparison)', reason: 'the 2-arg Contains overload is netstandard2.1+ — use IndexOf(value, StringComparison) >= 0 on the floor' },
 ];
 
 // Known-safe exceptions: { file: '<repo-relative path>', line: <number> }.

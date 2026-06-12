@@ -355,7 +355,8 @@ namespace UnityEditorMCP.Handlers
                         }
                         else
                         {
-                            matches &= obj.name.Contains(name, StringComparison.OrdinalIgnoreCase);
+                            // string.Contains(value, StringComparison) is netstandard2.1+; IndexOf is floor-safe (see COMPATIBILITY.md).
+                            matches &= obj.name.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0;
                         }
                     }
                     
