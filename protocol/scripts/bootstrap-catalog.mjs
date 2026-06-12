@@ -8,10 +8,26 @@
 // deliberate re-baseline.
 
 import { writeFile } from 'node:fs/promises';
-import { getServerTools, getEditorCommands, PATHS } from './lib/sources.mjs';
+import { getServerTools, getEditorCommands, loadCatalog, PATHS } from './lib/sources.mjs';
 import { readFile } from 'node:fs/promises';
 
 const VERSION = (await readFile(new URL('../VERSION', import.meta.url), 'utf8')).trim();
+
+// Preserve curated content from an existing catalog across a re-baseline:
+// derived result schemas (anything with a real `type`) must survive re-running
+// bootstrap, since they are not recoverable from the source code.
+const preserved = new Map();
+let preservedSource;
+try {
+  const existing = await loadCatalog();
+  preservedSource = existing.resultSchemaSource;
+  for (const c of existing.commands ?? []) {
+    // "Real" schema = anything that isn't the TODO placeholder ({ $comment } only).
+    if (c.result && Object.keys(c.result).some((k) => k !== '$comment')) preserved.set(c.name, c.result);
+  }
+} catch {
+  // No existing catalog (first bootstrap) — nothing to preserve.
+}
 
 // Command -> category. Mirrors the HANDLER_CLASSES grouping in
 // mcp-server/src/handlers/index.js so the catalog stays human-navigable.
@@ -62,7 +78,7 @@ for (const tool of serverTools) {
     destructive: DESTRUCTIVE.has(tool.name),
     description: tool.description,
     params: tool.inputSchema ?? { type: 'object' },
-    result: RESULT_TODO,
+    result: preserved.get(tool.name) ?? RESULT_TODO,
   });
 }
 
@@ -78,7 +94,7 @@ for (const name of editorCmds) {
     destructive: DESTRUCTIVE.has(name),
     description: 'Internal editor command (not exposed as an MCP tool).',
     params: { type: 'object' },
-    result: RESULT_TODO,
+    result: preserved.get(name) ?? RESULT_TODO,
   });
 }
 
@@ -104,6 +120,7 @@ for (const tool of serverTools) {
 const catalog = {
   $schema: './commands.schema.json',
   protocol: VERSION,
+  ...(preservedSource ? { resultSchemaSource: preservedSource } : {}),
   description:
     'Canonical command catalog for the Unity Editor MCP bridge. Authoritative source ' +
     'of the command surface shared by the Node server and the Unity editor package.',
