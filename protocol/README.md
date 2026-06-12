@@ -122,8 +122,13 @@ This is tracked honestly so the gap list is the work list:
    so version/project mismatches are undetectable.
 4. **Result schemas are derived, not yet enforced** — `result` is populated best-effort
    from handler returns, but responses are not validated against it.
-5. **Fixed port (6400), no project-derived addressing** — concurrent editors are
-   not independently addressable without manual configuration.
+5. **Addressing/discovery shipped, handshake enforcement pending** — editors now
+   derive a per-project port (FNV-1a, `[6400, 7424)`), fall back to an ephemeral
+   port on collision, and publish `{projectPath, port, …, lastHeartbeat}` to a
+   per-user filesystem registry the server resolves through (ADR 0003). What
+   remains protocol-side is the connect-time handshake exchange itself, so
+   `PROTOCOL_VERSION_MISMATCH` / `PROJECT_PATH_MISMATCH` are enforced on the wire
+   rather than by configuration.
 
 ## Roadmap (specified here, enforced later)
 

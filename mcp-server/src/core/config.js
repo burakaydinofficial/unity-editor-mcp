@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { resolveUnityPort } from './discovery.js';
 
 // Advertise the real package version to MCP clients (previously hardcoded to
 // '0.1.0', which disagreed with package.json and the Unity package version).
@@ -15,7 +16,9 @@ export const config = {
   // Unity connection settings
   unity: {
     host: process.env.UNITY_HOST || 'localhost',
-    port: parseInt(process.env.UNITY_PORT, 10) || 6400,
+    // UNITY_PORT wins; else UNITY_PROJECT_PATH resolves via the discovery
+    // registry (actual bound port) or the project-derived default; else 6400.
+    port: resolveUnityPort(process.env),
     reconnectDelay: 1000, // Initial reconnect delay in ms
     maxReconnectDelay: 30000, // Maximum reconnect delay
     reconnectBackoffMultiplier: 2,

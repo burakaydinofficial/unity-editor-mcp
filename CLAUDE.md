@@ -69,12 +69,15 @@ npm run dev                 # run with --watch
 
 Test environment notes: `NODE_ENV=test` or `CI=true` makes `UnityConnection.connect()` refuse to
 connect (so unit/integration tests never need a live editor); `DISABLE_AUTO_RECONNECT=true`
-disables the reconnect loop. Server config env vars: `UNITY_HOST`, `UNITY_PORT` (default 6400),
-`LOG_LEVEL` (`info`/`debug`).
+disables the reconnect loop. Server config env vars: `UNITY_HOST`, `UNITY_PORT` (explicit port,
+wins over discovery), `UNITY_PROJECT_PATH` (resolve the target editor via the discovery registry
+or the derived per-project port — ADR 0003), `UNITY_MCP_REGISTRY_DIR` (registry dir override),
+`LOG_LEVEL` (`info`/`debug`). Editor-side env: `UNITY_MCP_PORT` overrides the derived port.
 
-Unity-side tests are NUnit EditMode tests (`unity-editor-mcp/Tests/Editor/`, plus
-`Editor/Tests/`) and run through the Unity Test Runner inside an editor — they cannot be run from
-the command line in this repo alone.
+Unity-side tests are NUnit EditMode tests (`unity-editor-mcp/Tests/Editor/`) and run through the
+Unity Test Runner inside an editor — they cannot be run from the command line in this repo alone.
+Local host projects for the floor matrix live in the git-ignored `unity-test-projects/`
+(2020.3 / 2021.3 / 2022.3), wired to the package via `file:` refs and `testables`.
 
 The protocol contract has its own dependency-free tooling (run from `protocol/`):
 
@@ -102,7 +105,7 @@ node scripts/compat-lint.mjs
 Communication chain:
 
 ```
-MCP client (Claude/Cursor) ⇄ stdio (JSON-RPC) ⇄ Node server ⇄ TCP localhost:6400 ⇄ Unity Editor
+MCP client (Claude/Cursor) ⇄ stdio (JSON-RPC) ⇄ Node server ⇄ TCP loopback (discovered/derived per-project port; ADR 0003) ⇄ Unity Editor
 ```
 
 The TCP protocol is length-prefixed JSON: a 4-byte big-endian length header followed by a UTF-8
