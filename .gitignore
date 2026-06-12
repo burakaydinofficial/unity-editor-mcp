@@ -89,6 +89,9 @@ unity-mcp-reference-project/
 # Local Claude Code settings (machine-specific; keep the requirements doc tracked)
 .claude/settings.local.json
 
+# Local per-version Unity host projects for floor verification (not committed)
+/unity-test-projects/
+
 # .NET build output for the Unity-independent Core test project
 /dotnet/**/bin/
 /dotnet/**/obj/
