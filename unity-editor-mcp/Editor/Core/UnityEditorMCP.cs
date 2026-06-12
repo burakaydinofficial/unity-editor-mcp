@@ -81,41 +81,87 @@ namespace UnityEditorMCP.Core
         }
         
         /// <summary>
-        /// Starts the TCP listener on the configured port
+        /// Starts the TCP listener on the configured port, falling back to an
+        /// OS-assigned ephemeral port if it is taken. Whatever port is actually
+        /// bound is published to the discovery registry (ADR 0003), so clients
+        /// resolve the real endpoint from there rather than assuming a number.
         /// </summary>
         private static void StartTcpListener()
         {
+            if (tcpListener != null)
+            {
+                StopTcpListener();
+            }
+
+            if (TryStartListener(currentPort)) return;
+
+            Debug.LogWarning($"[Unity Editor MCP] Port {currentPort} is in use; falling back to an OS-assigned port (published via the discovery registry).");
+            if (TryStartListener(0)) return;
+
+            Status = McpStatus.Error;
+            Debug.LogError("[Unity Editor MCP] Failed to start TCP listener on both the configured and a fallback port.");
+        }
+
+        private static bool TryStartListener(int port)
+        {
             try
             {
-                if (tcpListener != null)
-                {
-                    StopTcpListener();
-                }
-                
                 cancellationTokenSource = new CancellationTokenSource();
-                tcpListener = new TcpListener(IPAddress.Loopback, currentPort);
+                tcpListener = new TcpListener(IPAddress.Loopback, port);
                 tcpListener.Start();
-                
+                currentPort = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
+
                 Status = McpStatus.Disconnected;
                 Debug.Log($"[Unity Editor MCP] TCP listener started on port {currentPort}");
-                
+
                 // Start accepting connections asynchronously
                 listenerTask = Task.Run(() => AcceptConnectionsAsync(cancellationTokenSource.Token));
+                PublishDescriptor();
+                return true;
             }
             catch (SocketException ex)
             {
-                Status = McpStatus.Error;
-                Debug.LogError($"[Unity Editor MCP] Failed to start TCP listener on port {currentPort}: {ex.Message}");
-                
-                if (ex.SocketErrorCode == SocketError.AddressAlreadyInUse)
-                {
-                    Debug.LogError($"[Unity Editor MCP] Port {currentPort} is already in use. Please ensure no other instance is running.");
-                }
+                Debug.LogWarning($"[Unity Editor MCP] Could not bind port {port}: {ex.Message}");
+                return false;
             }
             catch (Exception ex)
             {
                 Status = McpStatus.Error;
                 Debug.LogError($"[Unity Editor MCP] Unexpected error starting TCP listener: {ex}");
+                return false;
+            }
+        }
+
+        private static InstanceRegistry instanceRegistry;
+        private static DateTime startedAtUtc = DateTime.UtcNow;
+        private static DateTime lastHeartbeatUtc;
+        private const double HeartbeatIntervalSeconds = 60;
+
+        /// <summary>Publishes (or refreshes) this editor's discovery descriptor.</summary>
+        private static void PublishDescriptor()
+        {
+            try
+            {
+                if (instanceRegistry == null)
+                {
+                    instanceRegistry = new InstanceRegistry(InstanceRegistry.DefaultDirectory());
+                }
+                var now = DateTime.UtcNow;
+                instanceRegistry.Publish(new InstanceDescriptor
+                {
+                    ProjectPath = ProjectRoot(),
+                    Port = currentPort,
+                    Pid = System.Diagnostics.Process.GetCurrentProcess().Id,
+                    UnityVersion = Application.unityVersion,
+                    StartedAtUtc = startedAtUtc,
+                    LastHeartbeatUtc = now,
+                });
+                lastHeartbeatUtc = now;
+            }
+            catch (Exception ex)
+            {
+                // Discovery is best-effort; the bridge still works via explicit port config.
+                Debug.LogWarning($"[Unity Editor MCP] Could not publish discovery descriptor: {ex.Message}");
             }
         }
         
@@ -331,6 +377,13 @@ namespace UnityEditorMCP.Core
         /// </summary>
         private static void ProcessCommandQueue()
         {
+            // Keep the discovery descriptor fresh while the listener is alive
+            // (stale descriptors are reaped after 300s; see InstanceRegistry).
+            if (tcpListener != null && (DateTime.UtcNow - lastHeartbeatUtc).TotalSeconds >= HeartbeatIntervalSeconds)
+            {
+                PublishDescriptor();
+            }
+
             lock (queueLock)
             {
                 while (commandQueue.Count > 0)
@@ -820,6 +873,7 @@ namespace UnityEditorMCP.Core
         {
             Debug.Log("[Unity Editor MCP] Shutting down...");
             StopTcpListener();
+            try { instanceRegistry?.Remove(ProjectRoot()); } catch { /* best effort */ }
             EditorApplication.update -= ProcessCommandQueue;
             EditorApplication.quitting -= Shutdown;
         }
