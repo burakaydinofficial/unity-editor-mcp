@@ -3,6 +3,28 @@ import { EventEmitter } from 'events';
 import { config, logger } from './config.js';
 
 /**
+ * Detects a handler-level error returned by the Unity editor under a
+ * status:"success" envelope. The editor dispatcher currently wraps handler
+ * `{ error: ... }` results in SuccessResult, so domain failures would otherwise
+ * arrive as successes. The bridge convention is that a top-level string `error`
+ * marks a failure and never appears on a success payload, so this is safe to
+ * treat as an error at the boundary. (The wire-truth fix — the editor emitting a
+ * real ErrorResult — is tracked in protocol/README.md; this keeps MCP clients
+ * correct until then, and is also defensive against any future regression.)
+ * @param {*} result - the unwrapped payload from a success-status response
+ * @returns {boolean}
+ */
+export function isHandlerLevelError(result) {
+  return (
+    result !== null &&
+    typeof result === 'object' &&
+    !Array.isArray(result) &&
+    typeof result.error === 'string' &&
+    result.success !== true
+  );
+}
+
+/**
  * Manages TCP connection to Unity Editor
  */
 export class UnityConnection extends EventEmitter {
@@ -279,8 +301,15 @@ export class UnityConnection extends EventEmitter {
                 }
               }
               
-              logger.info(`[Unity] Command ${response.id} resolved successfully`);
-              pending.resolve(result);
+              if (isHandlerLevelError(result)) {
+                const err = new Error(result.error);
+                err.code = result.code || 'EDITOR_ERROR';
+                logger.warn(`[Unity] Command ${response.id} returned a handler-level error under a success envelope: ${result.error}`);
+                pending.reject(err);
+              } else {
+                logger.info(`[Unity] Command ${response.id} resolved successfully`);
+                pending.resolve(result);
+              }
             } else if (response.status === 'error' || response.success === false) {
               logger.error(`[Unity] Command ${response.id} failed:`, response.error);
               pending.reject(new Error(response.error || 'Command failed'));

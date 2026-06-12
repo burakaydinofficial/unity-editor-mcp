@@ -108,10 +108,13 @@ implemented — see Roadmap.)*
 
 This is tracked honestly so the gap list is the work list:
 
-1. **Errors transported as success.** The editor dispatcher wraps every handler
-   result — including `{ error: ... }` — in `SuccessResult`, so domain failures
-   arrive with `status:"success"`. The error envelope above is the target; the
-   dispatcher must stop laundering errors into successes.
+1. **Errors transported as success (editor side).** The editor dispatcher wraps
+   every handler result — including `{ error: ... }` — in `SuccessResult`, so
+   domain failures leave Unity with `status:"success"`. The Node boundary now
+   detects this shape and surfaces it to clients as a proper error
+   (`unityConnection.isHandlerLevelError`), so MCP clients are correct today; the
+   remaining wire-truth fix is the editor dispatcher emitting a real `ErrorResult`
+   (needs editor/CI verification).
 2. **`get_component_types`** is a registered MCP tool with no editor dispatch
    case (baselined in `knownGaps`): it returns `UNKNOWN_COMMAND` at runtime.
 3. **No handshake / capability negotiation.** `ping` returns only a pong; the
