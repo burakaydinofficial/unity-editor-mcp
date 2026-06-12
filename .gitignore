@@ -85,3 +85,6 @@ dist/
 build/
 CLAUDE.local.md
 unity-mcp-reference-project/
+
+# Local Claude Code settings (machine-specific; keep the requirements doc tracked)
+.claude/settings.local.json
