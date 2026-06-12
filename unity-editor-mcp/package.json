@@ -18,7 +18,8 @@
     "url": "https://github.com/ozankasikci"
   },
   "dependencies": {
-    "com.unity.nuget.newtonsoft-json": "3.2.1"
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "com.unity.test-framework": "1.1.33"
   },
   "repository": {
     "type": "git",

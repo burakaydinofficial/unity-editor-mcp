@@ -41,12 +41,14 @@ Tracked openly so the list is the work list:
    (the `AssetManagementHandler` guard above) reached `main` precisely because
    nothing compiled the C# on the claimed floor. Standing up that matrix
    (requirement A3) is the single highest-leverage compatibility task.
-2. **Test Runner integration is under-wired.** `TestRunnerHandler.cs` uses
-   `UnityEditor.TestTools.TestRunner.Api`, but the editor asmdef
-   (`UnityEditorMCP.Editor.asmdef`) references only `Newtonsoft.Json` and
-   `unity-editor-mcp/package.json` does not declare `com.unity.test-framework`
-   as a dependency. Also, `TestRunnerHandler.cs` is **missing its `.meta` file**
-   (the only source file in the package without one). Verify in-editor.
+2. **Test Runner wiring — fixed, pending in-editor verification.** Added the
+   `UnityEditor.TestRunner` assembly reference to `UnityEditorMCP.Editor.asmdef`,
+   declared `com.unity.test-framework` (>= 1.1.33; UPM resolves higher on newer
+   editors) in `unity-editor-mcp/package.json`, and added the missing
+   `TestRunnerHandler.cs.meta`. Note: the test handler lives in the core editor
+   assembly, so the bridge now depends on the test framework (a default package);
+   isolating it into its own assembly is a possible later refinement. Confirm
+   compilation across the version matrix.
 3. **`get_component_types`** is a registered MCP tool with no Unity dispatch
    case — it returns `UNKNOWN_COMMAND` at runtime. Baselined in
    `protocol/catalog/commands.json` → `knownGaps`.

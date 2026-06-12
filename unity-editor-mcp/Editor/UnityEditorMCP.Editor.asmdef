@@ -2,7 +2,8 @@
     "name": "UnityEditorMCP.Editor",
     "rootNamespace": "UnityEditorMCP",
     "references": [
-        "Newtonsoft.Json"
+        "Newtonsoft.Json",
+        "UnityEditor.TestRunner"
     ],
     "includePlatforms": [
         "Editor"
