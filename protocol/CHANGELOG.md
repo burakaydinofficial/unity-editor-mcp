@@ -20,6 +20,9 @@ Seeded from the existing implementation ("describe what exists").
   returns (`resultSchemaSource: derived-from-handlers-v1`), via
   `scripts/import-result-schemas.mjs`. The structural backlog they surfaced is
   captured in `docs/quality-roadmap.md`.
+- C# code generation: `scripts/generate-csharp-catalog.mjs` emits the committed
+  `unity-editor-mcp/Core/CommandCatalog.g.cs` (editor command list + protocol
+  version); `check-drift` now also fails when that generated file is stale.
 
 ### Known gaps (baselined)
 - `get_component_types` — registered MCP tool with no editor dispatch case.

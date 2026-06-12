@@ -59,9 +59,16 @@ for contributors.
 
 ## Status
 
-- Done: `UnityEditorMCP.Core` PoC (framing, models, dispatcher, logger seam) +
-  `dotnet test` project (16 tests, green) + CI lane (`.github/workflows/csharp-core.yml`).
+- Done (all `dotnet test`-verified, 39 tests, + CI lane `csharp-core.yml`):
+  - `UnityEditorMCP.Core` framing, command/result models, dispatcher, logger seam.
+  - `CommandQueue` (main-thread marshalling seam) and `ProtocolCompatibility`
+    (version negotiation).
+  - Catalog → C# codegen: `CommandCatalog.g.cs` (editor command list + protocol
+    version) generated from the catalog and drift-gated; `CatalogConformance`
+    checks registered handlers against it (editor-side analog of the Node gate).
 - Next: move the live transport/bootstrap (`Editor/Core/UnityEditorMCP.cs`) onto
-  Core's framer + dispatcher; migrate handlers to return `HandlerOutcome`; then the
-  editor dispatcher emits real `ErrorResult` and the error-laundering deviation in
-  `protocol/README.md` is closed.
+  Core's framer + dispatcher + queue; migrate handlers to return `HandlerOutcome`
+  and register into the dispatcher (with a startup `CatalogConformance` check);
+  then the editor dispatcher emits real `ErrorResult` and the error-laundering
+  deviation in `protocol/README.md` is closed. This step needs in-editor
+  verification (the `[InitializeOnLoad]`/pump + handlers' `UnityEditor` calls).
