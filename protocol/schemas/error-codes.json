@@ -1,0 +1,18 @@
+{
+  "$schema": "./error-codes.schema.json",
+  "description": "Machine-readable error-code vocabulary for the error envelope (I3). Codes marked status:current are already emitted by the implementation; status:target are specified for upcoming reliability/compat work and not yet wired.",
+  "codes": [
+    { "code": "PARSE_ERROR", "status": "current", "retriable": false, "description": "Frame payload was not valid JSON / not a command.", "remediation": "Fix the client framing or payload." },
+    { "code": "JSON_ERROR", "status": "current", "retriable": false, "description": "JSON deserialization of the command failed.", "remediation": "Validate params against the catalog schema before sending." },
+    { "code": "UNKNOWN_COMMAND", "status": "current", "retriable": false, "description": "No dispatch case for the command type on the connected editor.", "remediation": "Check the command name; verify the editor package version implements it." },
+    { "code": "INTERNAL_ERROR", "status": "current", "retriable": false, "description": "Unhandled exception in the editor handler.", "remediation": "Inspect editor logs / details.stackTrace; file a bug." },
+    { "code": "VALIDATION_ERROR", "status": "target", "retriable": false, "description": "Params failed schema validation.", "remediation": "Correct the parameters to satisfy the catalog params schema." },
+    { "code": "EDITOR_COMPILING", "status": "target", "retriable": true, "description": "Editor is compiling; command cannot run yet.", "remediation": "Retry once status.isCompiling is false." },
+    { "code": "PLAY_MODE_BLOCKED", "status": "target", "retriable": true, "description": "Command is not permitted during Play Mode.", "remediation": "Exit Play Mode, or use a play-mode-safe command." },
+    { "code": "INTERRUPTED_BY_RELOAD", "status": "target", "retriable": true, "description": "A domain reload interrupted command execution.", "remediation": "Re-query outcome via the journal / re-issue the command." },
+    { "code": "UNSUPPORTED_ON_EDITOR_VERSION", "status": "target", "retriable": false, "description": "Command/feature is unavailable on the connected Unity version.", "remediation": "Use a supported editor version, or a version-appropriate command." },
+    { "code": "PROTOCOL_VERSION_MISMATCH", "status": "target", "retriable": false, "description": "Server and editor speak incompatible protocol majors.", "remediation": "Update whichever half is older so both share a protocol major." },
+    { "code": "PROJECT_PATH_MISMATCH", "status": "target", "retriable": false, "description": "Connected editor's project path does not match the targeted project.", "remediation": "Point the server at the correct editor instance / port." },
+    { "code": "CONFIRMATION_REQUIRED", "status": "target", "retriable": false, "description": "A destructive command requires explicit confirm:true.", "remediation": "Re-issue with confirm:true after verifying intent." }
+  ]
+}

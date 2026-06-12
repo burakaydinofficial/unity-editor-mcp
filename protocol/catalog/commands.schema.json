@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unity-editor-mcp/protocol/catalog/commands.schema.json",
+  "title": "Unity Editor MCP — Command Catalog",
+  "description": "Structure of the canonical command catalog (commands.json).",
+  "type": "object",
+  "required": ["protocol", "commands"],
+  "additionalProperties": true,
+  "properties": {
+    "$schema": { "type": "string" },
+    "protocol": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Protocol semver; must equal protocol/VERSION."
+    },
+    "description": { "type": "string" },
+    "knownGaps": {
+      "type": "array",
+      "description": "Baselined, tracked implementation gaps. The drift gate treats these as warnings, not failures.",
+      "items": {
+        "type": "object",
+        "required": ["command", "missing"],
+        "additionalProperties": true,
+        "properties": {
+          "command": { "type": "string" },
+          "missing": { "enum": ["server", "editor"] },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "commands": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/command" }
+    }
+  },
+  "$defs": {
+    "command": {
+      "type": "object",
+      "required": ["name", "category", "sides", "params"],
+      "additionalProperties": true,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "verb_noun command type string; identical on both halves."
+        },
+        "category": { "type": "string" },
+        "sides": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "enum": ["server", "editor"] },
+          "description": "Which halves must implement this command."
+        },
+        "internal": {
+          "type": "boolean",
+          "description": "True for editor commands not exposed as MCP tools."
+        },
+        "destructive": {
+          "type": "boolean",
+          "description": "True if the command can irreversibly change project state (informs confirm-gating)."
+        },
+        "description": { "type": "string" },
+        "params": {
+          "type": "object",
+          "description": "JSON Schema for the command parameters — the authoritative server-side input contract."
+        },
+        "result": {
+          "type": "object",
+          "description": "JSON Schema for the result payload. Unspecified in protocol v1 (TODO)."
+        }
+      }
+    }
+  }
+}

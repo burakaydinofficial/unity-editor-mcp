@@ -1,0 +1,12 @@
+{
+  "name": "@unity-editor-mcp/protocol",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Canonical, versioned communication contract shared by the Unity Editor MCP Node server and Unity editor package. Updated infrequently; a change here must be satisfied by both halves before either can release.",
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check-drift.mjs",
+    "bootstrap": "node scripts/bootstrap-catalog.mjs"
+  },
+  "license": "MIT"
+}

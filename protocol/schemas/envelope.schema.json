@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unity-editor-mcp/protocol/schemas/envelope.schema.json",
+  "title": "Unity Editor MCP — Wire Envelope",
+  "description": "TARGET request/response envelope carried over the length-prefixed TCP frame (4-byte big-endian length + UTF-8 JSON). NOTE: this is the target contract. The current editor dispatcher violates it by wrapping handler-level errors as success (see protocol/README.md → Known deviations). Not yet machine-enforced via conformance vectors.",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/successResponse" },
+    { "$ref": "#/$defs/errorResponse" }
+  ],
+  "$defs": {
+    "request": {
+      "type": "object",
+      "required": ["id", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "Client-assigned correlation id." },
+        "type": { "type": "string", "description": "Command type from the catalog." },
+        "params": { "type": "object", "description": "Command parameters (validated against the catalog params schema)." }
+      }
+    },
+    "successResponse": {
+      "type": "object",
+      "required": ["id", "status", "result"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "const": "success" },
+        "result": { "description": "Result payload (catalog result schema)." },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "errorResponse": {
+      "type": "object",
+      "required": ["id", "status", "error", "code"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "const": "error" },
+        "error": { "type": "string", "description": "Human-readable message." },
+        "code": { "type": "string", "description": "Machine error code (see error-codes.json)." },
+        "remediation": { "type": "string", "description": "What the caller should do next." },
+        "details": { "type": "object" }
+      }
+    }
+  }
+}

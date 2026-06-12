@@ -1,0 +1,25 @@
+name: Protocol Contract
+
+# Fails the build when either half of the bridge diverges from the canonical
+# command catalog (protocol/catalog/commands.json). Pure Node, no install step.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check protocol drift (catalog vs server vs editor)
+        run: node scripts/check-drift.mjs
+        working-directory: ./protocol
