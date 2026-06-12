@@ -59,19 +59,23 @@ for contributors.
 
 ## Status
 
-- Done (all `dotnet test`-verified, 50 tests, + CI lane `csharp-core.yml`):
+- Done (all `dotnet test`-verified, 53 tests, + CI lane `csharp-core.yml`):
   - `UnityEditorMCP.Core` framing, command/result models, dispatcher, logger seam.
   - `CommandQueue` (main-thread marshalling seam) and `ProtocolCompatibility`
     (version negotiation).
-  - `TcpTransport` — the transport half, exercised over a real loopback socket.
+  - `TcpTransport` — the transport, exercised over a real loopback socket.
   - `Handshake` — protocol version + editor identity + availability payload, with
     protocol- and project-path-mismatch checks (the B3/C3 seed).
+  - `McpBridge` — composes transport + parse + queue + dispatcher + framed reply;
+    a full command round-trip is tested over a real loopback socket.
   - Catalog → C# codegen: `CommandCatalog.g.cs` (editor command list + protocol
     version) generated from the catalog and drift-gated; `CatalogConformance`
     checks registered handlers against it (editor-side analog of the Node gate).
-- Next: move the live transport/bootstrap (`Editor/Core/UnityEditorMCP.cs`) onto
-  Core's framer + dispatcher + queue; migrate handlers to return `HandlerOutcome`
-  and register into the dispatcher (with a startup `CatalogConformance` check);
-  then the editor dispatcher emits real `ErrorResult` and the error-laundering
-  deviation in `protocol/README.md` is closed. This step needs in-editor
-  verification (the `[InitializeOnLoad]`/pump + handlers' `UnityEditor` calls).
+- Next (step 2 — needs in-editor verification): rewrite the bootstrap
+  (`Editor/Core/UnityEditorMCP.cs`) to construct an `McpBridge`, register the
+  existing handlers wrapped to return `HandlerOutcome`, pump `Drain()` from
+  `EditorApplication.update`, send the `Handshake` on connect, and run a startup
+  `CatalogConformance` check. Core does the rest, so this closes the
+  error-laundering deviation in `protocol/README.md` on the wire. Only the
+  `[InitializeOnLoad]` wiring + the handlers' actual `UnityEditor` calls need an
+  editor to verify.
