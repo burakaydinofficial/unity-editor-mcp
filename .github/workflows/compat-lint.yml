@@ -1,0 +1,25 @@
+name: Compatibility Lint
+
+# Flags floor-divergent Unity APIs used outside an #if guard — the cheap PR gate
+# that catches the failure class that broke the 2020.3 floor before. Pure Node,
+# no Unity, no license. See COMPATIBILITY.md and scripts/compat-lint.mjs.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  compat-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Lint floor-divergent Unity APIs
+        run: node scripts/compat-lint.mjs

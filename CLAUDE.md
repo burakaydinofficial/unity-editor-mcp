@@ -90,6 +90,13 @@ cd dotnet/UnityEditorMCP.Core.Tests
 dotnet test            # framing, dispatch, result/error contract — pinned to C# 8, no editor
 ```
 
+Compatibility lint (pure Node, from repo root) — flags floor-divergent Unity APIs used outside an
+`#if` guard (would have caught the PrefabStage floor break):
+
+```bash
+node scripts/compat-lint.mjs
+```
+
 ## Architecture
 
 Communication chain:

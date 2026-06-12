@@ -36,11 +36,14 @@ in sync when you add or remove a guard.
 
 Tracked openly so the list is the work list:
 
-1. **Floor not yet CI-verified.** There is no CI matrix compiling the Unity
-   package on 2020.3 / 2021.3 / 2022.3 / 6000. The PrefabStage floor-break
-   (the `AssetManagementHandler` guard above) reached `main` precisely because
-   nothing compiled the C# on the claimed floor. Standing up that matrix
-   (requirement A3) is the single highest-leverage compatibility task.
+1. **Floor not fully CI-verified.** Two cheap, pure-Node PR gates now guard the
+   floor: the **compat-lint** (`scripts/compat-lint.mjs`) flags floor-divergent
+   Unity APIs used outside an `#if` guard (it would have caught the PrefabStage
+   break), and the **Core `dotnet test`** lane verifies the Unity-independent
+   spine. What neither does is actually *compile* the Unity package on each editor:
+   a full game-ci matrix on 2020.3 / 2021.3 / 2022.3 / 6000 (requirement A3)
+   remains the gold standard — heavyweight (Unity license + minutes), a deliberate
+   later step, with local in-editor checks in the interim.
 2. **Test Runner wiring — fixed, pending in-editor verification.** Added the
    `UnityEditor.TestRunner` assembly reference to `UnityEditorMCP.Editor.asmdef`,
    declared `com.unity.test-framework` (>= 1.1.33; UPM resolves higher on newer
@@ -60,3 +63,5 @@ Tracked openly so the list is the work list:
 2. Add a row to the table above (file:line, guard, API, note).
 3. Prefer the **oldest-still-correct** API in the `#else` branch so the floor
    keeps working.
+4. If it is a common floor-divergent API, add it to `RULES` in
+   `scripts/compat-lint.mjs` so unguarded future uses fail CI on every PR.
