@@ -5,6 +5,16 @@ using System.Linq;
 using UnityEngine;
 using UnityEditor;
 using Newtonsoft.Json.Linq;
+// COMPATIBILITY (see COMPATIBILITY.md): PrefabStageUtility moved namespaces in
+// Unity 2021.2 — UnityEditor.Experimental.SceneManagement (<= 2021.1) ->
+// UnityEditor.SceneManagement (2021.2+). This guarded alias keeps both the
+// 2020.3 floor and newer editors compiling. StageUtility is non-experimental
+// in all supported versions and is referenced fully-qualified below.
+#if UNITY_2021_2_OR_NEWER
+using PrefabStageUtility = UnityEditor.SceneManagement.PrefabStageUtility;
+#else
+using PrefabStageUtility = UnityEditor.Experimental.SceneManagement.PrefabStageUtility;
+#endif
 
 namespace UnityEditorMCP.Handlers
 {
@@ -730,7 +740,7 @@ namespace UnityEditorMCP.Handlers
                 }
 
                 // Check if already in prefab mode with this prefab
-                var currentStage = UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage();
+                var currentStage = PrefabStageUtility.GetCurrentPrefabStage();
                 bool wasAlreadyOpen = false;
                 
                 if (currentStage != null && currentStage.assetPath == prefabPath)
@@ -743,7 +753,7 @@ namespace UnityEditorMCP.Handlers
                     AssetDatabase.OpenAsset(prefabAsset);
                     
                     // Wait for prefab stage to be ready
-                    currentStage = UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage();
+                    currentStage = PrefabStageUtility.GetCurrentPrefabStage();
                 }
 
                 if (currentStage == null)
@@ -801,7 +811,7 @@ namespace UnityEditorMCP.Handlers
                 bool saveChanges = parameters["saveChanges"]?.ToObject<bool>() ?? true;
 
                 // Check if in prefab mode
-                var currentStage = UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage();
+                var currentStage = PrefabStageUtility.GetCurrentPrefabStage();
                 if (currentStage == null)
                 {
                     return new
@@ -860,7 +870,7 @@ namespace UnityEditorMCP.Handlers
                 bool includeChildren = parameters["includeChildren"]?.ToObject<bool>() ?? true;
 
                 // Check if in prefab mode
-                var currentStage = UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage();
+                var currentStage = PrefabStageUtility.GetCurrentPrefabStage();
                 
                 if (currentStage != null && string.IsNullOrEmpty(gameObjectPath))
                 {
