@@ -8,6 +8,40 @@ contract: the catalog + drift gate is the spine; these bring the implementation 
 
 **Totals:** 38 findings across 6 dimensions — 17 high, 17 medium, 4 low.
 
+## Priority queue (living — reorder as reality dictates)
+
+Organizing principle: **wire-truth first** (the live editor path still launders errors until
+the Core migration lands), floor-treadmill second, polish last.
+
+**P0 — critical path**
+1. In-editor verification round (user): `CoreSmokeTests` per floor version; derived port +
+   discovery descriptor observed. Gates every Unity-side change below.
+2. Step-2 slice 2: swap the bootstrap onto `McpBridge`, legacy `ProcessCommand` switch
+   registered as a fallback handler adapting `{error:…}` to `HandlerOutcome` — closes
+   error-laundering on the wire for all commands at once; worst case is one revert.
+3. Handshake exchange on connect (McpBridge hosts, Node consumes):
+   `PROTOCOL_VERSION_MISMATCH` / `PROJECT_PATH_MISMATCH` enforced on the wire.
+
+**P1 — structural completion**
+4. Migrate handlers to real `HandlerOutcome` by category (strangler) + startup
+   `CatalogConformance` check; typed error codes (`EDITOR_COMPILING`, `VALIDATION_ERROR`…).
+5. Node `tools/` leftovers: 10 double-wrapped analysis/scene tools, payload-discarding
+   summaries, vestigial `validators.js`.
+6. Param-schema drift detection in the gate (the `list_components` class) + the open
+   `list_components` product decision (user call).
+7. Server reconnect re-resolution via the registry + server-side stale reaping (ADR 0003
+   follow-ups).
+8. `get_component_types`: implement the editor side or drop the tool (removes the permanent
+   knownGap warning).
+
+**P2 — hardening / later bets**
+9. Result-schema validation at the Node boundary (decide: minimal hand-rolled validator vs
+   accepting ajv as a dependency).
+10. Shared protocol conformance vectors run by both halves.
+11. C# dispatch codegen from the catalog (compile-time half; conformance covers runtime).
+12. game-ci single floor lane (2020.3, license-gated).
+13. 2019.4 exploration (C# 7.3) — after the 2020.3 story is fully proven.
+
 ## Progress
 
 Addressed since this audit (C#-side changes still need editor/CI verification):
