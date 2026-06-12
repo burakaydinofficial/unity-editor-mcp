@@ -25,7 +25,7 @@ disagrees with it.
 | Path | Role |
 | --- | --- |
 | `VERSION` | The protocol semver. The single source for the version number. |
-| `catalog/commands.json` | **Canonical** command catalog: every command, its sides, params, (target) result. |
+| `catalog/commands.json` | **Canonical** command catalog: every command, its sides, params, and derived result schema. |
 | `catalog/commands.schema.json` | JSON Schema for the catalog file itself. |
 | `schemas/envelope.schema.json` | Target request/response wire envelope. |
 | `schemas/error-codes.json` | Machine error-code vocabulary (I3). |
@@ -53,7 +53,8 @@ See `schemas/envelope.schema.json`. Error codes live in `schemas/error-codes.jso
 - `sides` — which halves must implement it (`server`, `editor`, or both).
 - `params` — JSON Schema for the parameters (the server-side input contract,
   extracted mechanically from the live handler definitions).
-- `result` — JSON Schema for the payload (unspecified in v1 — see Roadmap).
+- `result` — JSON Schema for the success payload, derived best-effort from the editor
+  handler returns (`resultSchemaSource: derived-from-handlers-v1`); not yet response-validated.
 - `internal`, `destructive`, `category`, `description` — metadata.
 
 Run the gate:
@@ -116,14 +117,18 @@ This is tracked honestly so the gap list is the work list:
 3. **No handshake / capability negotiation.** `ping` returns only a pong; the
    connection carries no editor version, project path, or per-tool availability,
    so version/project mismatches are undetectable.
-4. **Result schemas are unspecified** (`result` is a TODO placeholder).
+4. **Result schemas are derived, not yet enforced** — `result` is populated best-effort
+   from handler returns, but responses are not validated against it.
 5. **Fixed port (6400), no project-derived addressing** — concurrent editors are
    not independently addressable without manual configuration.
 
 ## Roadmap (specified here, enforced later)
 
-- **Result schemas:** derive per-command result shapes from the editor handlers
-  and fill `result`; then validate responses against them.
+The verified structural backlog (error contract, dispatch generation, lifecycle, …)
+lives in `docs/quality-roadmap.md`. Protocol-specific next steps:
+
+- **Result schemas:** validate responses against the derived `result` schemas and
+  refine the low-confidence ones (e.g. `get_component_types` once it has a handler).
 - **Conformance vectors:** golden request/response fixtures the protocol ships,
   run against both halves (the real "fail both releases" gate).
 - **Codegen:** generate the C# command registry/constants and (optionally) C#

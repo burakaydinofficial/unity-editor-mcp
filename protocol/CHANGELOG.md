@@ -16,6 +16,10 @@ Seeded from the existing implementation ("describe what exists").
 - Drift gate (`scripts/check-drift.mjs`): fails on new divergence between the
   catalog, the Node MCP handler registry, and the Unity dispatch switch.
 - Target wire envelope and machine error-code vocabulary.
+- Per-command success `result` schemas (66) derived from the Unity handler
+  returns (`resultSchemaSource: derived-from-handlers-v1`), via
+  `scripts/import-result-schemas.mjs`. The structural backlog they surfaced is
+  captured in `docs/quality-roadmap.md`.
 
 ### Known gaps (baselined)
 - `get_component_types` — registered MCP tool with no editor dispatch case.

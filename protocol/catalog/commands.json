@@ -1,6 +1,7 @@
 {
   "$schema": "./commands.schema.json",
   "protocol": "1.0.0",
+  "resultSchemaSource": "derived-from-handlers-v1",
   "description": "Canonical command catalog for the Unity Editor MCP bridge. Authoritative source of the command surface shared by the Node server and the Unity editor package.",
   "knownGaps": [
     {
@@ -43,7 +44,100 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "sceneName": {
+            "type": "string",
+            "description": "Name of the active scene"
+          },
+          "statistics": {
+            "type": "object",
+            "properties": {
+              "totalGameObjects": {
+                "type": "number"
+              },
+              "activeGameObjects": {
+                "type": "number"
+              },
+              "rootObjects": {
+                "type": "number"
+              },
+              "prefabInstances": {
+                "type": "number"
+              },
+              "uniquePrefabs": {
+                "type": "number"
+              }
+            }
+          },
+          "componentDistribution": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Count of each component type in scene, with Scripts as nested object"
+          },
+          "rendering": {
+            "type": "object",
+            "properties": {
+              "materials": {
+                "type": "number"
+              },
+              "textures": {
+                "type": "number"
+              },
+              "meshes": {
+                "type": "number"
+              },
+              "vertices": {
+                "type": "number"
+              },
+              "triangles": {
+                "type": "number"
+              }
+            }
+          },
+          "lighting": {
+            "type": "object",
+            "properties": {
+              "directionalLights": {
+                "type": "number"
+              },
+              "pointLights": {
+                "type": "number"
+              },
+              "spotLights": {
+                "type": "number"
+              },
+              "areaLights": {
+                "type": "number"
+              },
+              "realtimeLights": {
+                "type": "number"
+              },
+              "bakedLights": {
+                "type": "number"
+              }
+            }
+          },
+          "memoryInfo": {
+            "type": "object",
+            "properties": {
+              "totalMemoryMB": {
+                "type": "number"
+              },
+              "textureMemoryMB": {
+                "type": "number"
+              },
+              "meshMemoryMB": {
+                "type": "number"
+              }
+            },
+            "description": "Only present if includeMemoryInfo was true"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Human-readable summary of scene contents"
+          }
+        }
       }
     },
     {
@@ -86,7 +180,73 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "componentType": {
+            "type": "string",
+            "description": "The component type searched for"
+          },
+          "searchScope": {
+            "type": "string",
+            "enum": [
+              "scene",
+              "prefabs",
+              "all"
+            ]
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "gameObject": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "componentCount": {
+                  "type": "number"
+                },
+                "isActive": {
+                  "type": "boolean"
+                },
+                "componentTypes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Only present if matchExactType was false"
+                },
+                "location": {
+                  "type": "string",
+                  "enum": [
+                    "scene",
+                    "prefab"
+                  ],
+                  "description": "Only present if searchScope is 'all'"
+                }
+              }
+            }
+          },
+          "totalFound": {
+            "type": "number"
+          },
+          "activeCount": {
+            "type": "number"
+          },
+          "sceneCount": {
+            "type": "number",
+            "description": "Only present if searchScope is 'all'"
+          },
+          "prefabCount": {
+            "type": "number",
+            "description": "Only present if searchScope is 'all'"
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
       }
     },
     {
@@ -129,7 +289,59 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "gameObject": {
+            "type": "string",
+            "description": "Name of the GameObject"
+          },
+          "componentType": {
+            "type": "string",
+            "description": "Type of component"
+          },
+          "componentIndex": {
+            "type": "number"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Component enabled state (true if component doesn't support enabled property)"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "value": {},
+                "type": {
+                  "type": "string",
+                  "description": "Type name: float, int, bool, string, Vector3, Vector2, Color, Quaternion, enum name, etc."
+                },
+                "range": {
+                  "type": "object",
+                  "properties": {
+                    "min": {
+                      "type": "number"
+                    },
+                    "max": {
+                      "type": "number"
+                    }
+                  },
+                  "description": "Only for numeric properties with RangeAttribute"
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Only for enum properties"
+                }
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
       }
     },
     {
@@ -175,7 +387,124 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "isStatic": {
+            "type": "boolean"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "layer": {
+            "type": "string",
+            "description": "Layer name"
+          },
+          "transform": {
+            "type": "object",
+            "properties": {
+              "position": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "description": "Local position"
+              },
+              "rotation": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "description": "Local Euler angles"
+              },
+              "scale": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "description": "Local scale"
+              },
+              "worldPosition": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Component details including type, enabled, and properties; only present if includeComponents=true"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Child object details recursively; only present if includeChildren=true and maxDepth > 0"
+          },
+          "prefabInfo": {
+            "type": "object",
+            "properties": {
+              "isPrefab": {
+                "type": "boolean"
+              },
+              "isInstance": {
+                "type": "boolean"
+              },
+              "prefabPath": {
+                "type": "string",
+                "description": "Only present if isPrefab=true"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
       }
     },
     {
@@ -213,7 +542,123 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "targetObject": {
+            "type": "string"
+          },
+          "targetPath": {
+            "type": "string"
+          },
+          "isPrefab": {
+            "type": "boolean",
+            "description": "Only present if target is a prefab"
+          },
+          "references": {
+            "type": "object",
+            "properties": {
+              "referencedBy": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "gameObject": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "component": {
+                      "type": "string"
+                    },
+                    "property": {
+                      "type": "string"
+                    },
+                    "referenceType": {
+                      "type": "string",
+                      "description": "direct, transform, component, array, list, hierarchy, etc."
+                    },
+                    "location": {
+                      "type": "string",
+                      "enum": [
+                        "scene",
+                        "prefab"
+                      ],
+                      "description": "Only present if searchInPrefabs=true"
+                    }
+                  }
+                }
+              },
+              "referencesTo": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "gameObject": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "component": {
+                      "type": "string"
+                    },
+                    "property": {
+                      "type": "string"
+                    },
+                    "referenceType": {
+                      "type": "string",
+                      "description": "direct, transform, component, asset, hierarchy"
+                    },
+                    "assetPath": {
+                      "type": "string",
+                      "description": "Only present for asset references"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "stats": {
+            "type": "object",
+            "properties": {
+              "totalReferencedBy": {
+                "type": "number"
+              },
+              "totalReferencesTo": {
+                "type": "number"
+              },
+              "componentCount": {
+                "type": "number"
+              },
+              "searchedObjects": {
+                "type": "number"
+              },
+              "searchedPrefabs": {
+                "type": "number",
+                "description": "Only present if searchInPrefabs=true"
+              },
+              "prefabInstances": {
+                "type": "number",
+                "description": "Only present if target isPrefab and prefabInstances > 0"
+              },
+              "assetReferences": {
+                "type": "number",
+                "description": "Only present if assetReferences > 0"
+              },
+              "circularReferences": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Only present if circular references detected"
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
       }
     },
     {
@@ -259,7 +704,284 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "assetPath": {
+                "type": "string"
+              },
+              "recursive": {
+                "type": "boolean"
+              },
+              "dependencies": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "isDirectDependency": {
+                      "type": "boolean"
+                    },
+                    "depth": {
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              "count": {
+                "type": "number"
+              },
+              "maxDepth": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "assetPath": {
+                "type": "string"
+              },
+              "dependents": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "usage": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "count": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "circularDependencies": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "cycle": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "length": {
+                      "type": "number"
+                    },
+                    "severity": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "hasCircularDependencies": {
+                "type": "boolean"
+              },
+              "totalCycles": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "includeBuiltIn": {
+                "type": "boolean"
+              },
+              "unusedAssets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "number"
+                    },
+                    "lastModified": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              },
+              "count": {
+                "type": "number"
+              },
+              "totalSizeKB": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "assetPath": {
+                "type": "string"
+              },
+              "analysis": {
+                "type": "object",
+                "properties": {
+                  "directSize": {
+                    "type": "number"
+                  },
+                  "totalSize": {
+                    "type": "number"
+                  },
+                  "dependencyCount": {
+                    "type": "number"
+                  },
+                  "largestDependency": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "size": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "buildImpact": {
+                    "type": "object",
+                    "properties": {
+                      "estimatedBuildSize": {
+                        "type": "number"
+                      },
+                      "compressionRatio": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "validation": {
+                "type": "object",
+                "properties": {
+                  "totalAssets": {
+                    "type": "number"
+                  },
+                  "validReferences": {
+                    "type": "number"
+                  },
+                  "brokenReferences": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "asset": {
+                          "type": "string"
+                        },
+                        "missingReference": {
+                          "type": "string"
+                        },
+                        "referenceType": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "missingReferences": {
+                    "type": "number"
+                  },
+                  "validationTime": {
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          }
+        ]
       }
     },
     {
@@ -302,7 +1024,41 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "materialPath": {
+            "type": "string"
+          },
+          "shader": {
+            "type": "string"
+          },
+          "guid": {
+            "type": "string"
+          },
+          "propertiesSet": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "copiedFrom": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "materialPath",
+          "guid"
+        ]
       }
     },
     {
@@ -342,7 +1098,26 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "prefabPath": {
+            "type": "string"
+          },
+          "guid": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "prefabPath",
+          "guid"
+        ]
       }
     },
     {
@@ -365,7 +1140,31 @@
         }
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "wasInPrefabMode": {
+            "type": "boolean"
+          },
+          "changesSaved": {
+            "type": "boolean"
+          },
+          "prefabPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "wasInPrefabMode"
+        ]
       }
     },
     {
@@ -429,7 +1228,63 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "gameObjectPath": {
+            "type": "string"
+          },
+          "prefabPath": {
+            "type": "string"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "z": {
+                "type": "number"
+              }
+            }
+          },
+          "rotation": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "z": {
+                "type": "number"
+              }
+            }
+          },
+          "parent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "gameObjectPath",
+          "prefabPath"
+        ]
       }
     },
     {
@@ -492,7 +1347,252 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "filter": {
+                "type": "string"
+              },
+              "searchInFolders": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "assets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "guid": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              "count": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "assetPath": {
+                "type": "string"
+              },
+              "info": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "guid": {
+                    "type": "string"
+                  },
+                  "size": {
+                    "type": "number"
+                  },
+                  "lastModified": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "importSettings": {
+                    "type": "object"
+                  },
+                  "dependencies": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "isValid": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "folderPath": {
+                "type": "string"
+              },
+              "guid": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "assetPath": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "fromPath": {
+                "type": "string"
+              },
+              "toPath": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "fromPath": {
+                "type": "string"
+              },
+              "toPath": {
+                "type": "string"
+              },
+              "newGuid": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "assetsFound": {
+                "type": "number"
+              },
+              "duration": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "assetsModified": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          }
+        ]
       }
     },
     {
@@ -537,7 +1637,107 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "assetPath": {
+                "type": "string"
+              },
+              "settings": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "assetPath": {
+                "type": "string"
+              },
+              "previousSettings": {
+                "type": "object"
+              },
+              "newSettings": {
+                "type": "object"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "assetPath": {
+                "type": "string"
+              },
+              "preset": {
+                "type": "string"
+              },
+              "appliedSettings": {
+                "type": "object"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "assetPath": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "duration": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "success",
+              "action"
+            ]
+          }
+        ]
       }
     },
     {
@@ -572,7 +1772,43 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "materialPath": {
+            "type": "string"
+          },
+          "propertiesModified": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "shaderChanged": {
+            "type": "boolean"
+          },
+          "previousShader": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "newShader": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "materialPath"
+        ]
       }
     },
     {
@@ -608,7 +1844,31 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "prefabPath": {
+            "type": "string"
+          },
+          "modifiedProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "affectedInstances": {
+            "type": "number"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "prefabPath"
+        ]
       }
     },
     {
@@ -642,7 +1902,38 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "prefabPath": {
+            "type": "string"
+          },
+          "isInPrefabMode": {
+            "type": "boolean"
+          },
+          "prefabContentsRoot": {
+            "type": "string"
+          },
+          "focusedObject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wasAlreadyOpen": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "prefabPath",
+          "isInPrefabMode"
+        ]
       }
     },
     {
@@ -669,7 +1960,55 @@
         }
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "savedInPrefabMode": {
+                "type": "boolean"
+              },
+              "prefabPath": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "success",
+              "savedInPrefabMode"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "gameObjectPath": {
+                "type": "string"
+              },
+              "prefabPath": {
+                "type": "string"
+              },
+              "overridesApplied": {
+                "type": "number"
+              },
+              "includedChildren": {
+                "type": "boolean"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "success"
+            ]
+          }
+        ]
       }
     },
     {
@@ -696,7 +2035,123 @@
         }
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "oneOf": [
+          {
+            "type": "object",
+            "title": "GetCompilationState (without messages)",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "isCompiling": {
+                "type": "boolean"
+              },
+              "isUpdating": {
+                "type": "boolean"
+              },
+              "isMonitoring": {
+                "type": "boolean"
+              },
+              "lastCompilationTime": {
+                "type": "string"
+              },
+              "messageCount": {
+                "type": "number"
+              },
+              "errorCount": {
+                "type": "number"
+              },
+              "warningCount": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "success",
+              "isCompiling",
+              "isUpdating",
+              "isMonitoring",
+              "lastCompilationTime",
+              "messageCount",
+              "errorCount",
+              "warningCount"
+            ]
+          },
+          {
+            "type": "object",
+            "title": "GetCompilationState (with messages)",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "isCompiling": {
+                "type": "boolean"
+              },
+              "isUpdating": {
+                "type": "boolean"
+              },
+              "isMonitoring": {
+                "type": "boolean"
+              },
+              "lastCompilationTime": {
+                "type": "string"
+              },
+              "messageCount": {
+                "type": "number"
+              },
+              "errorCount": {
+                "type": "number"
+              },
+              "warningCount": {
+                "type": "number"
+              },
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "file": {
+                      "type": "string"
+                    },
+                    "line": {
+                      "type": "number"
+                    },
+                    "column": {
+                      "type": "number"
+                    },
+                    "timestamp": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "message",
+                    "file",
+                    "line",
+                    "column",
+                    "timestamp"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "success",
+              "isCompiling",
+              "isUpdating",
+              "isMonitoring",
+              "lastCompilationTime",
+              "messageCount",
+              "errorCount",
+              "warningCount",
+              "messages"
+            ]
+          }
+        ]
       }
     },
     {
@@ -714,7 +2169,23 @@
         "properties": {}
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "isMonitoring": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "isMonitoring",
+          "message"
+        ]
       }
     },
     {
@@ -732,7 +2203,23 @@
         "properties": {}
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "isMonitoring": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "isMonitoring",
+          "message"
+        ]
       }
     },
     {
@@ -768,7 +2255,39 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "True when component added successfully"
+          },
+          "componentType": {
+            "type": "string",
+            "description": "The resolved component type name (e.g., 'Rigidbody')"
+          },
+          "gameObjectPath": {
+            "type": "string",
+            "description": "Path to the target GameObject"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message confirming the operation"
+          },
+          "appliedProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of property names that were successfully set from the properties parameter"
+          }
+        },
+        "required": [
+          "success",
+          "componentType",
+          "gameObjectPath",
+          "message",
+          "appliedProperties"
+        ]
       }
     },
     {
@@ -829,7 +2348,57 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "True when components were successfully listed"
+          },
+          "gameObjectPath": {
+            "type": "string",
+            "description": "Path to the queried GameObject"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "description": "Component type name (e.g., 'Transform', 'Rigidbody')"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether the component is enabled"
+                },
+                "properties": {
+                  "type": "object",
+                  "description": "Component property details (only if includeProperties was true in request). May include type-specific fields like 'position', 'rotation', 'scale' for Transform; 'mass', 'drag', 'useGravity' for Rigidbody, etc."
+                }
+              },
+              "required": [
+                "type",
+                "enabled"
+              ]
+            },
+            "description": "Array of component descriptors on the GameObject"
+          },
+          "componentCount": {
+            "type": "number",
+            "description": "Total count of components listed"
+          },
+          "message": {
+            "type": "string",
+            "description": "Status message"
+          }
+        },
+        "required": [
+          "success",
+          "gameObjectPath",
+          "components",
+          "componentCount",
+          "message"
+        ]
       }
     },
     {
@@ -870,7 +2439,39 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "True when properties were successfully modified"
+          },
+          "componentType": {
+            "type": "string",
+            "description": "The resolved component type name"
+          },
+          "componentIndex": {
+            "type": "number",
+            "description": "Index of the component that was modified"
+          },
+          "modifiedProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of property names that were successfully modified"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message"
+          }
+        },
+        "required": [
+          "success",
+          "componentType",
+          "componentIndex",
+          "modifiedProperties",
+          "message"
+        ]
       }
     },
     {
@@ -905,7 +2506,35 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "True when operation succeeded"
+          },
+          "removed": {
+            "type": "boolean",
+            "description": "True if a component was actually removed, false if it didn't exist"
+          },
+          "componentType": {
+            "type": "string",
+            "description": "The resolved component type name"
+          },
+          "componentIndex": {
+            "type": "number",
+            "description": "Index of the removed component (only present when removed=true)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Status message"
+          }
+        },
+        "required": [
+          "success",
+          "removed",
+          "componentType",
+          "message"
+        ]
       }
     },
     {
@@ -950,7 +2579,58 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Operation success status"
+          },
+          "message": {
+            "type": "string",
+            "description": "Status message"
+          },
+          "clearedCount": {
+            "type": "integer",
+            "description": "Number of logs cleared"
+          },
+          "remainingCount": {
+            "type": "integer",
+            "description": "Number of logs remaining after clear"
+          },
+          "settingsUpdated": {
+            "type": "boolean",
+            "description": "Whether console preferences were updated"
+          },
+          "clearOnPlay": {
+            "type": "boolean",
+            "description": "Clear console when entering play mode"
+          },
+          "clearOnRecompile": {
+            "type": "boolean",
+            "description": "Clear console on script recompilation"
+          },
+          "clearOnBuild": {
+            "type": "boolean",
+            "description": "Clear console when building"
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of the operation"
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "clearedCount",
+          "remainingCount",
+          "settingsUpdated",
+          "clearOnPlay",
+          "clearOnRecompile",
+          "clearOnBuild",
+          "timestamp"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -1043,7 +2723,211 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "oneOf": [
+          {
+            "title": "Grouped Results",
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "Operation success status"
+              },
+              "groupedLogs": {
+                "type": "object",
+                "description": "Logs grouped by the specified criteria (type, file, or time)",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "string"
+                          },
+                          "logType": {
+                            "type": "string"
+                          },
+                          "formattedCompact": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "string"
+                          },
+                          "logType": {
+                            "type": "string"
+                          },
+                          "file": {
+                            "type": "string"
+                          },
+                          "line": {
+                            "type": "integer"
+                          },
+                          "timestamp": {
+                            "type": "string"
+                          },
+                          "stackTrace": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "count": {
+                "type": "integer",
+                "description": "Number of logs returned"
+              },
+              "totalCaptured": {
+                "type": "integer",
+                "description": "Total number of logs in console"
+              },
+              "statistics": {
+                "type": "object",
+                "description": "Log statistics by type",
+                "properties": {
+                  "errors": {
+                    "type": "integer"
+                  },
+                  "warnings": {
+                    "type": "integer"
+                  },
+                  "logs": {
+                    "type": "integer"
+                  },
+                  "asserts": {
+                    "type": "integer"
+                  },
+                  "exceptions": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "groupBy": {
+                "type": "string",
+                "enum": [
+                  "type",
+                  "file",
+                  "time"
+                ],
+                "description": "The grouping criteria used"
+              }
+            },
+            "required": [
+              "success",
+              "groupedLogs",
+              "count",
+              "totalCaptured",
+              "statistics",
+              "groupBy"
+            ]
+          },
+          {
+            "title": "Ungrouped Results",
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "Operation success status"
+              },
+              "logs": {
+                "type": "array",
+                "description": "Array of log entries",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "logType": {
+                          "type": "string"
+                        },
+                        "formattedCompact": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        },
+                        "logType": {
+                          "type": "string"
+                        },
+                        "file": {
+                          "type": "string"
+                        },
+                        "line": {
+                          "type": "integer"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        },
+                        "stackTrace": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "count": {
+                "type": "integer",
+                "description": "Number of logs returned"
+              },
+              "totalCaptured": {
+                "type": "integer",
+                "description": "Total number of logs in console"
+              },
+              "statistics": {
+                "type": "object",
+                "description": "Log statistics by type",
+                "properties": {
+                  "errors": {
+                    "type": "integer"
+                  },
+                  "warnings": {
+                    "type": "integer"
+                  },
+                  "logs": {
+                    "type": "integer"
+                  },
+                  "asserts": {
+                    "type": "integer"
+                  },
+                  "exceptions": {
+                    "type": "integer"
+                  }
+                }
+              }
+            },
+            "required": [
+              "success",
+              "logs",
+              "count",
+              "totalCaptured",
+              "statistics"
+            ]
+          }
+        ]
       }
     },
     {
@@ -1086,7 +2970,176 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "layers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "index": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "count": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "layers",
+              "count"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "layerName": {
+                "type": "string"
+              },
+              "layerIndex": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              },
+              "layersCount": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "layerName",
+              "layerIndex",
+              "message",
+              "layersCount"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "layerName": {
+                "type": "string"
+              },
+              "layerIndex": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              },
+              "layersCount": {
+                "type": "integer"
+              },
+              "gameObjectsAffected": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "layerName",
+              "layerIndex",
+              "message",
+              "layersCount",
+              "gameObjectsAffected"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "layerName": {
+                "type": "string"
+              },
+              "layerIndex": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "layerName",
+              "layerIndex",
+              "message"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "layerIndex": {
+                "type": "integer"
+              },
+              "layerName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "layerIndex",
+              "layerName",
+              "message"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "error"
+            ]
+          }
+        ]
       }
     },
     {
@@ -1129,7 +3182,158 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "selection": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "count": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "selection",
+              "count"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "selection": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "count": {
+                "type": "integer"
+              },
+              "notFound": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "selection",
+              "count",
+              "message"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "previousCount": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "previousCount",
+              "message"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "selection": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "count": {
+                "type": "integer"
+              },
+              "totalChildrenCount": {
+                "type": "integer"
+              },
+              "hasActiveObjects": {
+                "type": "boolean"
+              },
+              "hasInactiveObjects": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "selection",
+              "count",
+              "totalChildrenCount",
+              "hasActiveObjects",
+              "hasInactiveObjects"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "error"
+            ]
+          }
+        ]
       }
     },
     {
@@ -1164,7 +3368,103 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "count": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "tags",
+              "count"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "tagName": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "tagsCount": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "tagName",
+              "message",
+              "tagsCount"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "tagName": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "tagsCount": {
+                "type": "integer"
+              },
+              "gameObjectsAffected": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "tagName",
+              "message",
+              "tagsCount",
+              "gameObjectsAffected"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "error"
+            ]
+          }
+        ]
       }
     },
     {
@@ -1204,7 +3504,149 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "category": {
+                      "type": "string"
+                    },
+                    "isInstalled": {
+                      "type": "boolean"
+                    },
+                    "isActive": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              },
+              "installedCount": {
+                "type": "integer"
+              },
+              "activeCount": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "tools",
+              "installedCount",
+              "activeCount"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "toolName": {
+                "type": "string"
+              },
+              "alreadyActive": {
+                "type": "boolean"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "toolName": {
+                "type": "string"
+              },
+              "previousState": {
+                "type": "object"
+              },
+              "currentState": {
+                "type": "object"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "toolName": {
+                "type": "string"
+              },
+              "alreadyInactive": {
+                "type": "boolean"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "toolsCount": {
+                "type": "integer"
+              },
+              "timestamp": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1243,7 +3685,213 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "windows": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "hasFocus": {
+                      "type": "boolean"
+                    },
+                    "docked": {
+                      "type": "boolean"
+                    },
+                    "position": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        },
+                        "width": {
+                          "type": "number"
+                        },
+                        "height": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "visible": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              },
+              "count": {
+                "type": "integer"
+              },
+              "focusedWindow": {
+                "type": "string"
+              },
+              "visibleCount": {
+                "type": "integer"
+              },
+              "hiddenCount": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "windows",
+              "count"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "windowType": {
+                "type": "string"
+              },
+              "alreadyFocused": {
+                "type": "boolean"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "windowType": {
+                "type": "string"
+              },
+              "previousFocus": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean"
+              },
+              "action": {
+                "type": "string"
+              },
+              "windowType": {
+                "type": "string"
+              },
+              "state": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "hasFocus": {
+                    "type": "boolean"
+                  },
+                  "docked": {
+                    "type": "boolean"
+                  },
+                  "floating": {
+                    "type": "boolean"
+                  },
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      },
+                      "width": {
+                        "type": "number"
+                      },
+                      "height": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "minSize": {
+                    "type": "object",
+                    "properties": {
+                      "width": {
+                        "type": "number"
+                      },
+                      "height": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "maxSize": {
+                    "type": "object",
+                    "properties": {
+                      "width": {
+                        "type": "number"
+                      },
+                      "height": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "maximized": {
+                    "type": "boolean"
+                  },
+                  "isPlayModeView": {
+                    "type": "boolean"
+                  },
+                  "hasUnsavedChanges": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "required": [
+              "success",
+              "action",
+              "windowType",
+              "state"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string"
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -1338,7 +3986,81 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "Instance ID of the created GameObject"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the created GameObject"
+          },
+          "path": {
+            "type": "string",
+            "description": "Hierarchy path to the created GameObject"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "z": {
+                "type": "number"
+              }
+            }
+          },
+          "rotation": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "z": {
+                "type": "number"
+              }
+            }
+          },
+          "scale": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "z": {
+                "type": "number"
+              }
+            }
+          },
+          "tag": {
+            "type": "string",
+            "description": "Tag assigned to the GameObject"
+          },
+          "layer": {
+            "type": "number",
+            "description": "Layer index of the GameObject"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the GameObject is active in the scene"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if creation failed"
+          }
+        },
+        "additionalProperties": false
       }
     },
     {
@@ -1373,7 +4095,37 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "deletedCount": {
+            "type": "number",
+            "description": "Number of GameObjects successfully deleted"
+          },
+          "deleted": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of paths of deleted GameObjects"
+          },
+          "notFound": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of paths that were not found"
+          },
+          "notFoundCount": {
+            "type": "number",
+            "description": "Count of GameObjects not found"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if deletion failed"
+          }
+        },
+        "additionalProperties": false
       }
     },
     {
@@ -1411,7 +4163,93 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "number",
+            "description": "Number of GameObjects found"
+          },
+          "objects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "number"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "tag": {
+                  "type": "string"
+                },
+                "layer": {
+                  "type": "number"
+                },
+                "isActive": {
+                  "type": "boolean"
+                },
+                "transform": {
+                  "type": "object",
+                  "properties": {
+                    "position": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        },
+                        "z": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "rotation": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        },
+                        "z": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "scale": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        },
+                        "z": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Array of found GameObjects with their properties"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if search failed"
+          }
+        },
+        "additionalProperties": false
       }
     },
     {
@@ -1444,7 +4282,105 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "sceneName": {
+            "type": "string",
+            "description": "Name of the active scene"
+          },
+          "objectCount": {
+            "type": "number",
+            "description": "Number of root GameObjects in hierarchy"
+          },
+          "hierarchy": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "isActive": {
+                  "type": "boolean"
+                },
+                "tag": {
+                  "type": "string"
+                },
+                "layer": {
+                  "type": "number"
+                },
+                "transform": {
+                  "type": "object",
+                  "properties": {
+                    "position": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        },
+                        "z": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "rotation": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        },
+                        "z": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "scale": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        },
+                        "z": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                },
+                "components": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Component type names (optional, if includeComponents=true)"
+                },
+                "children": {
+                  "type": "array",
+                  "description": "Recursive hierarchy nodes for child GameObjects (respects maxDepth)"
+                }
+              }
+            },
+            "description": "Hierarchy tree of GameObjects starting from root"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if hierarchy retrieval failed"
+          }
+        },
+        "additionalProperties": false
       }
     },
     {
@@ -1540,7 +4476,85 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "Instance ID of the modified GameObject"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the GameObject"
+          },
+          "path": {
+            "type": "string",
+            "description": "Hierarchy path to the GameObject"
+          },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "z": {
+                "type": "number"
+              }
+            }
+          },
+          "rotation": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "z": {
+                "type": "number"
+              }
+            }
+          },
+          "scale": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "z": {
+                "type": "number"
+              }
+            }
+          },
+          "tag": {
+            "type": "string",
+            "description": "Tag of the GameObject"
+          },
+          "layer": {
+            "type": "number",
+            "description": "Layer index of the GameObject"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether the GameObject is active"
+          },
+          "modified": {
+            "type": "boolean",
+            "description": "Whether any properties were actually modified"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if modification failed"
+          }
+        },
+        "additionalProperties": false
       }
     },
     {
@@ -1588,7 +4602,93 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "oneOf": [
+          {
+            "description": "Successful menu item execution (action='execute')",
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": true
+              },
+              "menuPath": {
+                "type": "string",
+                "description": "The menu path that was executed"
+              },
+              "executed": {
+                "type": "boolean",
+                "description": "Whether the menu item was successfully executed (false if disabled or context-dependent)"
+              },
+              "menuExists": {
+                "type": "boolean",
+                "description": "Whether the menu item exists in the editor"
+              },
+              "executionTime": {
+                "type": "number",
+                "description": "Time taken to execute the menu item in milliseconds"
+              },
+              "message": {
+                "type": "string",
+                "description": "Descriptive message about execution status"
+              },
+              "alias": {
+                "type": "string",
+                "description": "Optional alias that was provided in the request"
+              }
+            },
+            "required": [
+              "success",
+              "menuPath",
+              "executed",
+              "menuExists",
+              "executionTime",
+              "message"
+            ]
+          },
+          {
+            "description": "Successful menu enumeration (action='get_available_menus')",
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": true
+              },
+              "availableMenus": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "List of available Unity Editor menu items"
+              },
+              "totalMenus": {
+                "type": "number",
+                "description": "Total number of known menu items in the complete list"
+              },
+              "filteredCount": {
+                "type": "number",
+                "description": "Number of menu items returned after applying filter (if any)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Status message"
+              },
+              "note": {
+                "type": "string",
+                "description": "Note that this is a partial list as Unity doesn't provide enumeration API"
+              }
+            },
+            "required": [
+              "success",
+              "availableMenus",
+              "totalMenus",
+              "filteredCount",
+              "message",
+              "note"
+            ]
+          }
+        ]
       }
     },
     {
@@ -1607,7 +4707,54 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success"
+            ]
+          },
+          "state": {
+            "type": "object",
+            "properties": {
+              "isPlaying": {
+                "type": "boolean"
+              },
+              "isPaused": {
+                "type": "boolean"
+              },
+              "isCompiling": {
+                "type": "boolean"
+              },
+              "isUpdating": {
+                "type": "boolean"
+              },
+              "applicationPath": {
+                "type": "string"
+              },
+              "applicationContentsPath": {
+                "type": "string"
+              },
+              "timeSinceStartup": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "isPlaying",
+              "isPaused",
+              "isCompiling",
+              "isUpdating",
+              "applicationPath",
+              "applicationContentsPath",
+              "timeSinceStartup"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "state"
+        ]
       }
     },
     {
@@ -1626,7 +4773,58 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "state": {
+            "type": "object",
+            "properties": {
+              "isPlaying": {
+                "type": "boolean"
+              },
+              "isPaused": {
+                "type": "boolean"
+              },
+              "isCompiling": {
+                "type": "boolean"
+              },
+              "isUpdating": {
+                "type": "boolean"
+              },
+              "applicationPath": {
+                "type": "string"
+              },
+              "applicationContentsPath": {
+                "type": "string"
+              },
+              "timeSinceStartup": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "isPlaying",
+              "isPaused",
+              "isCompiling",
+              "isUpdating",
+              "applicationPath",
+              "applicationContentsPath",
+              "timeSinceStartup"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "state"
+        ]
       }
     },
     {
@@ -1645,7 +4843,58 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "state": {
+            "type": "object",
+            "properties": {
+              "isPlaying": {
+                "type": "boolean"
+              },
+              "isPaused": {
+                "type": "boolean"
+              },
+              "isCompiling": {
+                "type": "boolean"
+              },
+              "isUpdating": {
+                "type": "boolean"
+              },
+              "applicationPath": {
+                "type": "string"
+              },
+              "applicationContentsPath": {
+                "type": "string"
+              },
+              "timeSinceStartup": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "isPlaying",
+              "isPaused",
+              "isCompiling",
+              "isUpdating",
+              "applicationPath",
+              "applicationContentsPath",
+              "timeSinceStartup"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "state"
+        ]
       }
     },
     {
@@ -1664,7 +4913,58 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "state": {
+            "type": "object",
+            "properties": {
+              "isPlaying": {
+                "type": "boolean"
+              },
+              "isPaused": {
+                "type": "boolean"
+              },
+              "isCompiling": {
+                "type": "boolean"
+              },
+              "isUpdating": {
+                "type": "boolean"
+              },
+              "applicationPath": {
+                "type": "string"
+              },
+              "applicationContentsPath": {
+                "type": "string"
+              },
+              "timeSinceStartup": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "isPlaying",
+              "isPaused",
+              "isCompiling",
+              "isUpdating",
+              "applicationPath",
+              "applicationContentsPath",
+              "timeSinceStartup"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "state"
+        ]
       }
     },
     {
@@ -1702,7 +5002,36 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "sceneName": {
+            "type": "string",
+            "description": "Name of the created scene"
+          },
+          "path": {
+            "type": "string",
+            "description": "Full asset path where the scene was saved"
+          },
+          "sceneIndex": {
+            "type": "integer",
+            "description": "Build settings index if added to build settings, -1 otherwise"
+          },
+          "isLoaded": {
+            "type": "boolean",
+            "description": "Whether the scene was loaded after creation"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Human-readable summary of the operation"
+          }
+        },
+        "required": [
+          "sceneName",
+          "path",
+          "sceneIndex",
+          "isLoaded",
+          "summary"
+        ]
       }
     },
     {
@@ -1734,7 +5063,77 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "sceneName": {
+            "type": "string",
+            "description": "Name of the scene"
+          },
+          "scenePath": {
+            "type": "string",
+            "description": "Full asset path to the scene"
+          },
+          "isLoaded": {
+            "type": "boolean",
+            "description": "Whether scene is loaded"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Whether scene is the active scene"
+          },
+          "isDirty": {
+            "type": "boolean",
+            "description": "Whether scene has unsaved changes"
+          },
+          "buildIndex": {
+            "type": "integer",
+            "description": "Build settings index, -1 if not in build settings"
+          },
+          "fileSize": {
+            "type": "integer",
+            "description": "File size in bytes (present if scene exists on disk, line 645)"
+          },
+          "lastModified": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of last modification (present if scene exists on disk, line 646)"
+          },
+          "rootGameObjects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "childCount": {
+                  "type": "integer"
+                }
+              }
+            },
+            "description": "Root GameObjects in scene (present if includeGameObjects=true and scene is loaded)"
+          },
+          "rootObjectCount": {
+            "type": "integer",
+            "description": "Number of root GameObjects (present if includeGameObjects=true)"
+          },
+          "totalObjectCount": {
+            "type": "integer",
+            "description": "Total GameObjects including children (present if includeGameObjects=true)"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Human-readable summary of the scene state"
+          }
+        },
+        "required": [
+          "sceneName",
+          "scenePath",
+          "isLoaded",
+          "isActive",
+          "isDirty",
+          "buildIndex",
+          "summary"
+        ]
       }
     },
     {
@@ -1766,7 +5165,68 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "scenes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Scene file name without extension"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "Full asset path to scene"
+                },
+                "buildIndex": {
+                  "type": "integer",
+                  "description": "Build settings index, -1 if not in build settings"
+                },
+                "isLoaded": {
+                  "type": "boolean",
+                  "description": "Whether scene is currently loaded"
+                },
+                "isActive": {
+                  "type": "boolean",
+                  "description": "Whether scene is the active scene"
+                }
+              },
+              "required": [
+                "name",
+                "path",
+                "buildIndex",
+                "isLoaded",
+                "isActive"
+              ]
+            },
+            "description": "Array of scene objects"
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "Total number of scenes matching filters"
+          },
+          "loadedCount": {
+            "type": "integer",
+            "description": "Number of currently loaded scenes"
+          },
+          "inBuildCount": {
+            "type": "integer",
+            "description": "Number of scenes in build settings"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Human-readable summary of the operation"
+          }
+        },
+        "required": [
+          "scenes",
+          "totalCount",
+          "loadedCount",
+          "inBuildCount",
+          "summary"
+        ]
       }
     },
     {
@@ -1802,7 +5262,54 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "sceneName": {
+            "type": "string",
+            "description": "Name of the loaded scene"
+          },
+          "scenePath": {
+            "type": "string",
+            "description": "Full asset path to the loaded scene"
+          },
+          "loadMode": {
+            "type": "string",
+            "enum": [
+              "Single",
+              "Additive"
+            ],
+            "description": "Load mode used"
+          },
+          "isLoaded": {
+            "type": "boolean",
+            "description": "Whether the scene is loaded"
+          },
+          "previousScene": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of previous scene (Single mode only, null for Additive)"
+          },
+          "activeSceneCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Total active scene count (Additive mode only, null for Single)"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Human-readable summary of the operation"
+          }
+        },
+        "required": [
+          "sceneName",
+          "scenePath",
+          "loadMode",
+          "isLoaded",
+          "summary"
+        ]
       }
     },
     {
@@ -1830,7 +5337,43 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "sceneName": {
+            "type": "string",
+            "description": "Name of the saved scene"
+          },
+          "scenePath": {
+            "type": "string",
+            "description": "Full asset path where scene was saved"
+          },
+          "originalPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Original scene path (saveAs mode only, null otherwise)"
+          },
+          "saved": {
+            "type": "boolean",
+            "description": "Whether the save operation succeeded"
+          },
+          "isDirty": {
+            "type": "boolean",
+            "description": "Whether scene has unsaved changes after save (always false on success)"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Human-readable summary of the operation"
+          }
+        },
+        "required": [
+          "sceneName",
+          "scenePath",
+          "saved",
+          "isDirty",
+          "summary"
+        ]
       }
     },
     {
@@ -1873,7 +5416,108 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": true
+              },
+              "imagePath": {
+                "type": "string",
+                "description": "Path to the analyzed image"
+              },
+              "width": {
+                "type": "number",
+                "description": "Image width in pixels"
+              },
+              "height": {
+                "type": "number",
+                "description": "Image height in pixels"
+              },
+              "format": {
+                "type": "string",
+                "description": "Texture format as string"
+              },
+              "fileSize": {
+                "type": "number",
+                "description": "File size in bytes"
+              },
+              "analysisType": {
+                "type": "string",
+                "enum": [
+                  "basic",
+                  "ui",
+                  "content",
+                  "full"
+                ],
+                "description": "Type of analysis performed"
+              },
+              "dominantColors": {
+                "type": "array",
+                "description": "List of dominant colors found in the image",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "r": {
+                      "type": "number"
+                    },
+                    "g": {
+                      "type": "number"
+                    },
+                    "b": {
+                      "type": "number"
+                    },
+                    "hex": {
+                      "type": "string"
+                    },
+                    "percentage": {
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              "uiElements": {
+                "type": "object",
+                "properties": {
+                  "edgePixelRatio": {
+                    "type": "number"
+                  },
+                  "analysis": {
+                    "type": "string"
+                  }
+                },
+                "description": "Basic UI element analysis results"
+              },
+              "message": {
+                "type": "string",
+                "description": "Success message"
+              }
+            },
+            "required": [
+              "success",
+              "imagePath",
+              "width",
+              "height",
+              "format",
+              "fileSize",
+              "analysisType"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "error"
+            ]
+          }
+        ]
       }
     },
     {
@@ -1929,7 +5573,112 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": true
+              },
+              "path": {
+                "type": "string",
+                "description": "Path where the screenshot was saved"
+              },
+              "width": {
+                "type": "number",
+                "description": "Width of the captured screenshot"
+              },
+              "height": {
+                "type": "number",
+                "description": "Height of the captured screenshot"
+              },
+              "captureMode": {
+                "type": "string",
+                "enum": [
+                  "game",
+                  "scene"
+                ],
+                "description": "Capture mode used"
+              },
+              "fileSize": {
+                "type": "number",
+                "description": "Size of the file in bytes"
+              },
+              "message": {
+                "type": "string",
+                "description": "Success message"
+              },
+              "includeUI": {
+                "type": "boolean",
+                "description": "Whether UI was included (game mode only)"
+              },
+              "cameraPosition": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "description": "Camera position (scene mode only)"
+              },
+              "cameraRotation": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "description": "Camera rotation in Euler angles (scene mode only)"
+              },
+              "base64Data": {
+                "type": "string",
+                "description": "Base64 encoded image data (if encodeAsBase64 was true)"
+              }
+            },
+            "required": [
+              "success",
+              "path",
+              "width",
+              "height",
+              "captureMode",
+              "fileSize",
+              "message"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "const": false
+              },
+              "error": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "success",
+              "error"
+            ]
+          }
+        ]
       }
     },
     {
@@ -1977,7 +5726,22 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "scriptPath": {
+            "type": "string",
+            "description": "Relative asset path to the created script (e.g., Assets/Scripts/MyScript.cs)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message confirming script creation"
+          }
+        },
+        "required": [
+          "scriptPath",
+          "message"
+        ]
       }
     },
     {
@@ -2020,7 +5784,39 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "scriptPath": {
+            "type": "string",
+            "description": "Relative asset path to the deleted script (returned when single script is deleted)"
+          },
+          "deletedPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of relative paths to deleted scripts (returned when multiple scripts with same name are deleted with force=true)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message confirming script deletion"
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "scriptPath",
+              "message"
+            ]
+          },
+          {
+            "required": [
+              "deletedPaths",
+              "message"
+            ]
+          }
+        ]
       }
     },
     {
@@ -2093,7 +5889,57 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "scripts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Relative asset path to the script"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Script name without extension"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Determined script type (MonoBehaviour, ScriptableObject, Editor, EditorWindow, StaticClass, Interface, or Unknown)"
+                },
+                "size": {
+                  "type": "number",
+                  "description": "File size in bytes (included if includeMetadata=true)"
+                },
+                "lastModified": {
+                  "type": "string",
+                  "description": "ISO 8601 timestamp of last modification (included if includeMetadata=true)"
+                }
+              },
+              "required": [
+                "path",
+                "name",
+                "type"
+              ]
+            },
+            "description": "Array of scripts matching search criteria"
+          },
+          "totalCount": {
+            "type": "number",
+            "description": "Number of scripts in the result array"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message"
+          }
+        },
+        "required": [
+          "scripts",
+          "totalCount",
+          "message"
+        ]
       }
     },
     {
@@ -2131,7 +5977,38 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "scriptContent": {
+            "type": "string",
+            "description": "Full text content of the script file"
+          },
+          "scriptPath": {
+            "type": "string",
+            "description": "Relative asset path to the script"
+          },
+          "lastModified": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of last modification (included if includeMetadata=true)"
+          },
+          "lineCount": {
+            "type": "number",
+            "description": "Total number of lines in the script (included if includeMetadata=true)"
+          },
+          "fileSize": {
+            "type": "number",
+            "description": "File size in bytes (included if includeMetadata=true)"
+          },
+          "encoding": {
+            "type": "string",
+            "description": "File encoding (included if includeMetadata=true)"
+          }
+        },
+        "required": [
+          "scriptContent",
+          "scriptPath"
+        ]
       }
     },
     {
@@ -2185,7 +6062,26 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "scriptPath": {
+            "type": "string",
+            "description": "Relative asset path to the updated script"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message confirming script update"
+          },
+          "backupPath": {
+            "type": "string",
+            "description": "Relative path to the backup file (included if createBackup=true)"
+          }
+        },
+        "required": [
+          "scriptPath",
+          "message"
+        ]
       }
     },
     {
@@ -2237,7 +6133,107 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "isValid": {
+            "type": "boolean",
+            "description": "Whether the script passed validation (true if errors array is empty)"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "description": "Error type (e.g., SyntaxError)"
+                },
+                "line": {
+                  "type": "number",
+                  "description": "Line number where error occurred"
+                },
+                "column": {
+                  "type": "number",
+                  "description": "Column number where error occurred"
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Error message"
+                },
+                "severity": {
+                  "type": "string",
+                  "description": "Severity level (Error)"
+                }
+              }
+            },
+            "description": "Array of syntax errors found during validation"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "description": "Warning type (e.g., UnityCompatibility)"
+                },
+                "line": {
+                  "type": "number",
+                  "description": "Line number where issue occurred"
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Warning message"
+                },
+                "severity": {
+                  "type": "string",
+                  "description": "Severity level (Warning)"
+                }
+              }
+            },
+            "description": "Array of compatibility warnings (included if checkUnityCompatibility=true)"
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "description": "Suggestion type (e.g., Performance)"
+                },
+                "line": {
+                  "type": "number",
+                  "description": "Line number (-1 if not applicable)"
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Suggestion message"
+                },
+                "improvement": {
+                  "type": "string",
+                  "description": "Detailed improvement recommendation"
+                }
+              }
+            },
+            "description": "Array of code improvement suggestions (included if suggestImprovements=true)"
+          },
+          "scriptPath": {
+            "type": "string",
+            "description": "Relative asset path to the script being validated (included if validating a file, not inline content)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Status message indicating validation result"
+          }
+        },
+        "required": [
+          "isValid",
+          "errors",
+          "warnings",
+          "message"
+        ]
       }
     },
     {
@@ -2253,7 +6249,21 @@
         "type": "object"
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Confirmation message"
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of the operation"
+          }
+        },
+        "required": [
+          "message",
+          "timestamp"
+        ]
       }
     },
     {
@@ -2277,7 +6287,29 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Fixed 'pong' response"
+          },
+          "echo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Echo of the optional 'message' parameter sent in request; null if not provided"
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of the response"
+          }
+        },
+        "required": [
+          "message",
+          "echo",
+          "timestamp"
+        ]
       }
     },
     {
@@ -2314,7 +6346,57 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "logs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string"
+                },
+                "stackTrace": {
+                  "type": "string"
+                },
+                "logType": {
+                  "type": "string",
+                  "enum": [
+                    "Log",
+                    "Warning",
+                    "Error",
+                    "Assert",
+                    "Exception"
+                  ]
+                },
+                "timestamp": {
+                  "type": "string",
+                  "description": "ISO 8601 timestamp"
+                }
+              },
+              "required": [
+                "message",
+                "stackTrace",
+                "logType",
+                "timestamp"
+              ]
+            },
+            "description": "Array of log entries"
+          },
+          "count": {
+            "type": "number",
+            "description": "Number of logs returned in this response"
+          },
+          "totalCaptured": {
+            "type": "number",
+            "description": "Total number of logs captured (may be larger than count)"
+          }
+        },
+        "required": [
+          "logs",
+          "count",
+          "totalCaptured"
+        ]
       }
     },
     {
@@ -2333,7 +6415,26 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Confirmation message"
+          },
+          "isCompiling": {
+            "type": "boolean",
+            "description": "Whether Unity is currently compiling after refresh"
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of the operation"
+          }
+        },
+        "required": [
+          "message",
+          "isCompiling",
+          "timestamp"
+        ]
       }
     },
     {
@@ -2352,7 +6453,26 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Status message describing the cancellation result"
+          },
+          "wasCancelled": {
+            "type": "boolean",
+            "description": "Whether tests were successfully cancelled (true) or no tests were running (false)"
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when cancellation occurred (present only when wasCancelled is true)"
+          }
+        },
+        "required": [
+          "message",
+          "wasCancelled"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -2387,7 +6507,127 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Full name of the test"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "Passed",
+                    "Failed",
+                    "Skipped",
+                    "Inconclusive"
+                  ],
+                  "description": "Status of the test execution"
+                },
+                "duration": {
+                  "type": "number",
+                  "description": "Test duration in seconds"
+                },
+                "startTime": {
+                  "type": "string",
+                  "description": "ISO 8601 timestamp when test started"
+                },
+                "endTime": {
+                  "type": "string",
+                  "description": "ISO 8601 timestamp when test finished"
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Test output message (only when includeDetails is true)"
+                },
+                "stackTrace": {
+                  "type": "string",
+                  "description": "Stack trace for failed tests (only when includeDetails is true)"
+                },
+                "output": {
+                  "type": "string",
+                  "description": "Test output text (only when includeDetails is true)"
+                }
+              },
+              "required": [
+                "name",
+                "status",
+                "duration",
+                "startTime",
+                "endTime"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Array of test results"
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "description": "Total number of tests"
+              },
+              "passed": {
+                "type": "integer",
+                "description": "Number of passed tests"
+              },
+              "failed": {
+                "type": "integer",
+                "description": "Number of failed tests"
+              },
+              "skipped": {
+                "type": "integer",
+                "description": "Number of skipped tests"
+              },
+              "inconclusive": {
+                "type": "integer",
+                "description": "Number of inconclusive tests"
+              },
+              "duration": {
+                "type": "number",
+                "description": "Total duration of all tests in seconds"
+              },
+              "successRate": {
+                "type": "number",
+                "description": "Percentage of tests that passed (0-100)"
+              }
+            },
+            "required": [
+              "total",
+              "passed",
+              "failed",
+              "skipped",
+              "inconclusive",
+              "duration",
+              "successRate"
+            ],
+            "additionalProperties": false
+          },
+          "isRunning": {
+            "type": "boolean",
+            "description": "Whether tests are currently running"
+          },
+          "totalTests": {
+            "type": "integer",
+            "description": "Total number of test results available"
+          },
+          "message": {
+            "type": "string",
+            "description": "Status message"
+          },
+          "hasResults": {
+            "type": "boolean",
+            "description": "Whether any results are available (only when no results exist)"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -2434,7 +6674,82 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "tests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Full name of the test (namespace.class.method)"
+                },
+                "methodName": {
+                  "type": "string",
+                  "description": "Method name of the test"
+                },
+                "className": {
+                  "type": "string",
+                  "description": "Full class name containing the test"
+                },
+                "assemblyName": {
+                  "type": "string",
+                  "description": "Assembly name where the test is defined"
+                },
+                "testMode": {
+                  "type": "string",
+                  "enum": [
+                    "EditMode",
+                    "PlayMode"
+                  ],
+                  "description": "Test mode (EditMode or PlayMode)"
+                },
+                "categories": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Category tags for the test"
+                },
+                "isAsync": {
+                  "type": "boolean",
+                  "description": "Whether the test is asynchronous"
+                }
+              },
+              "required": [
+                "name",
+                "methodName",
+                "className",
+                "assemblyName",
+                "testMode",
+                "categories",
+                "isAsync"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Array of discovered tests"
+          },
+          "totalCount": {
+            "type": "integer",
+            "description": "Total number of tests discovered"
+          },
+          "testMode": {
+            "type": "string",
+            "description": "The test mode that was searched (EditMode, PlayMode, or EditAndPlayMode)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Status message with test count"
+          }
+        },
+        "required": [
+          "tests",
+          "totalCount",
+          "testMode",
+          "message"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -2489,7 +6804,36 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Status message about the test execution start or filter result"
+          },
+          "testMode": {
+            "type": "string",
+            "description": "The test mode being run"
+          },
+          "testCount": {
+            "type": "integer",
+            "description": "Number of tests specified to run (0 if runAll is true or all are run)"
+          },
+          "runAll": {
+            "type": "boolean",
+            "description": "Whether all tests are being run"
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when test execution started (present when tests start successfully)"
+          }
+        },
+        "required": [
+          "message",
+          "testMode",
+          "testCount",
+          "runAll"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -2550,7 +6894,28 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "http://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "elementPath": {
+            "type": "string"
+          },
+          "clickType": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "elementPath",
+          "clickType",
+          "message"
+        ]
       }
     },
     {
@@ -2591,7 +6956,55 @@
         "required": []
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "http://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "elements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "elementType": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "isActive": {
+                  "type": "boolean"
+                },
+                "isInteractable": {
+                  "type": "boolean"
+                },
+                "tag": {
+                  "type": "string"
+                },
+                "canvasPath": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "elementType",
+                "name",
+                "isActive",
+                "isInteractable",
+                "tag",
+                "canvasPath"
+              ]
+            }
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "elements",
+          "count"
+        ]
       }
     },
     {
@@ -2627,7 +7040,92 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "http://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "layer": {
+            "type": "string"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "color": {
+            "type": "string"
+          },
+          "raycastTarget": {
+            "type": "boolean"
+          },
+          "isInteractable": {
+            "type": "boolean"
+          },
+          "value": {
+            "description": "Component-specific value (InputField text, Slider/Dropdown value)",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "placeholder": {
+            "type": "string"
+          },
+          "isOn": {
+            "type": "boolean"
+          },
+          "minValue": {
+            "type": "number"
+          },
+          "maxValue": {
+            "type": "number"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "text": {
+            "type": "string"
+          },
+          "fontSize": {
+            "type": "number"
+          },
+          "font": {
+            "type": "string"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "path",
+          "name",
+          "isActive",
+          "tag",
+          "layer",
+          "components"
+        ]
       }
     },
     {
@@ -2662,7 +7160,28 @@
         ]
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "http://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "elementPath": {
+            "type": "string"
+          },
+          "newValue": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "elementPath",
+          "newValue",
+          "message"
+        ]
       }
     },
     {
@@ -2734,7 +7253,34 @@
         }
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "$schema": "http://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object"
+                },
+                {
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "totalActions": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "success",
+          "results",
+          "totalActions"
+        ]
       }
     }
   ]
