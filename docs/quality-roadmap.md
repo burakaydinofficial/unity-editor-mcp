@@ -8,6 +8,21 @@ contract: the catalog + drift gate is the spine; these bring the implementation 
 
 **Totals:** 38 findings across 6 dimensions — 17 high, 17 medium, 4 low.
 
+## Progress
+
+Addressed since this audit (C#-side changes still need editor/CI verification):
+
+- **Test Runner wiring** — all three findings fixed (`562a269`): `UnityEditor.TestRunner`
+  asmdef reference, `com.unity.test-framework` dependency, and the missing
+  `TestRunnerHandler.cs.meta`.
+- **Error / result contract** — the Node-boundary finding is fixed (`ed58ab6`):
+  handler-errors wrapped under a success envelope are now surfaced to clients as real
+  errors. The editor-side wire-truth fixes (handlers returning a discriminated result;
+  the dispatcher emitting `ErrorResult`) remain open.
+- **`list_components` param mismatch** — left open intentionally: the JS tool advertises
+  `includeInherited` while the editor implements a *different* feature (`includeProperties`).
+  This needs a product-intent decision, not a mechanical rename.
+
 ## Parameter-contract discrepancies
 
 Found while deriving result schemas (catalog params vs. what the C# handler actually reads):
