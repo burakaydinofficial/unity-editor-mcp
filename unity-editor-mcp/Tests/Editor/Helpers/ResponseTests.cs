@@ -104,8 +104,10 @@ namespace UnityEditorMCP.Tests.Helpers
         [Test]
         public void Response_ShouldHandleNullData()
         {
-            // Act
-            var result = Response.Success(null);
+            // Act — name the arg so it binds to Success(object data), not the
+            // Success(string id, object data) overload (string is more specific
+            // than object, so Success(null) silently picks the wrong overload).
+            var result = Response.Success(data: null);
             var json = JObject.Parse(result);
             
             // Assert
