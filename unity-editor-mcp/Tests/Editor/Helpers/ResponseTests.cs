@@ -167,6 +167,47 @@ namespace UnityEditorMCP.Tests.Helpers
         }
 
         [Test]
+        public void Result_SerializedErrorEnvelopeString_IsNotDoubleEncoded()
+        {
+            // ScriptHandler/TestRunnerHandler return Response.Error(...) — a STRING.
+            var serialized = Response.Error("Failed to validate script", "EDITOR_ERROR");
+            var json = JObject.Parse(Response.Result("7", serialized));
+            Assert.AreEqual("error", json["status"].Value<string>());
+            Assert.AreEqual("Failed to validate script", json["error"].Value<string>());
+            Assert.AreEqual("EDITOR_ERROR", json["code"].Value<string>());
+            Assert.IsNull(json["result"], "must not wrap the error string under result");
+        }
+
+        [Test]
+        public void Result_SerializedSuccessEnvelopeString_IsUnwrapped()
+        {
+            // Response.SuccessResult(id, data) -> {id,status:success,result:data} string.
+            var serialized = Response.SuccessResult("ignored", new { scriptPath = "Assets/A.cs" });
+            var json = JObject.Parse(Response.Result("7", serialized));
+            Assert.AreEqual("success", json["status"].Value<string>());
+            Assert.AreEqual("7", json["id"].Value<string>(), "the command id wins, not the inner envelope's");
+            Assert.AreEqual("Assets/A.cs", json["result"]["scriptPath"].Value<string>());
+        }
+
+        [Test]
+        public void Result_LegacySuccessWithDataField_IsUnwrapped()
+        {
+            // Response.Success(id, data) -> {id,success:true,data:data} string.
+            var serialized = Response.Success("ignored", new { count = 5 });
+            var json = JObject.Parse(Response.Result("8", serialized));
+            Assert.AreEqual("success", json["status"].Value<string>());
+            Assert.AreEqual(5, json["result"]["count"].Value<int>());
+        }
+
+        [Test]
+        public void Result_NonJsonString_StaysOpaqueSuccessPayload()
+        {
+            var json = JObject.Parse(Response.Result("9", "{ not actually json"));
+            Assert.AreEqual("success", json["status"].Value<string>());
+            Assert.AreEqual("{ not actually json", json["result"].Value<string>());
+        }
+
+        [Test]
         public void Response_ShouldHandleComplexObjects()
         {
             // Arrange

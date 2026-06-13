@@ -168,6 +168,20 @@ namespace UnityEditorMCP.Helpers
         /// <returns>JSON string of the success or error envelope</returns>
         public static string Result(string id, object handlerResult)
         {
+            // Most handlers return a plain object. Two legacy handlers (ScriptHandler,
+            // TestRunnerHandler) instead return an ALREADY-serialized envelope string
+            // from Response.Success/Response.Error; parse it back so it is classified
+            // and unwrapped here rather than double-encoded under a success envelope.
+            if (handlerResult is string str)
+            {
+                var trimmed = str.TrimStart();
+                if (trimmed.StartsWith("{") || trimmed.StartsWith("["))
+                {
+                    try { handlerResult = JToken.Parse(str); }
+                    catch { /* not JSON — treat as an opaque string payload */ }
+                }
+            }
+
             JObject shape = null;
             if (handlerResult != null)
             {
@@ -183,16 +197,34 @@ namespace UnityEditorMCP.Helpers
                 }
             }
 
-            if (shape != null &&
-                shape.TryGetValue("error", out var error) && error.Type == JTokenType.String &&
-                !(shape.TryGetValue("success", out var success) &&
-                  success.Type == JTokenType.Boolean && (bool)success))
+            if (shape != null)
             {
-                var code = shape.TryGetValue("code", out var codeToken) && codeToken.Type == JTokenType.String
-                    ? (string)codeToken
-                    : "EDITOR_ERROR";
-                // The original object rides along as details so no fields are lost.
-                return ErrorResult(id, (string)error, code, shape);
+                var hasSuccessTrue = shape.TryGetValue("success", out var success) &&
+                    success.Type == JTokenType.Boolean && (bool)success;
+
+                // Error-shaped: { error: "..." } (object handlers) or a serialized
+                // { status:"error", error, code } (legacy string handlers), unless an
+                // explicit success:true overrides (mirrors Node isHandlerLevelError).
+                if (!hasSuccessTrue &&
+                    shape.TryGetValue("error", out var error) && error.Type == JTokenType.String)
+                {
+                    var code = shape.TryGetValue("code", out var codeToken) && codeToken.Type == JTokenType.String
+                        ? (string)codeToken
+                        : "EDITOR_ERROR";
+                    // The original object rides along as details so no fields are lost.
+                    return ErrorResult(id, (string)error, code, shape);
+                }
+
+                // A legacy success envelope ({status:"success",…} / {success:true,…}) —
+                // unwrap its payload so it is not double-encoded under result.
+                var isSuccessEnvelope = hasSuccessTrue ||
+                    (shape.TryGetValue("status", out var status) &&
+                     status.Type == JTokenType.String && (string)status == "success");
+                if (isSuccessEnvelope)
+                {
+                    if (shape.TryGetValue("result", out var resultToken)) return SuccessResult(id, resultToken);
+                    if (shape.TryGetValue("data", out var dataToken)) return SuccessResult(id, dataToken);
+                }
             }
 
             return SuccessResult(id, handlerResult);
