@@ -44,6 +44,11 @@ describe('Server', () => {
   });
 
   afterEach(async () => {
+    // Tear down the connection too — without this the process can keep a handle
+    // alive and `node --test` never exits (the source of the earlier hung-process).
+    if (unityConnection && typeof unityConnection.disconnect === 'function') {
+      unityConnection.disconnect();
+    }
     if (server && server.close) {
       await server.close();
     }
@@ -129,7 +134,7 @@ describe('Server', () => {
       const handlers = createHandlers(unityConnection);
       
       assert.ok(handlers instanceof Map);
-      assert.equal(handlers.size, 62);
+      assert.equal(handlers.size, 66);
       
       // Check for some key handlers
       assert.ok(handlers.has('ping'));

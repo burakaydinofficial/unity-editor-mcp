@@ -4,6 +4,19 @@ import net from 'net';
 import { UnityConnection } from '../../../src/core/unityConnection.js';
 import { EventEmitter } from 'events';
 
+// The wire protocol is a 4-byte big-endian length prefix + UTF-8 JSON, both
+// directions. Tests must frame what they assert/inject, not raw JSON strings.
+function frame(obj) {
+  const json = Buffer.from(JSON.stringify(obj), 'utf8');
+  const len = Buffer.allocUnsafe(4);
+  len.writeInt32BE(json.length, 0);
+  return Buffer.concat([len, json]);
+}
+function unframe(buf) {
+  const len = buf.readInt32BE(0);
+  return JSON.parse(buf.slice(4, 4 + len).toString('utf8'));
+}
+
 describe('UnityConnection', () => {
   let connection;
   let mockSocket;
@@ -170,23 +183,21 @@ describe('UnityConnection', () => {
     it('should send command with incrementing ID', async () => {
       const sendPromise = connection.sendCommand('ping', { echo: 'test' });
       
-      // Verify command was sent
+      // Verify command was sent (framed: 4-byte length prefix + JSON)
       assert.equal(mockSocket.write.mock.calls.length, 1);
-      const sentData = mockSocket.write.mock.calls[0].arguments[0];
-      const command = JSON.parse(sentData);
-      
+      const command = unframe(mockSocket.write.mock.calls[0].arguments[0]);
+
       assert.equal(command.id, '1');
       assert.equal(command.type, 'ping');
       assert.deepEqual(command.params, { echo: 'test' });
-      
-      // Simulate response
-      const response = {
+
+      // Simulate framed response
+      mockSocket.emit('data', frame({
         id: '1',
         status: 'success',
         data: { message: 'pong' }
-      };
-      mockSocket.emit('data', Buffer.from(JSON.stringify(response)));
-      
+      }));
+
       const result = await sendPromise;
       assert.deepEqual(result, { message: 'pong' });
     });
@@ -216,14 +227,13 @@ describe('UnityConnection', () => {
 
     it('should handle error responses', async () => {
       const sendPromise = connection.sendCommand('bad-command');
-      
-      // Simulate error response
-      const response = {
+
+      // Simulate framed error response
+      mockSocket.emit('data', frame({
         id: '1',
         status: 'error',
         error: 'Unknown command'
-      };
-      mockSocket.emit('data', Buffer.from(JSON.stringify(response)));
+      }));
       
       await assert.rejects(
         sendPromise,
@@ -242,29 +252,35 @@ describe('UnityConnection', () => {
       await connectPromise;
     });
 
-    it('should send raw ping string', async () => {
+    it('should send a framed ping command', async () => {
       const pingPromise = connection.ping();
-      
+
+      // ping() now delegates to sendCommand('ping'), so a framed command is written.
       assert.equal(mockSocket.write.mock.calls.length, 1);
-      assert.equal(mockSocket.write.mock.calls[0].arguments[0], 'ping');
-      
-      // Simulate pong response
-      const response = {
+      const command = unframe(mockSocket.write.mock.calls[0].arguments[0]);
+      assert.equal(command.type, 'ping');
+
+      // Simulate a framed pong response, correlated by the command's id
+      mockSocket.emit('data', frame({
+        id: command.id,
         status: 'success',
         data: { message: 'pong', timestamp: '2025-06-21T10:00:00Z' }
-      };
-      mockSocket.emit('data', Buffer.from(JSON.stringify(response)));
-      
+      }));
+
       const result = await pingPromise;
       assert.equal(result.message, 'pong');
       assert.equal(result.timestamp, '2025-06-21T10:00:00Z');
     });
 
     it('should timeout if no pong received', async () => {
-      await assert.rejects(
-        connection.ping(),
-        /Ping timeout/
-      );
+      const pingPromise = connection.ping();
+      // Drain pending to simulate the timeout without waiting the real 30s.
+      // ping() delegates to sendCommand, so the rejection is 'Command timeout'.
+      for (const [, pending] of connection.pendingCommands) {
+        pending.reject(new Error('Command timeout'));
+      }
+      connection.pendingCommands.clear();
+      await assert.rejects(pingPromise, /Command timeout/);
     });
   });
 
@@ -294,8 +310,9 @@ describe('UnityConnection', () => {
         });
       });
       
-      connection.handleData(Buffer.from(JSON.stringify(message)));
-      
+      // A framed message with no matching pending-command id is unsolicited.
+      connection.handleData(frame(message));
+
       const received = await messagePromise;
       assert.deepEqual(received, message);
     });
