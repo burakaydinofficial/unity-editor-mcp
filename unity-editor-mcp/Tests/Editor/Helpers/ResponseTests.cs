@@ -229,11 +229,29 @@ namespace UnityEditorMCP.Tests.Helpers
         }
 
         [Test]
-        public void Result_SuccessEnvelopeWithoutPayload_IsEmptySuccess()
+        public void Result_SuccessEnvelopeWithInlineFields_PreservesPayload()
         {
-            var json = JObject.Parse(Response.Result("9", new JObject { ["success"] = true }));
+            // Handlers like get_compilation_state return { success:true, ...inline }
+            // with no result/data wrapper — the inline fields ARE the payload and
+            // must survive (regression guard for the wire path).
+            var json = JObject.Parse(Response.Result("9",
+                new JObject { ["success"] = true, ["isCompiling"] = false, ["count"] = 3 }));
             Assert.AreEqual("success", json["status"].Value<string>());
-            Assert.AreEqual(JTokenType.Null, json["result"].Type, "must not re-wrap the envelope under result");
+            Assert.IsNotNull(json["result"]);
+            Assert.AreEqual(false, json["result"]["isCompiling"].Value<bool>());
+            Assert.AreEqual(3, json["result"]["count"].Value<int>());
+        }
+
+        [Test]
+        public void Result_StatusSuccessWithStatePayload_PreservesState()
+        {
+            // get_editor_state returns { status:"success", state:{…} } — the state
+            // sub-object must survive rather than be collapsed away.
+            var json = JObject.Parse(Response.Result("9",
+                new JObject { ["status"] = "success", ["state"] = new JObject { ["isPlaying"] = true } }));
+            Assert.AreEqual("success", json["status"].Value<string>());
+            Assert.IsNotNull(json["result"]["state"]);
+            Assert.AreEqual(true, json["result"]["state"]["isPlaying"].Value<bool>());
         }
 
         [Test]

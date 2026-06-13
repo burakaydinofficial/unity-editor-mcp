@@ -232,11 +232,13 @@ namespace UnityEditorMCP.Helpers
                      status.Type == JTokenType.String && (string)status == "success");
                 if (isSuccessEnvelope)
                 {
+                    // Unwrap an EXPLICIT payload wrapper if present...
                     if (shape.TryGetValue("result", out var resultToken)) return SuccessResult(id, resultToken);
                     if (shape.TryGetValue("data", out var dataToken)) return SuccessResult(id, dataToken);
-                    // A no-payload success envelope: return an empty success, not the
-                    // envelope object itself (which would re-wrap under result).
-                    return SuccessResult(id, null);
+                    // ...otherwise the envelope carries its payload INLINE (e.g.
+                    // { success:true, isCompiling:… } or { status:"success", state:… }).
+                    // Pass the whole object through so those fields survive — do NOT
+                    // collapse to an empty success, which would drop the payload.
                 }
             }
 
