@@ -116,8 +116,13 @@ namespace UnityEditorMCP.Core
 
                     void Respond(string reply)
                     {
+                        // Respond may be invoked on the Unity main thread AFTER this client
+                        // handler ended (a command queued just before the client disconnected).
+                        // Both "client gone" states throw InvalidOperationException: CompleteAdding
+                        // throws it directly, and Add-after-Dispose throws ObjectDisposedException,
+                        // which DERIVES from InvalidOperationException — so one catch covers both.
                         try { outbound.Add(MessageFramer.Encode(reply)); }
-                        catch (InvalidOperationException) { /* outbound completed — client gone */ }
+                        catch (InvalidOperationException) { /* client gone */ }
                     }
 
                     var writer = Task.Run(async () =>

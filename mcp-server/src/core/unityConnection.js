@@ -263,8 +263,11 @@ export class UnityConnection extends EventEmitter {
         // up to the same 1MB protocol cap used above — the protocol supports large
         // responses (hierarchy dumps, scene analyses), so a 10KB ceiling here would
         // silently discard a legitimate large frame during recovery.
+        // Scan the WHOLE buffer (not just the first 100 bytes) for a valid resync
+        // point — a corrupt prefix can be followed by a large legitimate frame whose
+        // header sits well past byte 100; capping the scan would discard it.
         let recoveryIndex = -1;
-        for (let i = 4; i < Math.min(this.messageBuffer.length - 4, 100); i++) {
+        for (let i = 4; i < this.messageBuffer.length - 4; i++) {
           const testLength = this.messageBuffer.readInt32BE(i);
           if (testLength > 0 && testLength <= 1024 * 1024) {
             // Check if this could be a valid JSON message
