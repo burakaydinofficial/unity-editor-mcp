@@ -208,7 +208,13 @@ namespace UnityEditorMCP.Handlers
                 var originalRotation = obj.transform.rotation;
                 var originalScale = obj.transform.localScale;
                 var originalActive = obj.activeSelf;
-                
+
+                // Register undo BEFORE mutating so Unity snapshots the ORIGINAL state.
+                // (RecordObject called after the change records the post-change state,
+                // which makes Ctrl+Z a no-op — the bug this fixes.)
+                Undo.RecordObject(obj, "Modify GameObject");
+                Undo.RecordObject(obj.transform, "Modify GameObject Transform");
+
                 // Apply modifications
                 bool modified = false;
                 
@@ -296,11 +302,8 @@ namespace UnityEditorMCP.Handlers
                 
                 if (modified)
                 {
-                    // Register undo
-                    Undo.RecordObject(obj, "Modify GameObject");
-                    Undo.RecordObject(obj.transform, "Modify GameObject Transform");
-                    
-                    // Mark as dirty for saving
+                    // Mark as dirty for saving (undo was already recorded above, before
+                    // the mutations).
                     EditorUtility.SetDirty(obj);
                 }
                 

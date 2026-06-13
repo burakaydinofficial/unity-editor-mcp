@@ -193,7 +193,15 @@ namespace UnityEditorMCP.Handlers
                     {
                         try
                         {
-                            var logContent = File.ReadAllText(logPath);
+                            // Unity holds Editor.log open with an exclusive write lock on
+                            // Windows; File.ReadAllText (FileShare.None) always throws there.
+                            // Open shared read/write so the supplemental log read works.
+                            string logContent;
+                            using (var fs = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                            using (var sr = new StreamReader(fs))
+                            {
+                                logContent = sr.ReadToEnd();
+                            }
                             var parsedMessages = ParseCompilationErrors(logContent, logPath);
                             messages.AddRange(parsedMessages);
                         }

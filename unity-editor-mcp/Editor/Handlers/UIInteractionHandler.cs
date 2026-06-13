@@ -461,7 +461,11 @@ namespace UnityEditorMCP.Handlers
 
             if (includeInteractableInfo)
             {
-                state["isInteractable"] = GetInteractableStatus(target.GetComponent<Component>());
+                // GetComponent<Component>() returns the Transform (always first), so the
+                // old call never saw the UI component — isInteractable was always just
+                // activeInHierarchy. Resolve the actual Selectable (Button/Toggle/Slider…).
+                var selectable = target.GetComponent<Selectable>();
+                state["isInteractable"] = selectable != null ? selectable.interactable : target.activeInHierarchy;
                 
                 // Get specific UI element values
                 var inputField = target.GetComponent<InputField>();

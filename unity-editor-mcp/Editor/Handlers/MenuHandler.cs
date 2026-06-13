@@ -115,13 +115,16 @@ namespace UnityEditorMCP.Handlers
                     };
                 }
 
-                // Check blacklist if safety is enabled
-                if (safetyCheck && BlacklistedMenus.Contains(menuPath))
+                // Blacklisted menus (editor shutdown, build, dialogs that hang MCP) are
+                // NEVER executable — the guard is unconditional and cannot be bypassed by
+                // a client-supplied flag. (safetyCheck is retained for wire compatibility
+                // but no longer disables this check.)
+                if (BlacklistedMenus.Contains(menuPath))
                 {
                     return new
                     {
                         success = false,
-                        error = $"Menu item is blacklisted for safety: {menuPath}. Use safetyCheck: false to override."
+                        error = $"Menu item is blacklisted for safety and cannot be executed: {menuPath}"
                     };
                 }
 
