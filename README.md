@@ -45,7 +45,9 @@ In Unity:
 3. Paste: `https://github.com/ozankasikci/unity-editor-mcp.git?path=unity-editor-mcp`
 4. Click **Add**
 
-> ✨ Unity will automatically start the MCP server on port 6400
+> ✨ Unity automatically starts the editor-side bridge on a **per-project port**
+> (derived from the project path, range 6400–7423) and publishes it to a local
+> discovery registry, so the MCP server finds it automatically — no fixed port to set.
 
 #### ⚙️ Step 2: Configure Your MCP Client
 
@@ -78,7 +80,7 @@ Add the same configuration to Cursor's MCP settings
 
 ## Available Tools
 
-Unity Editor MCP provides **62 comprehensive tools** across 11 categories for complete Unity Editor automation:
+Unity Editor MCP provides **66 comprehensive tools** across 15 categories for complete Unity Editor automation:
 
 ### System & Core Tools (3 tools)
 - **`ping`** - Test connection to Unity Editor and verify server status
@@ -169,10 +171,12 @@ Unity Editor MCP provides **62 comprehensive tools** across 11 categories for co
 
 ### Unity TCP Listener Issues
 
-If you see "Port 6400 is already in use":
-1. Check if another Unity instance is running
-2. Close all Unity instances and restart
-3. If the issue persists, you may have another process using port 6400
+The bridge uses a **per-project derived port** (range 6400–7423), published to a local
+discovery registry — there is no single fixed port:
+1. Ensure the Unity Editor is running with the package installed.
+2. Set `UNITY_PROJECT_PATH` so the server resolves the right editor from the registry,
+   or set `UNITY_PORT` to pin a specific port explicitly.
+3. If a port seems stuck, close stray Unity instances and restart the editor.
 
 ### Connection Failed
 

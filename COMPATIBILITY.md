@@ -56,9 +56,10 @@ Tracked openly so the list is the work list:
    assembly, so the bridge now depends on the test framework (a default package);
    isolating it into its own assembly is a possible later refinement. Confirm
    compilation across the version matrix.
-3. **`get_component_types`** is a registered MCP tool with no Unity dispatch
-   case — it returns `UNKNOWN_COMMAND` at runtime. Baselined in
-   `protocol/catalog/commands.json` → `knownGaps`.
+3. **`get_component_types`** is now implemented on the Core `CommandDispatcher` rail
+   (`ComponentHandler.GetComponentTypes`); `protocol/catalog/commands.json` →
+   `knownGaps` is empty and the drift gate reports zero gaps. (Previously a registered
+   MCP tool with no Unity dispatch case that returned `UNKNOWN_COMMAND` at runtime.)
 
 ## Adding a guard
 
