@@ -108,20 +108,23 @@ implemented — see Roadmap.)*
 
 This is tracked honestly so the gap list is the work list:
 
-1. **Errors transported as success (editor side).** The editor dispatcher wraps
-   every handler result — including `{ error: ... }` — in `SuccessResult`, so
-   domain failures leave Unity with `status:"success"`. The Node boundary now
-   detects this shape and surfaces it to clients as a proper error
-   (`unityConnection.isHandlerLevelError`), so MCP clients are correct today; the
-   remaining wire-truth fix is the editor dispatcher emitting a real `ErrorResult`
-   (needs editor/CI verification).
+1. **Errors transported as success — fixed on the wire (pending in-editor verify).**
+   Every dispatch site now routes through `Response.Result`, which classifies a
+   handler's `{ error: ... }` return (and a serialized error-envelope string from
+   the two string-returning handlers) into a real `ErrorResult`; the Node side
+   propagates `code`/`details`. The `isHandlerLevelError` boundary stays as
+   belt-and-braces for older editor packages. Verified by `dotnet`/Node tests +
+   EditMode tests; the live editor compile is the user's confirmation.
 2. **`get_component_types`** is a registered MCP tool with no editor dispatch
    case (baselined in `knownGaps`): it returns `UNKNOWN_COMMAND` at runtime.
-3. **No handshake / capability negotiation.** `ping` returns only a pong; the
-   connection carries no editor version, project path, or per-tool availability,
-   so version/project mismatches are undetectable.
-4. **Result schemas are derived, not yet enforced** — `result` is populated best-effort
-   from handler returns, but responses are not validated against it.
+3. **Handshake: editor + evaluation shipped, connect-time exchange pending.** The
+   editor answers a `handshake` command (protocol/Unity versions, project path,
+   available commands) and the server has `evaluateHandshake`
+   (`PROTOCOL_VERSION_MISMATCH` / `PROJECT_PATH_MISMATCH`); what remains is the
+   server *sending* it on connect and acting on the verdict.
+4. **Result schemas are derived, not yet enforced** — `result` is populated
+   best-effort from handler returns and not validated against it. (Catalog
+   *params* are now drift-checked against the JS inputSchema.)
 5. **Addressing/discovery shipped, handshake enforcement pending** — editors now
    derive a per-project port (FNV-1a, `[6400, 7424)`), fall back to an ephemeral
    port on collision, and publish `{projectPath, port, …, lastHeartbeat}` to a

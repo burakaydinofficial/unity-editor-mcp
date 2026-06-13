@@ -37,7 +37,10 @@ the Core migration lands), floor-treadmill second, polish last.
 4. Migrate handlers to real `HandlerOutcome` by category (strangler) + startup
    `CatalogConformance` check; typed error codes (`EDITOR_COMPILING`, `VALIDATION_ERROR`…).
 5. Node `tools/` leftovers: 10 double-wrapped analysis/scene tools, payload-discarding
-   summaries, vestigial `validators.js`.
+   summaries. (Correction: `utils/validators.js` is *not* vestigial — `validateVector3`/
+   `validateLayer`/`validateGameObjectPath` are used; only `validateRange`/
+   `validateNonEmptyString`/`validateBoolean` are unused exports. Verify each leftover
+   claim before acting — the original audit summary overstated this one.)
 6. ~~Param-schema drift detection~~ done; the `list_components` product decision (user call)
    remains open.
 7. Server reconnect re-resolution via the registry + server-side stale reaping (ADR 0003
@@ -52,6 +55,34 @@ the Core migration lands), floor-treadmill second, polish last.
 11. C# dispatch codegen from the catalog (compile-time half; conformance covers runtime).
 12. game-ci single floor lane (2020.3, license-gated).
 13. 2019.4 exploration (C# 7.3) — after the 2020.3 story is fully proven.
+
+## Adversarial audit (2026-06-13)
+
+A 23-agent review workflow (review → adversarial verify) over the wire-truth +
+discovery/handshake changes confirmed 16 of 19 raw findings.
+
+**Fixed** (commits `28bfc11`, `9f5756a`, `bc98795`, `6c1afb0`, `f753fe0`):
+- HIGH — `Response.Result` was bypassed for the two handlers that return serialized
+  envelope *strings* (Script/TestRunner): real errors stayed `status:"success"`.
+  Now parses string returns before classifying.
+- C#↔JS case-fold parity (U+0130): `ToLowerInvariant`/`toLowerCase` diverge → now
+  ASCII-only fold on both sides, pinned by a vector.
+- Registry: PID-liveness (collapses the dead-port window), atomic `File.Replace`,
+  reaping wired (was never called), orphan `*.tmp` sweep, ISO-UTC date pinning.
+- Editor: publishes `host`, reaps on heartbeat, no CTS leak on the port fallback.
+
+**Deferred, with rationale:**
+- Two editors of the *same* project sharing one descriptor file — Unity's own
+  project lock (`Temp/UnityLockfile`) prevents opening one project in two editors,
+  so the single-file-per-project design holds. Revisit only if that assumption breaks.
+
+**Accepted by design / known:**
+- The error predicate could misfire on a success payload carrying a top-level
+  string `error` field — this is the deliberate `isHandlerLevelError` convention,
+  identical on both halves.
+- `Status` is logged across threads without a lock (benign).
+- No live caller for `evaluateHandshake` yet — that is the connect-time exchange
+  (P0 item 2 above).
 
 ## Progress
 
