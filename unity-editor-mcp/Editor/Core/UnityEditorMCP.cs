@@ -105,12 +105,18 @@ namespace UnityEditorMCP.Core
 
         private static bool TryStartListener(int port)
         {
+            TcpListener listener = null;
             try
             {
+                listener = new TcpListener(IPAddress.Loopback, port);
+                listener.Start();
+
+                // Only allocate state that needs cleanup once the bind has succeeded,
+                // so a failed bind on the first (preferred) port never leaks a
+                // CancellationTokenSource before the ephemeral-port fallback runs.
+                tcpListener = listener;
                 cancellationTokenSource = new CancellationTokenSource();
-                tcpListener = new TcpListener(IPAddress.Loopback, port);
-                tcpListener.Start();
-                currentPort = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
+                currentPort = ((IPEndPoint)listener.LocalEndpoint).Port;
 
                 Status = McpStatus.Disconnected;
                 Debug.Log($"[Unity Editor MCP] TCP listener started on port {currentPort}");
@@ -123,12 +129,14 @@ namespace UnityEditorMCP.Core
             catch (SocketException ex)
             {
                 Debug.LogWarning($"[Unity Editor MCP] Could not bind port {port}: {ex.Message}");
+                try { listener?.Stop(); } catch { /* ignore */ }
                 return false;
             }
             catch (Exception ex)
             {
                 Status = McpStatus.Error;
                 Debug.LogError($"[Unity Editor MCP] Unexpected error starting TCP listener: {ex}");
+                try { listener?.Stop(); } catch { /* ignore */ }
                 return false;
             }
         }
@@ -153,11 +161,14 @@ namespace UnityEditorMCP.Core
                     ProjectPath = ProjectRoot(),
                     Port = currentPort,
                     Pid = System.Diagnostics.Process.GetCurrentProcess().Id,
+                    Host = Environment.MachineName,
                     UnityVersion = Application.unityVersion,
                     StartedAtUtc = startedAtUtc,
                     LastHeartbeatUtc = now,
                 });
                 lastHeartbeatUtc = now;
+                // Opportunistically clear crashed/stale peers (cheap, main thread).
+                instanceRegistry.ReapStale(now, Environment.MachineName);
             }
             catch (Exception ex)
             {
