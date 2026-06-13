@@ -106,6 +106,29 @@ for (const name of catalogEditor) {
   if (!editorNames.has(name)) note('editor', name, `Catalog declares editor side for "${name}" but no editor dispatch case exists.`);
 }
 
+// Param-schema drift: a server command's catalog `params` is a verbatim copy of
+// the JS tool's inputSchema (bootstrap-catalog.mjs), so they must stay equal —
+// editing a handler's inputSchema without re-bootstrapping is silent drift the
+// presence checks above can't see. Order-insensitive (key order is not contract).
+const canonical = (v) => {
+  if (Array.isArray(v)) return `[${v.map(canonical).join(',')}]`;
+  if (v && typeof v === 'object') {
+    return `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canonical(v[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(v);
+};
+const serverToolByName = new Map(serverTools.map((t) => [t.name, t]));
+for (const c of catalog.commands) {
+  if (!c.sides.includes('server')) continue;
+  const tool = serverToolByName.get(c.name);
+  if (!tool) continue; // missing-handler case already reported above
+  const catalogParams = c.params ?? { type: 'object' };
+  const liveSchema = tool.inputSchema ?? { type: 'object' };
+  if (canonical(catalogParams) !== canonical(liveSchema)) {
+    problems.push(`Param schema drift for "${c.name}": catalog params differ from the server tool inputSchema — re-run bootstrap-catalog.mjs (or reconcile the handler).`);
+  }
+}
+
 // A baselined gap that no longer occurs is stale: the side was implemented, so
 // the baseline entry should be removed to let the gate enforce it going forward.
 for (const [key, g] of baselined) {
