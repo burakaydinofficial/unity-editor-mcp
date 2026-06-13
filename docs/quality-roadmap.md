@@ -36,11 +36,17 @@ the Core migration lands), floor-treadmill second, polish last.
 **P1 — structural completion**
 4. Migrate handlers to real `HandlerOutcome` by category (strangler) + startup
    `CatalogConformance` check; typed error codes (`EDITOR_COMPILING`, `VALIDATION_ERROR`…).
-5. Node `tools/` leftovers: 10 double-wrapped analysis/scene tools, payload-discarding
-   summaries. (Correction: `utils/validators.js` is *not* vestigial — `validateVector3`/
-   `validateLayer`/`validateGameObjectPath` are used; only `validateRange`/
-   `validateNonEmptyString`/`validateBoolean` are unused exports. Verify each leftover
-   claim before acting — the original audit summary overstated this one.)
+5. Node `tools/` leftovers. **Verified, not 10** — the original audit summary overstated
+   several claims:
+   - Double-wrap + payload discard: only **2** handlers (`AnalyzeSceneContents`,
+     `GetGameObjectDetails`) returned `result.summary` in an MCP `{content}` shape →
+     **fixed** (`?`), they now pass the raw payload through.
+   - `utils/validators.js` is *not* vestigial — `validateVector3`/`validateLayer`/
+     `validateGameObjectPath` are used; only `validateRange`/`validateNonEmptyString`/
+     `validateBoolean` are unused exports.
+   - Remaining tidy-up: the now-unused `analyzeSceneContentsHandler` /
+     `getGameObjectDetailsHandler` tool functions (+ their tool-level tests) are dead
+     and can be removed. Verify each remaining claim before acting.
 6. ~~Param-schema drift detection~~ done; the `list_components` product decision (user call)
    remains open.
 7. Server reconnect re-resolution via the registry + server-side stale reaping (ADR 0003
