@@ -365,13 +365,15 @@ namespace UnityEditorMCP.Handlers
             if (type != null && typeof(Component).IsAssignableFrom(type))
                 return type;
 
-            // Search all loaded assemblies
+            // Search all loaded assemblies by short OR fully-qualified name, so
+            // namespaced inputs like "UnityEngine.Rigidbody" resolve too (a bare
+            // full name has no assembly hint for Type.GetType above).
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                type = assembly.GetTypes().FirstOrDefault(t => 
-                    t.Name == typeName && 
+                type = assembly.GetTypes().FirstOrDefault(t =>
+                    (t.Name == typeName || t.FullName == typeName) &&
                     typeof(Component).IsAssignableFrom(t));
-                
+
                 if (type != null)
                     return type;
             }
