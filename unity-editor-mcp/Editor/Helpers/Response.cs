@@ -1,6 +1,7 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Helpers
 {
@@ -168,81 +169,12 @@ namespace UnityEditorMCP.Helpers
         /// <returns>JSON string of the success or error envelope</returns>
         public static string Result(string id, object handlerResult)
         {
-            // Most handlers return a plain object. Two legacy handlers (ScriptHandler,
-            // TestRunnerHandler) instead return an ALREADY-serialized envelope string
-            // from Response.Success/Response.Error; parse it back so it is classified
-            // and unwrapped here rather than double-encoded under a success envelope.
-            // Reparse ONLY a string that looks like a JSON object envelope (leading '{'
-            // AND carrying status/success/error), so genuine string data — a serialized
-            // array, or a non-envelope object — keeps its original wire type.
-            if (handlerResult is string str)
-            {
-                if (str.TrimStart().StartsWith("{"))
-                {
-                    try
-                    {
-                        var parsed = JToken.Parse(str) as JObject;
-                        if (parsed != null &&
-                            (parsed["status"] != null || parsed["success"] != null || parsed["error"] != null))
-                        {
-                            handlerResult = parsed;
-                        }
-                    }
-                    catch { /* not JSON — treat as an opaque string payload */ }
-                }
-            }
-
-            JObject shape = null;
-            if (handlerResult != null)
-            {
-                try
-                {
-                    var token = handlerResult as JToken ?? JToken.FromObject(handlerResult);
-                    shape = token as JObject;
-                    handlerResult = token;
-                }
-                catch
-                {
-                    // Not convertible — treat as an opaque success payload.
-                }
-            }
-
-            if (shape != null)
-            {
-                var hasSuccessTrue = shape.TryGetValue("success", out var success) &&
-                    success.Type == JTokenType.Boolean && (bool)success;
-
-                // Error-shaped: { error: "..." } (object handlers) or a serialized
-                // { status:"error", error, code } (legacy string handlers), unless an
-                // explicit success:true overrides (mirrors Node isHandlerLevelError).
-                if (!hasSuccessTrue &&
-                    shape.TryGetValue("error", out var error) && error.Type == JTokenType.String)
-                {
-                    var code = shape.TryGetValue("code", out var codeToken) && codeToken.Type == JTokenType.String
-                        ? (string)codeToken
-                        : "EDITOR_ERROR";
-                    // The original object rides along as details so no fields are lost.
-                    return ErrorResult(id, (string)error, code, shape);
-                }
-
-                // A legacy success envelope ({status:"success",…} / {success:true,…}) —
-                // unwrap its payload so it is not double-encoded under result.
-                var isSuccessEnvelope = hasSuccessTrue ||
-                    (shape.TryGetValue("status", out var status) &&
-                     status.Type == JTokenType.String && (string)status == "success");
-                if (isSuccessEnvelope)
-                {
-                    // Unwrap an EXPLICIT payload wrapper if present...
-                    if (shape.TryGetValue("result", out var resultToken)) return SuccessResult(id, resultToken);
-                    if (shape.TryGetValue("data", out var dataToken)) return SuccessResult(id, dataToken);
-                    // ...otherwise the envelope carries its payload INLINE (e.g.
-                    // { success:true, isCompiling:… } or { status:"success", state:… }).
-                    // Pass the whole object through so those fields survive — do NOT
-                    // collapse to an empty success, which would drop the payload.
-                }
-            }
-
-            return SuccessResult(id, handlerResult);
+            // Classification (the wire-truth decision) lives in Unity-independent Core
+            // so it is covered by fast dotnet tests; serialization stays here.
+            var outcome = ResponseClassifier.Classify(handlerResult);
+            return outcome.IsError
+                ? ErrorResult(id, outcome.Error, outcome.Code, outcome.Details)
+                : SuccessResult(id, outcome.Payload);
         }
 
         /// <summary>
