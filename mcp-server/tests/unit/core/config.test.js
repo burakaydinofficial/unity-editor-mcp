@@ -1,6 +1,14 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { config, logger } from '../../../src/core/config.js';
+
+// Assert against the real package version so this can't go stale again.
+const pkgVersion = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../../package.json'), 'utf8')
+).version;
 
 describe('Config', () => {
   describe('config object', () => {
@@ -15,7 +23,7 @@ describe('Config', () => {
 
     it('should have correct server settings', () => {
       assert.equal(config.server.name, 'unity-editor-mcp-server');
-      assert.equal(config.server.version, '0.1.0');
+      assert.equal(config.server.version, pkgVersion);
       assert.equal(config.server.description, 'MCP server for Unity Editor integration');
     });
 
