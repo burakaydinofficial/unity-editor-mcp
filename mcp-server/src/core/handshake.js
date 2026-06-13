@@ -83,3 +83,32 @@ export function evaluateHandshake(handshake, options = {}) {
 
   return versionResult;
 }
+
+/**
+ * Performs the connect-time handshake against a connected editor: sends the
+ * `handshake` command, evaluates the reply, and returns a resilient result that
+ * NEVER throws — an editor predating the command (UNKNOWN_COMMAND) or any I/O
+ * failure degrades to a non-fatal `performed:false`, so the connection is never
+ * broken by the handshake itself.
+ * @returns {Promise<{performed:boolean, reason?:string, compatible?:boolean,
+ *   code?:string|null, message:string, handshake?:object}>}
+ */
+export async function performHandshake(connection, options = {}) {
+  const expectedProjectPath = options.expectedProjectPath
+    ?? (typeof process !== 'undefined' ? process.env.UNITY_PROJECT_PATH : null)
+    ?? null;
+  const localProtocolVersion = options.localProtocolVersion || PROTOCOL_VERSION;
+
+  let handshake;
+  try {
+    handshake = await connection.sendCommand('handshake');
+  } catch (err) {
+    if (err && err.code === 'UNKNOWN_COMMAND') {
+      return { performed: false, reason: 'unsupported', message: 'Editor predates the handshake command.' };
+    }
+    return { performed: false, reason: 'error', message: err ? err.message : 'handshake failed' };
+  }
+
+  const verdict = evaluateHandshake(handshake, { expectedProjectPath, localProtocolVersion });
+  return { performed: true, handshake, ...verdict };
+}

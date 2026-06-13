@@ -10,6 +10,7 @@ import {
 import { UnityConnection } from './unityConnection.js';
 import { createHandlers } from '../handlers/index.js';
 import { config, logger } from './config.js';
+import { performHandshake } from './handshake.js';
 
 // Create Unity connection
 const unityConnection = new UnityConnection();
@@ -138,8 +139,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 // Handle connection events
-unityConnection.on('connected', () => {
+unityConnection.on('connected', async () => {
   logger.info('Unity connection established');
+  // Connect-time handshake: confirm protocol/project and record editor identity.
+  // Resilient — never throws, never breaks the connection (ADR 0003 / G7).
+  try {
+    const result = await performHandshake(unityConnection);
+    unityConnection.editorInfo = result.handshake || null;
+    if (!result.performed) {
+      logger.debug(`[Handshake] skipped: ${result.message}`);
+    } else if (!result.compatible) {
+      logger.warn(`[Handshake] ${result.code}: ${result.message}`);
+    } else {
+      const h = result.handshake || {};
+      logger.info(`[Handshake] ${result.message} (Unity ${h.unityVersion}, project ${h.projectPath})`);
+    }
+  } catch (err) {
+    logger.debug(`[Handshake] error: ${err.message}`);
+  }
 });
 
 unityConnection.on('disconnected', () => {

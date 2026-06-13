@@ -4,6 +4,7 @@ import {
   parseSemver,
   checkProtocolCompatibility,
   evaluateHandshake,
+  performHandshake,
   PROTOCOL_VERSION,
 } from '../../../src/core/handshake.js';
 
@@ -69,6 +70,52 @@ describe('handshake', () => {
 
     it('rejects a missing payload', () => {
       assert.equal(evaluateHandshake(null).compatible, false);
+    });
+  });
+
+  describe('performHandshake', () => {
+    const okHandshake = {
+      protocolVersion: PROTOCOL_VERSION,
+      unityVersion: '2020.3.49f1',
+      projectPath: 'C:/projects/game',
+      availableCommands: ['ping'],
+    };
+    const mockConn = (impl) => ({ sendCommand: async (type) => impl(type) });
+
+    it('performs and reports compatible for a matching editor', async () => {
+      const r = await performHandshake(mockConn(() => okHandshake), { expectedProjectPath: 'C:/projects/game' });
+      assert.equal(r.performed, true);
+      assert.equal(r.compatible, true);
+      assert.deepEqual(r.handshake, okHandshake);
+    });
+
+    it('reports a protocol mismatch without throwing', async () => {
+      const r = await performHandshake(mockConn(() => ({ ...okHandshake, protocolVersion: '2.0.0' })));
+      assert.equal(r.performed, true);
+      assert.equal(r.compatible, false);
+      assert.equal(r.code, 'PROTOCOL_VERSION_MISMATCH');
+    });
+
+    it('reports a project mismatch when an expected path is given', async () => {
+      const r = await performHandshake(mockConn(() => okHandshake), { expectedProjectPath: 'C:/projects/other' });
+      assert.equal(r.compatible, false);
+      assert.equal(r.code, 'PROJECT_PATH_MISMATCH');
+    });
+
+    it('degrades gracefully for an editor predating the command', async () => {
+      const r = await performHandshake(mockConn(() => {
+        const e = new Error('Unknown command type: handshake');
+        e.code = 'UNKNOWN_COMMAND';
+        throw e;
+      }));
+      assert.equal(r.performed, false);
+      assert.equal(r.reason, 'unsupported');
+    });
+
+    it('degrades gracefully on a transport error', async () => {
+      const r = await performHandshake(mockConn(() => { throw new Error('socket closed'); }));
+      assert.equal(r.performed, false);
+      assert.equal(r.reason, 'error');
     });
   });
 });
