@@ -82,6 +82,23 @@ if (catalog.protocol !== VERSION) {
   }
 }
 
+// The Node server embeds the protocol version too (it can't read protocol/VERSION
+// at npm runtime); keep it in lockstep.
+{
+  const handshakePath = new URL('../../mcp-server/src/core/handshake.js', import.meta.url);
+  try {
+    const src = await readFile(handshakePath, 'utf8');
+    const match = src.match(/PROTOCOL_VERSION\s*=\s*'([^']+)'/);
+    if (!match) {
+      problems.push('mcp-server/src/core/handshake.js: PROTOCOL_VERSION constant not found.');
+    } else if (match[1] !== VERSION) {
+      problems.push(`mcp-server PROTOCOL_VERSION "${match[1]}" != VERSION file "${VERSION}".`);
+    }
+  } catch {
+    problems.push('mcp-server/src/core/handshake.js could not be read for the PROTOCOL_VERSION check.');
+  }
+}
+
 for (const name of catalogServer) {
   if (!serverNames.has(name)) note('server', name, `Catalog declares server side for "${name}" but no MCP handler is registered.`);
 }
