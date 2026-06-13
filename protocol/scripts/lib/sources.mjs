@@ -36,16 +36,21 @@ export async function getServerTools() {
 }
 
 /**
- * Extracts the command-type strings the Unity editor dispatcher actually
- * handles, by scanning the `case "..."` labels in the ProcessCommand switch.
- * This is the de-facto editor-side command surface.
+ * Extracts the command-type strings the Unity editor actually handles. Commands
+ * are dispatched by two mechanisms during the McpBridge migration (ADR 0002):
+ *   1. the legacy ProcessCommand `switch` (`case "..."` labels), and
+ *   2. Core's CommandDispatcher, onto which commands are migrated one at a time
+ *      (`dispatcher.Register("...", ...)`).
+ * The de-facto editor-side surface is the union of both.
  */
 export async function getEditorCommands() {
   const src = await readFile(PATHS.editorCore, 'utf8');
   const names = new Set();
-  const re = /case\s+"([a-z0-9_]+)"\s*:/g;
+  const caseRe = /case\s+"([a-z0-9_]+)"\s*:/g;
   let m;
-  while ((m = re.exec(src)) !== null) names.add(m[1]);
+  while ((m = caseRe.exec(src)) !== null) names.add(m[1]);
+  const registerRe = /\.Register\(\s*"([a-z0-9_]+)"/g;
+  while ((m = registerRe.exec(src)) !== null) names.add(m[1]);
   return [...names].sort();
 }
 
