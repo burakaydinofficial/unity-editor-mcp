@@ -43,9 +43,20 @@ namespace UnityEditorMCP.Core
             return nowUtc - LastHeartbeatUtc.ToUniversalTime() <= maxAge;
         }
 
-        public string ToJson() => JsonConvert.SerializeObject(this, Formatting.Indented);
+        // Pin date handling rather than depend on a Newtonsoft default: UTC + ISO
+        // 8601 guarantees a trailing 'Z' so the Node side's Date.parse reads the
+        // timestamp as UTC (a missing/implicit zone would be parsed as local time
+        // and skew the freshness window).
+        private static readonly JsonSerializerSettings Settings = new JsonSerializerSettings
+        {
+            DateFormatHandling = DateFormatHandling.IsoDateFormat,
+            DateTimeZoneHandling = DateTimeZoneHandling.Utc,
+            Formatting = Formatting.Indented,
+        };
+
+        public string ToJson() => JsonConvert.SerializeObject(this, Settings);
 
         public static InstanceDescriptor FromJson(string json) =>
-            JsonConvert.DeserializeObject<InstanceDescriptor>(json);
+            JsonConvert.DeserializeObject<InstanceDescriptor>(json, Settings);
     }
 }

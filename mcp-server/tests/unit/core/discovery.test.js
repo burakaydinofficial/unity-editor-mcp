@@ -104,7 +104,8 @@ describe('discovery', () => {
       unityVersion: '2020.3.49f1',
       protocolVersion: '1.0.0',
       // .NET 'o' round-trip format — what the C# side actually writes.
-      startedAt: '2026-06-13T10:00:00.0000000Z',
+      // The pinned C# format (IsoDateFormat + UTC) — trailing 'Z', Date.parse-able.
+      startedAt: '2026-06-13T10:00:00Z',
       lastHeartbeat: new Date().toISOString(),
       ...overrides,
     });
@@ -133,7 +134,7 @@ describe('discovery', () => {
       });
     });
 
-    it('parses .NET o-format dates and applies the staleness window', () => {
+    it('parses the pinned ISO UTC dates and applies the staleness window', () => {
       assert.ok(isFresh(descriptor()));
       assert.ok(!isFresh(descriptor({ lastHeartbeat: new Date(Date.now() - 301_000).toISOString() })));
       assert.ok(!isFresh({}));

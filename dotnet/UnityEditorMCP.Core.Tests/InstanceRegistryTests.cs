@@ -37,6 +37,17 @@ namespace UnityEditorMCP.Core.Tests
         }
 
         [Fact]
+        public void ToJson_SerializesUtcDatesWithZSuffix_ParseableAsUtc()
+        {
+            var d = Descriptor("p", 1, new DateTime(2026, 6, 13, 10, 0, 0, DateTimeKind.Utc));
+            var json = d.ToJson();
+            Assert.Contains("\"lastHeartbeat\":", json.Replace(" ", ""));
+            Assert.Matches("\"lastHeartbeat\": \"2026-06-13T10:00:00Z\"", json);
+            // Round-trips back to the same UTC instant.
+            Assert.Equal(d.LastHeartbeatUtc.ToUniversalTime(), InstanceDescriptor.FromJson(json).LastHeartbeatUtc.ToUniversalTime());
+        }
+
+        [Fact]
         public void Publish_ThenFindByProjectPath_RoundTrips()
         {
             _registry.Publish(Descriptor("C:/projects/game", 6512));
