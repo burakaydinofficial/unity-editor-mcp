@@ -132,9 +132,11 @@ export class ClearConsoleToolHandler extends BaseToolHandler {
       clearedCount: response.clearedCount ?? 0,
       remainingCount: response.remainingCount ?? 0,
       settingsUpdated: response.settingsUpdated ?? false,
-      clearOnPlay: response.clearOnPlay ?? false,
-      clearOnRecompile: response.clearOnRecompile ?? false,
-      clearOnBuild: response.clearOnBuild ?? false,
+      // Default to the values we SENT (which default to true), not false — otherwise an
+      // omitted echo would report the opposite of what was requested/applied.
+      clearOnPlay: response.clearOnPlay ?? clearOnPlay,
+      clearOnRecompile: response.clearOnRecompile ?? clearOnRecompile,
+      clearOnBuild: response.clearOnBuild ?? clearOnBuild,
       timestamp: response.timestamp || new Date().toISOString()
     };
     // Optional extras the editor sends when preserving logs (catalog: not required).

@@ -104,10 +104,13 @@ namespace UnityEditorMCP.Core
             }
             catch (IOException)
             {
-                // Rare: File.Replace failed (e.g. a reader briefly holds the destination
-                // on Windows). Best-effort overwrite; if the Delete/Move also fails under
-                // the same lock, keep the existing descriptor and let the next heartbeat
-                // retry rather than throwing a transient lock error out of Publish.
+                // File.Replace is unsupported/unreliable on some filesystems (the dotnet
+                // test's temp volume is one — Publish_AtomicReplace_OverwritesExisting
+                // proves the primary path can throw), so fall back to delete-then-move to
+                // still overwrite. If the move ALSO fails under the same transient lock,
+                // keep the existing descriptor and let the next heartbeat retry — the brief
+                // window where the move failed after the delete self-heals (the reader falls
+                // back to the derived port and reconnects).
                 try
                 {
                     if (File.Exists(path)) File.Delete(path);
