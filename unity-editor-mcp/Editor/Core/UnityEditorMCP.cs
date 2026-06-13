@@ -39,7 +39,33 @@ namespace UnityEditorMCP.Core
             public void Warn(string message) => Debug.LogWarning($"[Unity Editor MCP] {message}");
             public void Error(string message) => Debug.LogError($"[Unity Editor MCP] {message}");
         }
-        
+
+        // Slice 2: Core's dotnet-tested CommandDispatcher is the live dispatch front.
+        // Commands registered here are served by the tested Core path (HandlerOutcome
+        // -> CommandResult); everything else falls through to the legacy ProcessCommand
+        // switch. Handlers migrate onto this rail one at a time (strangler).
+        private static readonly CommandDispatcher _dispatcher = BuildDispatcher();
+
+        private static CommandDispatcher BuildDispatcher()
+        {
+            var dispatcher = new CommandDispatcher(EditorLogger.Instance);
+            // Payload built lazily (per call), so no UnityEditor APIs run at static init.
+            // Same wire shape as the old switch case: the Handshake serialized via its
+            // own ToJson, wrapped once by CommandResult.
+            dispatcher.Register("handshake", _ =>
+                HandlerOutcome.Ok(JObject.Parse(BuildHandshakePayload().ToJson())));
+            return dispatcher;
+        }
+
+        private static Handshake BuildHandshakePayload() => new Handshake
+        {
+            UnityVersion = Application.unityVersion,
+            ProjectPath = ProjectRoot(),
+            AvailableCommands = CommandCatalog.EditorCommands
+                .Except(CommandCatalog.KnownEditorGaps)
+                .ToArray(),
+        };
+
         private static McpStatus _status = McpStatus.NotConfigured;
         public static McpStatus Status
         {
@@ -257,8 +283,39 @@ namespace UnityEditorMCP.Core
                 while (commandQueue.Count > 0)
                 {
                     var (command, respond) = commandQueue.Dequeue();
-                    ProcessCommand(command, respond);
+                    if (command?.Type != null && _dispatcher.IsRegistered(command.Type))
+                    {
+                        DispatchViaCore(command, respond);
+                    }
+                    else
+                    {
+                        ProcessCommand(command, respond);
+                    }
                 }
+            }
+        }
+
+        /// <summary>
+        /// Dispatches a command through Core's tested CommandDispatcher (the migrated
+        /// path). The dispatcher never throws — it turns handler errors into a proper
+        /// error result — so the only guarded failure here is the client vanishing
+        /// mid-send.
+        /// </summary>
+        private static void DispatchViaCore(Command command, Action<string> respond)
+        {
+            try
+            {
+                var request = new CommandRequest
+                {
+                    Id = command.Id,
+                    Type = command.Type,
+                    Params = command.Parameters
+                };
+                respond(_dispatcher.Dispatch(request).ToJson());
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Unity Editor MCP] Error dispatching {command?.Type}: {ex}");
             }
         }
         
@@ -690,20 +747,9 @@ namespace UnityEditorMCP.Core
                         response = Response.Result(command.Id, cancelTestsResult);
                         break;
 
-                    case "handshake":
-                        // Connect-time self-description (ADR 0003 / protocol README):
-                        // protocol version + editor identity + the honestly-available
-                        // command surface (declared minus known gaps).
-                        var handshakePayload = new Handshake
-                        {
-                            UnityVersion = Application.unityVersion,
-                            ProjectPath = ProjectRoot(),
-                            AvailableCommands = CommandCatalog.EditorCommands
-                                .Except(CommandCatalog.KnownEditorGaps)
-                                .ToArray(),
-                        };
-                        response = Response.Result(command.Id, JObject.Parse(handshakePayload.ToJson()));
-                        break;
+                    // NOTE: "handshake" is now served by the Core CommandDispatcher
+                    // (see BuildDispatcher); ProcessCommandQueue routes it there before
+                    // reaching this switch, so it intentionally has no case here.
 
                     default:
                         // Use new format with error details
