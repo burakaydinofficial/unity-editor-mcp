@@ -41,6 +41,15 @@ namespace UnityEditorMCP.Core.Tests
         }
 
         [Fact]
+        public void Normalize_FoldsOnlyAsciiAZ_LeavingUnicodeIntact()
+        {
+            // ASCII letters fold; the Turkish dotted-I (U+0130) is left untouched so
+            // it matches JS exactly (toLowerCase would split it into two code points).
+            Assert.Equal("c:/proİject", EndpointAddressing.Normalize("C:/PROİJECT"));
+            Assert.Equal("c:/proİject", EndpointAddressing.Normalize("C:\\PROİJECT\\"));
+        }
+
+        [Fact]
         public void DerivePort_StaysInRange()
         {
             for (var i = 0; i < 500; i++)

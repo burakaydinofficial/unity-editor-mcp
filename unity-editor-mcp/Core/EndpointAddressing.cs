@@ -25,11 +25,24 @@ namespace UnityEditorMCP.Core
             return basePort + (int)(hash % (uint)range);
         }
 
-        /// <summary>Normalizes a project path so equivalent paths derive the same port.</summary>
+        /// <summary>
+        /// Normalizes a project path so equivalent paths derive the same port.
+        /// Case folding is ASCII-only (A–Z → a–z) and deliberately NOT
+        /// <c>ToLowerInvariant</c>: full Unicode special-casing diverges between C#
+        /// and JS (e.g. U+0130 'İ' lowercases to two code points in JS but stays one
+        /// in .NET), which would silently break port/filename parity. All non-ASCII
+        /// code points are left byte-identical on both sides.
+        /// </summary>
         public static string Normalize(string path)
         {
             if (string.IsNullOrEmpty(path)) return string.Empty;
-            return path.Replace('\\', '/').TrimEnd('/').ToLowerInvariant();
+            var chars = path.Replace('\\', '/').TrimEnd('/').ToCharArray();
+            for (int i = 0; i < chars.Length; i++)
+            {
+                char c = chars[i];
+                if (c >= 'A' && c <= 'Z') chars[i] = (char)(c + 32);
+            }
+            return new string(chars);
         }
 
         /// <summary>32-bit FNV-1a hash over UTF-16 code units (stable across processes and languages).</summary>

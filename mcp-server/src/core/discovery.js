@@ -20,10 +20,18 @@ export const DEFAULT_PORT_RANGE = 1024;
 export const STALE_AFTER_MS = 300_000;
 export const REGISTRY_DIR_ENV = 'UNITY_MCP_REGISTRY_DIR';
 
-/** Normalizes a project path so equivalent paths hash identically (mirrors C#). */
+/**
+ * Normalizes a project path so equivalent paths hash identically (mirrors C#
+ * EndpointAddressing.Normalize). Case folding is ASCII-only (A–Z → a–z), NOT
+ * toLowerCase(): full Unicode special-casing (e.g. U+0130) diverges from .NET's
+ * ToLowerInvariant and would silently break port/filename parity.
+ */
 export function normalizeProjectPath(path) {
   if (!path) return '';
-  return path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  return path
+    .replace(/\\/g, '/')
+    .replace(/\/+$/, '')
+    .replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
 }
 
 /** 32-bit FNV-1a over UTF-16 code units (mirrors C# — NOT over UTF-8 bytes). */

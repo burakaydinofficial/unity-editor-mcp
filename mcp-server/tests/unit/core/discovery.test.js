@@ -35,6 +35,13 @@ describe('discovery', () => {
       assert.strictEqual(normalizeProjectPath(''), '');
       assert.strictEqual(normalizeProjectPath(null), '');
     });
+
+    it('folds only ASCII A-Z, leaving Unicode (U+0130) intact for C# parity', () => {
+      // Must match EndpointAddressing.Normalize exactly; toLowerCase() would split
+      // U+0130 into 'i' + combining dot and break the hash/filename across halves.
+      assert.strictEqual(normalizeProjectPath('C:/PROİJECT'), 'c:/proİject');
+      assert.strictEqual(normalizeProjectPath('C:\\PROİJECT\\'), 'c:/proİject');
+    });
   });
 
   describe('derivePort', () => {
