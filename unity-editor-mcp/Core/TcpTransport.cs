@@ -102,8 +102,12 @@ namespace UnityEditorMCP.Core
         private async Task HandleClientAsync(TcpClient client, CancellationToken ct)
         {
             var framer = new MessageFramer();
-            var writeLock = new object();
             var buffer = new byte[4096];
+            // Outbound frames are written by a single dedicated task draining this queue.
+            // Respond() (called on the Unity MAIN THREAD via ProcessCommandQueue) only
+            // enqueues, so a slow/stuck client can never block the main thread. A single
+            // writer also makes a write lock unnecessary and preserves frame order (FIFO).
+            var outbound = new System.Collections.Concurrent.BlockingCollection<byte[]>();
             try
             {
                 using (client)
@@ -112,38 +116,62 @@ namespace UnityEditorMCP.Core
 
                     void Respond(string reply)
                     {
-                        var framed = MessageFramer.Encode(reply);
-                        lock (writeLock)
-                        {
-                            stream.Write(framed, 0, framed.Length);
-                            stream.Flush();
-                        }
+                        try { outbound.Add(MessageFramer.Encode(reply)); }
+                        catch (InvalidOperationException) { /* outbound completed — client gone */ }
                     }
 
-                    while (!ct.IsCancellationRequested)
+                    var writer = Task.Run(async () =>
                     {
-                        int read = await stream.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false);
-                        if (read == 0) break; // client closed
-                        framer.Append(buffer, 0, read);
-
                         try
                         {
-                            while (framer.TryReadMessage(out var message))
+                            foreach (var framed in outbound.GetConsumingEnumerable())
                             {
-                                MessageReceived?.Invoke(message, Respond);
+                                await stream.WriteAsync(framed, 0, framed.Length, ct).ConfigureAwait(false);
                             }
                         }
-                        catch (FramingException fe)
+                        catch (Exception ex) when (!ct.IsCancellationRequested)
                         {
-                            _log.Error($"Framing error, closing client: {fe.Message}");
-                            break;
+                            _log.Warn($"Client write ended: {ex.Message}");
                         }
+                    });
+
+                    try
+                    {
+                        while (!ct.IsCancellationRequested)
+                        {
+                            int read = await stream.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false);
+                            if (read == 0) break; // client closed
+                            framer.Append(buffer, 0, read);
+
+                            try
+                            {
+                                while (framer.TryReadMessage(out var message))
+                                {
+                                    MessageReceived?.Invoke(message, Respond);
+                                }
+                            }
+                            catch (FramingException fe)
+                            {
+                                _log.Error($"Framing error, closing client: {fe.Message}");
+                                break;
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        // Stop accepting new frames and let the writer drain remaining + exit.
+                        outbound.CompleteAdding();
+                        try { await writer.ConfigureAwait(false); } catch { /* writer logged its own */ }
                     }
                 }
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)
             {
                 _log.Warn($"Client handler ended: {ex.Message}");
+            }
+            finally
+            {
+                outbound.Dispose();
             }
         }
     }

@@ -288,19 +288,26 @@ namespace UnityEditorMCP.Core
                 PublishDescriptor();
             }
 
+            // Drain the queue under the lock, then dispatch OUTSIDE it so a slow handler
+            // (or a blocked respond) never stalls the background network thread that is
+            // trying to enqueue newly-arrived messages.
+            List<(Command command, Action<string> respond)> batch;
             lock (queueLock)
             {
-                while (commandQueue.Count > 0)
+                if (commandQueue.Count == 0) return;
+                batch = new List<(Command, Action<string>)>(commandQueue.Count);
+                while (commandQueue.Count > 0) batch.Add(commandQueue.Dequeue());
+            }
+
+            foreach (var (command, respond) in batch)
+            {
+                if (command?.Type != null && _dispatcher.IsRegistered(command.Type))
                 {
-                    var (command, respond) = commandQueue.Dequeue();
-                    if (command?.Type != null && _dispatcher.IsRegistered(command.Type))
-                    {
-                        DispatchViaCore(command, respond);
-                    }
-                    else
-                    {
-                        ProcessCommand(command, respond);
-                    }
+                    DispatchViaCore(command, respond);
+                }
+                else
+                {
+                    ProcessCommand(command, respond);
                 }
             }
         }
