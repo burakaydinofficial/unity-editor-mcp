@@ -79,5 +79,53 @@ namespace UnityEditorMCP.Core.Tests
             d.Register("Ping", p => HandlerOutcome.Ok(true));
             Assert.True(d.IsRegistered("ping"));
         }
+
+        [Fact]
+        public void Fallback_HandlesUnregisteredCommands()
+        {
+            var d = new CommandDispatcher();
+            d.SetFallback(req => HandlerOutcome.Ok(new { handledBy = "legacy", type = req.Type }));
+            var json = JObject.Parse(d.Dispatch(Req("1", "anything")).ToJson());
+            Assert.Equal("success", (string)json["status"]);
+            Assert.Equal("legacy", (string)json["result"]["handledBy"]);
+            Assert.Equal("anything", (string)json["result"]["type"]);
+        }
+
+        [Fact]
+        public void RegisteredHandler_TakesPrecedenceOverFallback()
+        {
+            var d = new CommandDispatcher();
+            d.Register("ping", p => HandlerOutcome.Ok(new { from = "handler" }));
+            d.SetFallback(req => HandlerOutcome.Ok(new { from = "fallback" }));
+            var json = JObject.Parse(d.Dispatch(Req("1", "ping")).ToJson());
+            Assert.Equal("handler", (string)json["result"]["from"]);
+        }
+
+        [Fact]
+        public void Fallback_ErrorOutcome_IsNotLaundered()
+        {
+            var d = new CommandDispatcher();
+            d.SetFallback(req => HandlerOutcome.Fail("legacy failure", "VALIDATION_ERROR"));
+            var json = JObject.Parse(d.Dispatch(Req("1", "x")).ToJson());
+            Assert.Equal("error", (string)json["status"]);
+            Assert.Equal("VALIDATION_ERROR", (string)json["code"]);
+        }
+
+        [Fact]
+        public void Fallback_Throwing_YieldsInternalError()
+        {
+            var d = new CommandDispatcher();
+            d.SetFallback(req => throw new InvalidOperationException("boom"));
+            var json = JObject.Parse(d.Dispatch(Req("1", "x")).ToJson());
+            Assert.Equal("INTERNAL_ERROR", (string)json["code"]);
+        }
+
+        [Fact]
+        public void NoFallback_StillYieldsUnknownCommand()
+        {
+            var d = new CommandDispatcher();
+            var json = JObject.Parse(d.Dispatch(Req("1", "nope")).ToJson());
+            Assert.Equal("UNKNOWN_COMMAND", (string)json["code"]);
+        }
     }
 }

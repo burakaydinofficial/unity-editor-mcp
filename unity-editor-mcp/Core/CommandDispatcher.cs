@@ -33,6 +33,7 @@ namespace UnityEditorMCP.Core
         private readonly Dictionary<string, Func<JObject, HandlerOutcome>> _handlers =
             new Dictionary<string, Func<JObject, HandlerOutcome>>(StringComparer.OrdinalIgnoreCase);
         private readonly IMcpLogger _log;
+        private Func<CommandRequest, HandlerOutcome> _fallback;
 
         public CommandDispatcher(IMcpLogger log = null)
         {
@@ -57,6 +58,14 @@ namespace UnityEditorMCP.Core
             _handlers[type] = handler;
         }
 
+        /// <summary>
+        /// Sets a fallback invoked when no specific handler is registered for a
+        /// command type. The strangler hook for the bootstrap migration: the legacy
+        /// dispatch switch can be the fallback while handlers move to explicit
+        /// registration one category at a time. Pass null to clear.
+        /// </summary>
+        public void SetFallback(Func<CommandRequest, HandlerOutcome> fallback) => _fallback = fallback;
+
         /// <summary>Dispatches a request to its handler, always returning a result.</summary>
         public CommandResult Dispatch(CommandRequest request)
         {
@@ -68,6 +77,20 @@ namespace UnityEditorMCP.Core
 
             if (!_handlers.TryGetValue(request.Type, out var handler))
             {
+                if (_fallback != null)
+                {
+                    try
+                    {
+                        return CommandResult.FromOutcome(request.Id, _fallback(request));
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.Error($"Fallback for '{request.Type}' threw: {ex}");
+                        return CommandResult.FromOutcome(request.Id,
+                            HandlerOutcome.Fail($"Internal error: {ex.Message}", "INTERNAL_ERROR", details: new { type = request.Type }));
+                    }
+                }
+
                 _log.Warn($"Unknown command type: {request.Type}");
                 return CommandResult.FromOutcome(request.Id,
                     HandlerOutcome.Fail($"Unknown command type: {request.Type}", "UNKNOWN_COMMAND"));
