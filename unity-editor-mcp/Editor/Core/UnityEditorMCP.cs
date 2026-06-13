@@ -24,11 +24,21 @@ namespace UnityEditorMCP.Core
     [InitializeOnLoad]
     public static class UnityEditorMCP
     {
-        private static TcpListener tcpListener;
-        private static readonly Queue<(Command command, TcpClient client)> commandQueue = new Queue<(Command, TcpClient)>();
+        // The live transport is now Core's dotnet-tested TcpTransport (ADR 0002).
+        // Slice 1 of the McpBridge migration: framing/accept/send come from Core;
+        // the legacy ProcessCommand switch stays as the message processor for now.
+        private static TcpTransport _transport;
+        private static readonly Queue<(Command command, Action<string> respond)> commandQueue = new Queue<(Command, Action<string>)>();
         private static readonly object queueLock = new object();
-        private static CancellationTokenSource cancellationTokenSource;
-        private static Task listenerTask;
+
+        /// <summary>Bridges Core's logging seam (IMcpLogger) to the Unity console.</summary>
+        private sealed class EditorLogger : IMcpLogger
+        {
+            public static readonly EditorLogger Instance = new EditorLogger();
+            public void Info(string message) => Debug.Log($"[Unity Editor MCP] {message}");
+            public void Warn(string message) => Debug.LogWarning($"[Unity Editor MCP] {message}");
+            public void Error(string message) => Debug.LogError($"[Unity Editor MCP] {message}");
+        }
         
         private static McpStatus _status = McpStatus.NotConfigured;
         public static McpStatus Status
@@ -89,7 +99,7 @@ namespace UnityEditorMCP.Core
         /// </summary>
         private static void StartTcpListener()
         {
-            if (tcpListener != null)
+            if (_transport != null)
             {
                 StopTcpListener();
             }
@@ -105,38 +115,33 @@ namespace UnityEditorMCP.Core
 
         private static bool TryStartListener(int port)
         {
-            TcpListener listener = null;
+            var transport = new TcpTransport(IPAddress.Loopback, port, EditorLogger.Instance);
             try
             {
-                listener = new TcpListener(IPAddress.Loopback, port);
-                listener.Start();
+                transport.MessageReceived += OnMessage;
+                transport.Start(); // throws SocketException if the port is taken
 
-                // Only allocate state that needs cleanup once the bind has succeeded,
-                // so a failed bind on the first (preferred) port never leaks a
-                // CancellationTokenSource before the ephemeral-port fallback runs.
-                tcpListener = listener;
-                cancellationTokenSource = new CancellationTokenSource();
-                currentPort = ((IPEndPoint)listener.LocalEndpoint).Port;
+                _transport = transport;
+                currentPort = transport.Port;
 
                 Status = McpStatus.Disconnected;
                 Debug.Log($"[Unity Editor MCP] TCP listener started on port {currentPort}");
-
-                // Start accepting connections asynchronously
-                listenerTask = Task.Run(() => AcceptConnectionsAsync(cancellationTokenSource.Token));
                 PublishDescriptor();
                 return true;
             }
             catch (SocketException ex)
             {
                 Debug.LogWarning($"[Unity Editor MCP] Could not bind port {port}: {ex.Message}");
-                try { listener?.Stop(); } catch { /* ignore */ }
+                transport.MessageReceived -= OnMessage;
+                try { transport.Stop(); } catch { /* ignore */ }
                 return false;
             }
             catch (Exception ex)
             {
                 Status = McpStatus.Error;
                 Debug.LogError($"[Unity Editor MCP] Unexpected error starting TCP listener: {ex}");
-                try { listener?.Stop(); } catch { /* ignore */ }
+                transport.MessageReceived -= OnMessage;
+                try { transport.Stop(); } catch { /* ignore */ }
                 return false;
             }
         }
@@ -184,14 +189,13 @@ namespace UnityEditorMCP.Core
         {
             try
             {
-                cancellationTokenSource?.Cancel();
-                tcpListener?.Stop();
-                listenerTask?.Wait(TimeSpan.FromSeconds(1));
-                
-                tcpListener = null;
-                cancellationTokenSource = null;
-                listenerTask = null;
-                
+                if (_transport != null)
+                {
+                    _transport.MessageReceived -= OnMessage;
+                    _transport.Stop();
+                    _transport = null;
+                }
+
                 Status = McpStatus.Disconnected;
                 Debug.Log("[Unity Editor MCP] TCP listener stopped");
             }
@@ -202,186 +206,38 @@ namespace UnityEditorMCP.Core
         }
         
         /// <summary>
-        /// Accepts incoming TCP connections asynchronously
+        /// Called by TcpTransport (on a background thread) for each complete framed
+        /// message. Mirrors the old per-message logic: the raw "ping" probe is
+        /// answered inline; otherwise the command is parsed and queued for the main
+        /// thread. `respond` frames and sends the reply to the originating client.
         /// </summary>
-        private static async Task AcceptConnectionsAsync(CancellationToken cancellationToken)
+        private static void OnMessage(string json, Action<string> respond)
         {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    var tcpClient = await AcceptClientAsync(tcpListener, cancellationToken);
-                    if (tcpClient != null)
-                    {
-                        Status = McpStatus.Connected;
-                        Debug.Log($"[Unity Editor MCP] Client connected from {tcpClient.Client.RemoteEndPoint}");
-                        
-                        // Handle client in a separate task
-                        _ = Task.Run(() => HandleClientAsync(tcpClient, cancellationToken));
-                    }
-                }
-                catch (ObjectDisposedException)
-                {
-                    // Listener was stopped
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    if (!cancellationToken.IsCancellationRequested)
-                    {
-                        Debug.LogError($"[Unity Editor MCP] Error accepting connection: {ex}");
-                    }
-                }
-            }
-        }
-        
-        /// <summary>
-        /// Accepts a client with cancellation support
-        /// </summary>
-        private static async Task<TcpClient> AcceptClientAsync(TcpListener listener, CancellationToken cancellationToken)
-        {
-            using (cancellationToken.Register(() => listener.Stop()))
-            {
-                try
-                {
-                    return await listener.AcceptTcpClientAsync();
-                }
-                catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
-                {
-                    return null;
-                }
-            }
-        }
-        
-        /// <summary>
-        /// Handles communication with a connected client
-        /// </summary>
-        private static async Task HandleClientAsync(TcpClient client, CancellationToken cancellationToken)
-        {
+            Status = McpStatus.Connected;
             try
             {
-                client.ReceiveTimeout = 30000; // 30 second timeout
-                client.SendTimeout = 30000;
-                
-                var buffer = new byte[4096];
-                var stream = client.GetStream();
-                var messageBuffer = new List<byte>();
-                
-                while (!cancellationToken.IsCancellationRequested && client.Connected)
+                if (json.Trim().ToLower() == "ping")
                 {
-                    var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
-                    if (bytesRead == 0)
-                    {
-                        // Client disconnected
-                        break;
-                    }
-                    
-                    // Add received bytes to message buffer
-                    for (int i = 0; i < bytesRead; i++)
-                    {
-                        messageBuffer.Add(buffer[i]);
-                    }
-                    
-                    // Process complete messages
-                    while (messageBuffer.Count >= 4)
-                    {
-                        // Read message length (first 4 bytes, big-endian)
-                        var lengthBytes = messageBuffer.GetRange(0, 4).ToArray();
-                        if (BitConverter.IsLittleEndian)
-                        {
-                            Array.Reverse(lengthBytes);
-                        }
-                        var messageLength = BitConverter.ToInt32(lengthBytes, 0);
-                        
-                        // Check if we have the complete message
-                        if (messageBuffer.Count >= 4 + messageLength)
-                        {
-                            // Extract message
-                            var messageBytes = messageBuffer.GetRange(4, messageLength).ToArray();
-                            messageBuffer.RemoveRange(0, 4 + messageLength);
-                            
-                            var json = Encoding.UTF8.GetString(messageBytes);
-                            Debug.Log($"[Unity Editor MCP] Received command (length={messageLength}): {json}");
-                            
-                            try
-                            {
-                                // Handle special ping command
-                                if (json.Trim().ToLower() == "ping")
-                                {
-                                    var pongResponse = Response.Pong();
-                                    await SendFramedMessage(stream, pongResponse, cancellationToken);
-                                    continue;
-                                }
-                                
-                                // Parse command
-                                var command = JsonConvert.DeserializeObject<Command>(json);
-                                if (command != null)
-                                {
-                                    // Queue command for processing on main thread
-                                    lock (queueLock)
-                                    {
-                                        commandQueue.Enqueue((command, client));
-                                    }
-                                }
-                                else
-                                {
-                                    var errorResponse = Response.ErrorResult("Invalid command format", "PARSE_ERROR", null);
-                                    await SendFramedMessage(stream, errorResponse, cancellationToken);
-                                }
-                            }
-                            catch (JsonException ex)
-                            {
-                                var errorResponse = Response.ErrorResult($"JSON parsing error: {ex.Message}", "JSON_ERROR", null);
-                                await SendFramedMessage(stream, errorResponse, cancellationToken);
-                            }
-                        }
-                        else
-                        {
-                            // Not enough data yet, wait for more
-                            break;
-                        }
-                    }
+                    respond(Response.Pong());
+                    return;
+                }
+
+                var command = JsonConvert.DeserializeObject<Command>(json);
+                if (command == null)
+                {
+                    respond(Response.ErrorResult("Invalid command format", "PARSE_ERROR", null));
+                    return;
+                }
+
+                lock (queueLock)
+                {
+                    commandQueue.Enqueue((command, respond));
                 }
             }
-            catch (Exception ex)
+            catch (JsonException ex)
             {
-                if (!cancellationToken.IsCancellationRequested)
-                {
-                    Debug.LogError($"[Unity Editor MCP] Client handler error: {ex}");
-                }
+                respond(Response.ErrorResult($"JSON parsing error: {ex.Message}", "JSON_ERROR", null));
             }
-            finally
-            {
-                client?.Close();
-                if (Status == McpStatus.Connected)
-                {
-                    Status = McpStatus.Disconnected;
-                }
-                Debug.Log("[Unity Editor MCP] Client disconnected");
-            }
-        }
-        
-        /// <summary>
-        /// Sends a framed message over the stream
-        /// </summary>
-        private static async Task SendFramedMessage(NetworkStream stream, string message, CancellationToken cancellationToken)
-        {
-            var messageBytes = Encoding.UTF8.GetBytes(message);
-            var lengthBytes = BitConverter.GetBytes(messageBytes.Length);
-            
-            // Convert to big-endian
-            if (BitConverter.IsLittleEndian)
-            {
-                Array.Reverse(lengthBytes);
-            }
-            
-            Debug.Log($"[Unity Editor MCP] Sending response (length={messageBytes.Length}): {message}");
-            
-            // Write length prefix
-            await stream.WriteAsync(lengthBytes, 0, 4, cancellationToken);
-            // Write message
-            await stream.WriteAsync(messageBytes, 0, messageBytes.Length, cancellationToken);
-            await stream.FlushAsync(cancellationToken);
         }
         
         /// <summary>
@@ -391,7 +247,7 @@ namespace UnityEditorMCP.Core
         {
             // Keep the discovery descriptor fresh while the listener is alive
             // (stale descriptors are reaped after 300s; see InstanceRegistry).
-            if (tcpListener != null && (DateTime.UtcNow - lastHeartbeatUtc).TotalSeconds >= HeartbeatIntervalSeconds)
+            if (_transport != null && (DateTime.UtcNow - lastHeartbeatUtc).TotalSeconds >= HeartbeatIntervalSeconds)
             {
                 PublishDescriptor();
             }
@@ -400,8 +256,8 @@ namespace UnityEditorMCP.Core
             {
                 while (commandQueue.Count > 0)
                 {
-                    var (command, client) = commandQueue.Dequeue();
-                    ProcessCommand(command, client);
+                    var (command, respond) = commandQueue.Dequeue();
+                    ProcessCommand(command, respond);
                 }
             }
         }
@@ -409,7 +265,7 @@ namespace UnityEditorMCP.Core
         /// <summary>
         /// Processes a single command
         /// </summary>
-        private static async void ProcessCommand(Command command, TcpClient client)
+        private static void ProcessCommand(Command command, Action<string> respond)
         {
             try
             {
@@ -860,35 +716,29 @@ namespace UnityEditorMCP.Core
                         break;
                 }
                 
-                // Send response
-                if (client.Connected)
-                {
-                    await SendFramedMessage(client.GetStream(), response, CancellationToken.None);
-                }
+                // Send response via the transport's responder (frames + writes).
+                respond(response);
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[Unity Editor MCP] Error processing command {command}: {ex}");
-                
+
                 try
                 {
-                    if (client.Connected)
-                    {
-                        var errorResponse = Response.ErrorResult(
-                            command.Id,
-                            $"Internal error: {ex.Message}", 
-                            "INTERNAL_ERROR",
-                            new { 
-                                commandType = command.Type,
-                                stackTrace = ex.StackTrace
-                            }
-                        );
-                        await SendFramedMessage(client.GetStream(), errorResponse, CancellationToken.None);
-                    }
+                    respond(Response.ErrorResult(
+                        command.Id,
+                        $"Internal error: {ex.Message}",
+                        "INTERNAL_ERROR",
+                        new
+                        {
+                            commandType = command.Type,
+                            stackTrace = ex.StackTrace
+                        }
+                    ));
                 }
                 catch
                 {
-                    // Best effort - ignore errors when sending error response
+                    // Best effort — the client may have disconnected.
                 }
             }
         }
