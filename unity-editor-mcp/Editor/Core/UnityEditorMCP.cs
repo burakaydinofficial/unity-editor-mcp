@@ -54,6 +54,9 @@ namespace UnityEditorMCP.Core
             // own ToJson, wrapped once by CommandResult.
             dispatcher.Register("handshake", _ =>
                 HandlerOutcome.Ok(JObject.Parse(BuildHandshakePayload().ToJson())));
+            // First handler written natively to the HandlerOutcome contract — also
+            // closes the long-standing get_component_types known gap.
+            dispatcher.Register("get_component_types", ComponentHandler.GetComponentTypes);
             return dispatcher;
         }
 

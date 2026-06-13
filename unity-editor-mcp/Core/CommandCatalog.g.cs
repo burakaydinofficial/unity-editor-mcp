@@ -88,7 +88,7 @@ namespace UnityEditorMCP.Core
         /// <summary>Declared-but-unimplemented editor commands (catalog knownGaps).</summary>
         public static readonly string[] KnownEditorGaps =
         {
-            "get_component_types",
+
         };
     }
 }

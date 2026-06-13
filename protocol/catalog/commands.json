@@ -3,13 +3,7 @@
   "protocol": "1.0.0",
   "resultSchemaSource": "derived-from-handlers-v1",
   "description": "Canonical command catalog for the Unity Editor MCP bridge. Authoritative source of the command surface shared by the Node server and the Unity editor package.",
-  "knownGaps": [
-    {
-      "command": "get_component_types",
-      "missing": "editor",
-      "note": "Registered MCP tool with no Unity dispatch case — returns UNKNOWN_COMMAND at runtime. Fix: implement the editor handler and add the case, or remove the tool."
-    }
-  ],
+  "knownGaps": [],
   "commands": [
     {
       "name": "analyze_scene_contents",
@@ -2318,7 +2312,25 @@
         }
       },
       "result": {
-        "$comment": "TODO: derive editor return shape (protocol v1 leaves result schemas unspecified)."
+        "type": "object",
+        "properties": {
+          "componentTypes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "fullName": { "type": "string" },
+                "namespace": { "type": "string" },
+                "isAbstract": { "type": "boolean" }
+              }
+            }
+          },
+          "totalCount": { "type": "integer" },
+          "categories": { "type": "array", "items": { "type": "string" } },
+          "searchTerm": { "type": ["string", "null"] },
+          "onlyAddable": { "type": "boolean" }
+        }
       }
     },
     {

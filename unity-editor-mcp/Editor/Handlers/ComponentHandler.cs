@@ -5,6 +5,7 @@ using System.Reflection;
 using UnityEngine;
 using UnityEditor;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -338,6 +339,78 @@ namespace UnityEditorMCP.Handlers
             {
                 Debug.LogError($"[ComponentHandler] Error in ListComponents: {ex.Message}");
                 return new { error = $"Failed to list components: {ex.Message}" };
+            }
+        }
+
+        /// <summary>
+        /// Lists available component types (concrete public UnityEngine.Component
+        /// subclasses) with optional name search, namespace-based category filter, and
+        /// an addable-only (non-abstract) filter. Written natively to Core's
+        /// HandlerOutcome contract and served via the CommandDispatcher rail.
+        /// </summary>
+        public static HandlerOutcome GetComponentTypes(JObject parameters)
+        {
+            try
+            {
+                string category = parameters?["category"]?.ToString();
+                string search = parameters?["search"]?.ToString();
+                bool onlyAddable = parameters?["onlyAddable"]?.ToObject<bool>() ?? false;
+
+                var baseType = typeof(Component);
+                var all = new List<Type>();
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    Type[] types;
+                    try { types = asm.GetTypes(); }
+                    catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t != null).ToArray(); }
+                    catch { continue; }
+
+                    foreach (var t in types)
+                    {
+                        if (t == null || !t.IsClass || !t.IsVisible) continue;
+                        if (t.IsGenericTypeDefinition) continue;
+                        if (!baseType.IsAssignableFrom(t)) continue;
+                        all.Add(t);
+                    }
+                }
+
+                IEnumerable<Type> filtered = all;
+                if (onlyAddable)
+                    filtered = filtered.Where(t => !t.IsAbstract && t != typeof(Transform));
+                if (!string.IsNullOrEmpty(search))
+                    filtered = filtered.Where(t => t.Name.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0);
+                if (!string.IsNullOrEmpty(category))
+                    filtered = filtered.Where(t => (t.Namespace ?? "").IndexOf(category, StringComparison.OrdinalIgnoreCase) >= 0);
+
+                var list = filtered
+                    .OrderBy(t => t.Name, StringComparer.Ordinal)
+                    .Select(t => new
+                    {
+                        name = t.Name,
+                        fullName = t.FullName,
+                        @namespace = t.Namespace ?? "",
+                        isAbstract = t.IsAbstract
+                    })
+                    .ToList();
+
+                var categories = all
+                    .Select(t => t.Namespace ?? "")
+                    .Distinct()
+                    .OrderBy(n => n, StringComparer.Ordinal)
+                    .ToArray();
+
+                return HandlerOutcome.Ok(new
+                {
+                    componentTypes = list,
+                    totalCount = list.Count,
+                    categories,
+                    searchTerm = search,
+                    onlyAddable
+                });
+            }
+            catch (Exception ex)
+            {
+                return HandlerOutcome.Fail($"Failed to get component types: {ex.Message}", "INTERNAL_ERROR");
             }
         }
 
