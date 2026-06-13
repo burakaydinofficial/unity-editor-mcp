@@ -6267,6 +6267,49 @@
       }
     },
     {
+      "name": "handshake",
+      "category": "system",
+      "sides": [
+        "editor"
+      ],
+      "internal": true,
+      "destructive": false,
+      "description": "Connect-time handshake: the editor self-describes (protocol version, Unity version, project path, available commands) so the server can detect version/project mismatches and advertise only supported tools. Internal (not exposed as an MCP tool).",
+      "params": {
+        "type": "object"
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "protocolVersion": {
+            "type": "string",
+            "description": "Editor-side protocol contract version (protocol/VERSION)"
+          },
+          "unityVersion": {
+            "type": "string",
+            "description": "Unity editor version, e.g. 2020.3.49f1"
+          },
+          "projectPath": {
+            "type": "string",
+            "description": "Project root (the folder containing Assets/)"
+          },
+          "availableCommands": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Command types this editor instance actually dispatches"
+          }
+        },
+        "required": [
+          "protocolVersion",
+          "unityVersion",
+          "projectPath",
+          "availableCommands"
+        ]
+      }
+    },
+    {
       "name": "ping",
       "category": "system",
       "sides": [

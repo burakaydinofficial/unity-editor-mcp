@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -821,7 +822,22 @@ namespace UnityEditorMCP.Core
                         var cancelTestsResult = TestRunnerHandler.CancelTests(command.Parameters);
                         response = Response.Result(command.Id, cancelTestsResult);
                         break;
-                        
+
+                    case "handshake":
+                        // Connect-time self-description (ADR 0003 / protocol README):
+                        // protocol version + editor identity + the honestly-available
+                        // command surface (declared minus known gaps).
+                        var handshakePayload = new Handshake
+                        {
+                            UnityVersion = Application.unityVersion,
+                            ProjectPath = ProjectRoot(),
+                            AvailableCommands = CommandCatalog.EditorCommands
+                                .Except(CommandCatalog.KnownEditorGaps)
+                                .ToArray(),
+                        };
+                        response = Response.Result(command.Id, JObject.Parse(handshakePayload.ToJson()));
+                        break;
+
                     default:
                         // Use new format with error details
                         response = Response.ErrorResult(

@@ -47,6 +47,7 @@ namespace UnityEditorMCP.Core
             "get_scene_info",
             "get_test_results",
             "get_ui_element_state",
+            "handshake",
             "instantiate_prefab",
             "list_components",
             "list_scenes",
@@ -82,6 +83,12 @@ namespace UnityEditorMCP.Core
             "stop_game",
             "update_script",
             "validate_script",
+        };
+
+        /// <summary>Declared-but-unimplemented editor commands (catalog knownGaps).</summary>
+        public static readonly string[] KnownEditorGaps =
+        {
+            "get_component_types",
         };
     }
 }
