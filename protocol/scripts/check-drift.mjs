@@ -129,6 +129,12 @@ for (const c of catalog.commands) {
   }
 }
 
+// KNOWN LIMITATION: param-schema drift is checked JS inputSchema -> catalog ONLY.
+// Editor-side C# handlers are presence-checked above, but their actual params["..."]
+// access is NOT validated against the catalog — a C# handler reading a parameter the
+// catalog doesn't declare (or ignoring one it does) is not caught here. Closing that
+// gap needs a static pass over the C# handler sources (future work).
+
 // A baselined gap that no longer occurs is stale: the side was implemented, so
 // the baseline entry should be removed to let the gate enforce it going forward.
 for (const [key, g] of baselined) {

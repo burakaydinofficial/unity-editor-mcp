@@ -124,42 +124,22 @@ export class ClearConsoleToolHandler extends BaseToolHandler {
       throw new Error(response.error || 'Failed to clear console');
     }
 
-    // Build result object
+    // The nine required fields are defaulted (the editor may omit some), so the
+    // response is always contract-valid rather than conditionally dropping them.
     const result = {
+      success: response.success !== false,
       message: response.message || 'Console cleared successfully',
+      clearedCount: response.clearedCount ?? 0,
+      remainingCount: response.remainingCount ?? 0,
+      settingsUpdated: response.settingsUpdated ?? false,
+      clearOnPlay: response.clearOnPlay ?? false,
+      clearOnRecompile: response.clearOnRecompile ?? false,
+      clearOnBuild: response.clearOnBuild ?? false,
       timestamp: response.timestamp || new Date().toISOString()
     };
-
-    // Include optional statistics if available
-    if (response.clearedCount !== undefined) {
-      result.clearedCount = response.clearedCount;
-    }
-    if (response.remainingCount !== undefined) {
-      result.remainingCount = response.remainingCount;
-    }
-    if (response.preservedWarnings !== undefined) {
-      result.preservedWarnings = response.preservedWarnings;
-    }
-    if (response.preservedErrors !== undefined) {
-      result.preservedErrors = response.preservedErrors;
-    }
-    if (response.settingsUpdated !== undefined) {
-      result.settingsUpdated = response.settingsUpdated;
-    }
-
-    // Include settings if they were updated
-    if (response.settingsUpdated) {
-      if (response.clearOnPlay !== undefined) {
-        result.clearOnPlay = response.clearOnPlay;
-      }
-      if (response.clearOnRecompile !== undefined) {
-        result.clearOnRecompile = response.clearOnRecompile;
-      }
-      if (response.clearOnBuild !== undefined) {
-        result.clearOnBuild = response.clearOnBuild;
-      }
-    }
-
+    // Optional extras the editor sends when preserving logs (catalog: not required).
+    if (response.preservedWarnings !== undefined) result.preservedWarnings = response.preservedWarnings;
+    if (response.preservedErrors !== undefined) result.preservedErrors = response.preservedErrors;
     return result;
   }
 }
