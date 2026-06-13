@@ -79,9 +79,20 @@ namespace UnityEditorMCP.Core
                     client = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
                 }
                 catch (ObjectDisposedException) { break; }
+                catch (SocketException sx)
+                {
+                    // Transient per-accept failure (e.g. a client RST before the accept
+                    // completes — Windows surfaces WSAECONNRESET here). The listener is
+                    // still valid, so keep accepting rather than going permanently deaf.
+                    if (ct.IsCancellationRequested) break;
+                    _log.Warn($"Accept transient error (continuing): {sx.SocketErrorCode}");
+                    try { await Task.Delay(50, ct).ConfigureAwait(false); }
+                    catch (OperationCanceledException) { break; }
+                    continue;
+                }
                 catch (Exception ex)
                 {
-                    if (!ct.IsCancellationRequested) _log.Error($"Accept failed: {ex.Message}");
+                    if (!ct.IsCancellationRequested) _log.Error($"Accept loop fatal: {ex.Message}");
                     break;
                 }
                 _ = Task.Run(() => HandleClientAsync(client, ct));
