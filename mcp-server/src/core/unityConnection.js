@@ -1,6 +1,7 @@
 import net from 'net';
 import { EventEmitter } from 'events';
 import { config, logger } from './config.js';
+import { resolveUnityPort, reapStale, defaultRegistryDirectory } from './discovery.js';
 
 /**
  * Detects a handler-level error returned by the Unity editor under a
@@ -41,6 +42,25 @@ export class UnityConnection extends EventEmitter {
   }
 
   /**
+   * Resolves the port to (re)connect to. Re-evaluated on every attempt so a
+   * restarted editor that moved to a new ephemeral port is picked up via the
+   * discovery registry; opportunistically reaps dead descriptors while there
+   * (ADR 0003). Explicit UNITY_PORT short-circuits to a fixed port.
+   * @param {object} env
+   * @returns {number}
+   */
+  resolveTargetPort(env = process.env) {
+    try {
+      if (env.UNITY_PROJECT_PATH && !env.UNITY_PORT) {
+        try { reapStale(defaultRegistryDirectory(env)); } catch { /* best effort */ }
+      }
+      return resolveUnityPort(env);
+    } catch {
+      return config.unity.port;
+    }
+  }
+
+  /**
    * Connects to Unity Editor
    * @returns {Promise<void>}
    */
@@ -58,8 +78,9 @@ export class UnityConnection extends EventEmitter {
         return;
       }
 
-      logger.info(`Connecting to Unity at ${config.unity.host}:${config.unity.port}...`);
-      
+      const targetPort = this.resolveTargetPort();
+      logger.info(`Connecting to Unity at ${config.unity.host}:${targetPort}...`);
+
       this.socket = new net.Socket();
       let connectionTimeout = null;
       let resolved = false;
@@ -136,7 +157,7 @@ export class UnityConnection extends EventEmitter {
       });
 
       // Attempt connection
-      this.socket.connect(config.unity.port, config.unity.host);
+      this.socket.connect(targetPort, config.unity.host);
       
       // Set timeout for initial connection
       connectionTimeout = setTimeout(() => {
