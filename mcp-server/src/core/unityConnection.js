@@ -312,7 +312,10 @@ export class UnityConnection extends EventEmitter {
               }
             } else if (response.status === 'error' || response.success === false) {
               logger.error(`[Unity] Command ${response.id} failed:`, response.error);
-              pending.reject(new Error(response.error || 'Command failed'));
+              const err = new Error(response.error || 'Command failed');
+              if (response.code) err.code = response.code;
+              if (response.details !== undefined) err.details = response.details;
+              pending.reject(err);
             } else {
               // Unknown format
               logger.warn(`[Unity] Command ${response.id} has unknown response format`);
