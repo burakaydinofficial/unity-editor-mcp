@@ -170,7 +170,8 @@ namespace UnityEditorMCP.Tests.Helpers
         public void Result_SerializedErrorEnvelopeString_IsNotDoubleEncoded()
         {
             // ScriptHandler/TestRunnerHandler return Response.Error(...) — a STRING.
-            var serialized = Response.Error("Failed to validate script", "EDITOR_ERROR");
+            // Named args disambiguate the (message, code) overload from (id, message).
+            var serialized = Response.Error(message: "Failed to validate script", code: "EDITOR_ERROR");
             var json = JObject.Parse(Response.Result("7", serialized));
             Assert.AreEqual("error", json["status"].Value<string>());
             Assert.AreEqual("Failed to validate script", json["error"].Value<string>());
@@ -205,6 +206,32 @@ namespace UnityEditorMCP.Tests.Helpers
             var json = JObject.Parse(Response.Result("9", "{ not actually json"));
             Assert.AreEqual("success", json["status"].Value<string>());
             Assert.AreEqual("{ not actually json", json["result"].Value<string>());
+        }
+
+        [Test]
+        public void Result_SerializedArrayString_KeepsItsWireType()
+        {
+            // Only object envelopes are reparsed; an array string stays a string.
+            var json = JObject.Parse(Response.Result("9", "[1,2,3]"));
+            Assert.AreEqual("success", json["status"].Value<string>());
+            Assert.AreEqual("[1,2,3]", json["result"].Value<string>());
+        }
+
+        [Test]
+        public void Result_NonEnvelopeObjectString_StaysOpaque()
+        {
+            // A '{'-string that is NOT an envelope (no status/success/error) is data.
+            var json = JObject.Parse(Response.Result("9", "{\"name\":\"x\"}"));
+            Assert.AreEqual("success", json["status"].Value<string>());
+            Assert.AreEqual("{\"name\":\"x\"}", json["result"].Value<string>());
+        }
+
+        [Test]
+        public void Result_SuccessEnvelopeWithoutPayload_IsEmptySuccess()
+        {
+            var json = JObject.Parse(Response.Result("9", new JObject { ["success"] = true }));
+            Assert.AreEqual("success", json["status"].Value<string>());
+            Assert.AreEqual(JTokenType.Null, json["result"].Type, "must not re-wrap the envelope under result");
         }
 
         [Test]

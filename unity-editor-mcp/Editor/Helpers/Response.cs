@@ -172,12 +172,22 @@ namespace UnityEditorMCP.Helpers
             // TestRunnerHandler) instead return an ALREADY-serialized envelope string
             // from Response.Success/Response.Error; parse it back so it is classified
             // and unwrapped here rather than double-encoded under a success envelope.
+            // Reparse ONLY a string that looks like a JSON object envelope (leading '{'
+            // AND carrying status/success/error), so genuine string data — a serialized
+            // array, or a non-envelope object — keeps its original wire type.
             if (handlerResult is string str)
             {
-                var trimmed = str.TrimStart();
-                if (trimmed.StartsWith("{") || trimmed.StartsWith("["))
+                if (str.TrimStart().StartsWith("{"))
                 {
-                    try { handlerResult = JToken.Parse(str); }
+                    try
+                    {
+                        var parsed = JToken.Parse(str) as JObject;
+                        if (parsed != null &&
+                            (parsed["status"] != null || parsed["success"] != null || parsed["error"] != null))
+                        {
+                            handlerResult = parsed;
+                        }
+                    }
                     catch { /* not JSON — treat as an opaque string payload */ }
                 }
             }
@@ -224,6 +234,9 @@ namespace UnityEditorMCP.Helpers
                 {
                     if (shape.TryGetValue("result", out var resultToken)) return SuccessResult(id, resultToken);
                     if (shape.TryGetValue("data", out var dataToken)) return SuccessResult(id, dataToken);
+                    // A no-payload success envelope: return an empty success, not the
+                    // envelope object itself (which would re-wrap under result).
+                    return SuccessResult(id, null);
                 }
             }
 
