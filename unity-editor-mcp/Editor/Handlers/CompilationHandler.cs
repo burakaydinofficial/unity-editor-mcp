@@ -41,11 +41,18 @@ namespace UnityEditorMCP.Handlers
             {
                 if (!isMonitoring)
                 {
-                    // Subscribe to compilation events
+                    // Subscribe idempotently: CompilationPipeline events are editor-level
+                    // and survive domain reloads, but isMonitoring (a static field) resets
+                    // to false each reload — so a plain += would accumulate duplicate
+                    // subscriptions across recompiles. Remove-then-add is a no-op when not
+                    // subscribed and prevents the N-fold-callback leak.
+                    CompilationPipeline.compilationStarted -= OnCompilationStarted;
                     CompilationPipeline.compilationStarted += OnCompilationStarted;
+                    CompilationPipeline.compilationFinished -= OnCompilationFinished;
                     CompilationPipeline.compilationFinished += OnCompilationFinished;
+                    CompilationPipeline.assemblyCompilationFinished -= OnAssemblyCompilationFinished;
                     CompilationPipeline.assemblyCompilationFinished += OnAssemblyCompilationFinished;
-                    
+
                     isMonitoring = true;
                     Debug.Log("[CompilationHandler] Compilation monitoring started");
                 }

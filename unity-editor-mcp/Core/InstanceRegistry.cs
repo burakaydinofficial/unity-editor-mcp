@@ -104,9 +104,16 @@ namespace UnityEditorMCP.Core
             }
             catch (IOException)
             {
-                // Cross-volume or transient failure — best-effort replace.
-                if (File.Exists(path)) File.Delete(path);
-                File.Move(tmp, path);
+                // Rare: File.Replace failed (e.g. a reader briefly holds the destination
+                // on Windows). Best-effort overwrite; if the Delete/Move also fails under
+                // the same lock, keep the existing descriptor and let the next heartbeat
+                // retry rather than throwing a transient lock error out of Publish.
+                try
+                {
+                    if (File.Exists(path)) File.Delete(path);
+                    File.Move(tmp, path);
+                }
+                catch (IOException) { /* keep prior descriptor; next heartbeat retries */ }
             }
             finally
             {

@@ -105,9 +105,12 @@ namespace UnityEditorMCP.Handlers
             try
             {
                 var state = GetEditorState();
+                // Return state as an opaque payload — no protocol envelope keys.
+                // Response.Result/ResponseClassifier add the success envelope on the wire,
+                // so emitting status here would nest { status:"success", state } inside the
+                // result field the client receives.
                 return new JObject
                 {
-                    ["status"] = "success",
                     ["state"] = state
                 };
             }
@@ -135,7 +138,6 @@ namespace UnityEditorMCP.Handlers
         {
             return new JObject
             {
-                ["status"] = "success",
                 ["message"] = message,
                 ["state"] = state
             };
@@ -143,9 +145,10 @@ namespace UnityEditorMCP.Handlers
 
         private static JObject CreateErrorResponse(string error)
         {
+            // Error as an opaque { error } payload — ResponseClassifier classifies it as a
+            // real error envelope; an inline status:"error" would just be duplicated.
             return new JObject
             {
-                ["status"] = "error",
                 ["error"] = error
             };
         }
