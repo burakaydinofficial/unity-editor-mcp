@@ -168,6 +168,14 @@ export class UnityConnection extends EventEmitter {
           // Remove event listeners before destroying to prevent callbacks after timeout
           this.socket.removeAllListeners();
           this.socket.destroy();
+          this.socket = null;
+          // The 'close' handler (which normally drains pendingCommands) was just
+          // removed, so drain any in-flight commands here. Each reject() clears its
+          // own per-command timeout, so no timers leak.
+          for (const [, pending] of this.pendingCommands) {
+            pending.reject(new Error('Connection timeout'));
+          }
+          this.pendingCommands.clear();
           reject(new Error('Connection timeout'));
         }
       }, config.unity.commandTimeout);
@@ -251,12 +259,14 @@ export class UnityConnection extends EventEmitter {
       if (messageLength < 0 || messageLength > 1024 * 1024) { // Max 1MB messages
         logger.error(`[Unity] Invalid message length: ${messageLength}`);
         
-        // Try to recover by looking for valid framed message
-        // Look for a reasonable length value (positive, less than 10KB for typical responses)
+        // Try to recover by looking for a valid framed message. Accept any length
+        // up to the same 1MB protocol cap used above — the protocol supports large
+        // responses (hierarchy dumps, scene analyses), so a 10KB ceiling here would
+        // silently discard a legitimate large frame during recovery.
         let recoveryIndex = -1;
         for (let i = 4; i < Math.min(this.messageBuffer.length - 4, 100); i++) {
           const testLength = this.messageBuffer.readInt32BE(i);
-          if (testLength > 0 && testLength < 10240) {
+          if (testLength > 0 && testLength <= 1024 * 1024) {
             // Check if this could be a valid JSON message
             if (i + 4 + testLength <= this.messageBuffer.length) {
               const testData = this.messageBuffer.slice(i + 4, i + 4 + testLength).toString('utf8');
