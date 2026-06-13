@@ -106,32 +106,35 @@ implemented — see Roadmap.)*
 
 ## Known deviations (current code vs. this contract)
 
-This is tracked honestly so the gap list is the work list:
+This is tracked honestly so the gap list is the work list. Most of the original
+deviations are closed (verified live via the editor bridge); the genuine remaining
+gaps are listed under **Remaining**.
 
-1. **Errors transported as success — fixed on the wire (pending in-editor verify).**
-   Every dispatch site now routes through `Response.Result`, which classifies a
-   handler's `{ error: ... }` return (and a serialized error-envelope string from
-   the two string-returning handlers) into a real `ErrorResult`; the Node side
-   propagates `code`/`details`. The `isHandlerLevelError` boundary stays as
-   belt-and-braces for older editor packages. Verified by `dotnet`/Node tests +
-   EditMode tests; the live editor compile is the user's confirmation.
-2. **`get_component_types`** is a registered MCP tool with no editor dispatch
-   case (baselined in `knownGaps`): it returns `UNKNOWN_COMMAND` at runtime.
-3. **Handshake: editor + evaluation shipped, connect-time exchange pending.** The
-   editor answers a `handshake` command (protocol/Unity versions, project path,
-   available commands) and the server has `evaluateHandshake`
-   (`PROTOCOL_VERSION_MISMATCH` / `PROJECT_PATH_MISMATCH`); what remains is the
-   server *sending* it on connect and acting on the verdict.
-4. **Result schemas are derived, not yet enforced** — `result` is populated
-   best-effort from handler returns and not validated against it. (Catalog
-   *params* are now drift-checked against the JS inputSchema.)
-5. **Addressing/discovery shipped, handshake enforcement pending** — editors now
-   derive a per-project port (FNV-1a, `[6400, 7424)`), fall back to an ephemeral
-   port on collision, and publish `{projectPath, port, …, lastHeartbeat}` to a
-   per-user filesystem registry the server resolves through (ADR 0003). What
-   remains protocol-side is the connect-time handshake exchange itself, so
-   `PROTOCOL_VERSION_MISMATCH` / `PROJECT_PATH_MISMATCH` are enforced on the wire
-   rather than by configuration.
+**Closed:**
+- **Errors transported as success — fixed and verified.** Every dispatch site routes
+  through `Response.Result`, which delegates to the Unity-independent
+  `Core.ResponseClassifier.Classify` (dotnet-tested) to turn a handler's `{ error: ... }`
+  return — or a serialized error-envelope string — into a real `ErrorResult`; the Node
+  side propagates `code`/`details`. Verified by `dotnet` + EditMode tests and live bridge
+  dogfooding. The `isHandlerLevelError` boundary stays as belt-and-braces for older packages.
+- **`get_component_types`** is implemented (on the `CommandDispatcher` rail), so `knownGaps`
+  is empty and the drift gate reports **zero gaps**.
+- **Connect-time handshake exchange** ships: the server sends `handshake` on connect and runs
+  `evaluateHandshake`, **warning** on `PROTOCOL_VERSION_MISMATCH` / `PROJECT_PATH_MISMATCH`.
+- **Addressing/discovery** ships and is proven live — three editors coexisting on per-project
+  derived ports (FNV-1a, `[6400, 7424)`) with ephemeral fallback, PID-liveness, and a per-user
+  filesystem registry the server resolves through (ADR 0003).
+
+**Remaining:**
+1. **Result schemas are derived, not yet enforced** — `result` is populated best-effort from
+   handler returns and not validated against the catalog at the Node boundary. (Catalog
+   *params* are drift-checked against the JS inputSchema.)
+2. **Handshake warns, does not refuse** — a version/project mismatch logs a warning but the
+   connection proceeds; refusing (or capability-gating) is the next step.
+3. **Handler contract migration is partial** — only `handshake` + `get_component_types` ride the
+   tested `HandlerOutcome` dispatcher rail; the other ~66 handlers still return anonymous objects
+   through the legacy switch (classified correctly by `Response.Result`, but not yet the typed
+   contract). Strangler hook: `CommandDispatcher.SetFallback`.
 
 ## Roadmap (specified here, enforced later)
 

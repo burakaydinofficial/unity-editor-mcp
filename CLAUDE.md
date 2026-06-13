@@ -139,16 +139,20 @@ pending-command map with a 30s timeout and reconnects with exponential backoff.
   windows, asset database…).
 - `Helpers/Response.cs` — builds the JSON responses (`Response.SuccessResult(id, data)` /
   `Response.ErrorResult(id, message, code, details)`). The Node side accepts both the old
-  (`status`) and new (`success`/`id`) shapes. **Known issue:** the dispatcher wraps handler
-  `{ error: … }` results in `SuccessResult`, so domain errors currently arrive as `status:"success"`
-  (target contract + fix tracked in `protocol/README.md` → Known deviations).
+  (`status`) and new (`success`/`id`) shapes. Domain errors are no longer laundered as success:
+  `Response.Result` delegates classification to `Core.ResponseClassifier.Classify` (Unity-independent,
+  dotnet-tested), which turns a handler's `{ error: … }` return into a real `ErrorResult` rather than
+  a success envelope.
 
-**Unity-side layering (migration in progress, ADR 0002).** A Unity-independent `Core` assembly
-(`unity-editor-mcp/Core/`) now holds framing, the command/result models, and the dispatcher —
-`HandlerOutcome`/`CommandResult` form a discriminated result that *cannot* serialize an error as a
-success, and it's covered by `dotnet test`. The live transport in `Editor/Core/UnityEditorMCP.cs`
-is being migrated onto it; until that lands, that file remains the running implementation and the
-known issue above still applies on the wire.
+**Unity-side layering (ADR 0002, migration underway).** A Unity-independent `Core` assembly
+(`unity-editor-mcp/Core/`) holds framing, the command/result models, the dispatcher, and the
+wire-truth classifier — `HandlerOutcome`/`CommandResult` form a discriminated result that *cannot*
+serialize an error as a success, all covered by `dotnet test`. The live transport in
+`Editor/Core/UnityEditorMCP.cs` now runs on Core's `TcpTransport` (slice 1), and Core's
+`CommandDispatcher` is the live dispatch front (slice 2): commands registered on it (`handshake`,
+`get_component_types`) are served by the tested Core path, while the legacy `ProcessCommand` switch
+still handles the rest and is migrated onto the rail incrementally (`CommandDispatcher.SetFallback`
+is the strangler hook).
 
 ### Adding a new MCP tool
 

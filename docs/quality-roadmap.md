@@ -2,36 +2,41 @@
 
 Remaining structural-quality work for the Unity Editor MCP bridge, beyond the protocol-contract
 foundation. Each finding was produced by a read-only audit agent (the `protocol-enrichment`
-workflow) and is grounded in `file:line` evidence — a verified backlog, not yet implemented.
-These are refactors of existing behavior, **not new features**. Sequence them behind the
-contract: the catalog + drift gate is the spine; these bring the implementation up to it.
+workflow) and is grounded in `file:line` evidence. Much of the original backlog is now
+implemented and verified live (see **Done** below); the rest are refactors of existing
+behavior, **not new features**. Sequence them behind the contract: the catalog + drift gate
+is the spine; these bring the implementation up to it.
 
 **Totals:** 38 findings across 6 dimensions — 17 high, 17 medium, 4 low.
 
 ## Priority queue (living — reorder as reality dictates)
 
-Organizing principle: **wire-truth first** (the live editor path still launders errors until
-the Core migration lands), floor-treadmill second, polish last.
+Organizing principle: wire-truth and the editor test suite are now **done and verified live**
+(via bridge dogfooding); the focus shifts to contract-enforcement + incremental migration,
+floor-treadmill, then polish.
 
-**Done since this queue was written** (C#-side ⇒ pending in-editor verification):
-- ✅ In-editor smoke verified on 2020.3/2021.3/2022.3 (compiles clean, no port errors).
-- ✅ Wire-truth without the full Core swap: `Response.Result` classifies handler `{error}`
-  returns into real error envelopes across all 66 dispatch sites (`9182dd9`); the Node
-  boundary now propagates `code`/`details` (`3b82c99`). Closes the laundering on the wire
-  *today* — the `McpBridge` swap (item 2) is now an architecture cleanup, not a correctness
-  fix.
-- ✅ Handshake: editor `handshake` command (`9a1daa6`) + Node `evaluateHandshake` module with
-  protocol-version drift parity (`dd1e8e4`). Remaining: the connect-time *exchange* wiring.
-- ✅ Param-schema drift detection in the gate (`b17f176`).
-- ✅ Per-project port + filesystem discovery registry (ADR 0003).
+**Done — verified live via the editor bridge (dogfooding on 2020.3):**
+- ✅ Full **EditMode suite green (71/71)**; compiles clean on 2020.3/2021.3/2022.3. The suite had
+  never been run — 33 pre-existing failures triaged and fixed (assembly-internal anonymous-type
+  test rot + 1 real bug: `ResolveComponentType` full names).
+- ✅ Wire-truth: classification lives in Unity-independent `Core.ResponseClassifier` (dotnet-tested,
+  incl. the inline-payload regression cases); `Response.Result` delegates. Errors are not laundered.
+  (Caught + fixed a wire regression where inline-success envelopes collapsed to `{}`.)
+- ✅ Slice 1 — Core `TcpTransport` is the live transport (3 framers → 2; 1 MB cap added).
+- ✅ Slice 2 (bounded) — Core `CommandDispatcher` is the live dispatch front; `handshake` +
+  `get_component_types` ride the `HandlerOutcome` rail (`SetFallback` = the legacy switch).
+- ✅ `get_component_types` implemented → **drift gate reports zero known gaps**.
+- ✅ Connect-time handshake exchange wired (`performHandshake` on connect; warns on mismatch).
+- ✅ Discovery proven live: 3 editors coexisting on derived ports + PID-liveness (ADR 0003).
+- ✅ Param-schema drift detection; drift gate recognizes `dispatcher.Register(...)`.
 
-**P0 — critical path**
-1. ~~In-editor verification round~~ — done (smoke clean on all three floors).
-2. Connect-time handshake *exchange*: server sends `handshake` on connect, runs
-   `evaluateHandshake`, warns/refuses on `PROTOCOL_VERSION_MISMATCH`/`PROJECT_PATH_MISMATCH`.
-   (Editor + evaluation module already shipped.)
-3. `McpBridge` bootstrap swap (now a structural cleanup, not a correctness gate): legacy
-   `switch` as a fallback handler; deletes the old transport in favor of the tested Core.
+**Next**
+1. ~~In-editor verification, connect-time handshake, wire-truth, EditMode greening~~ — done & verified.
+2. **Bulk handler migration** onto the `HandlerOutcome` dispatcher rail (strangler via `SetFallback`),
+   by category, + startup `CatalogConformance`; typed error codes. The big remaining structural item —
+   deliberately deferred (the recovery payoff is covered by the external log+git lifeline).
+3. **Contract enforcement:** result-schema validation at the Node boundary (warn-mode) + conformance
+   vectors both halves run; make the handshake *refuse* (not just warn) on mismatch.
 
 **P1 — structural completion**
 4. Migrate handlers to real `HandlerOutcome` by category (strangler) + startup
