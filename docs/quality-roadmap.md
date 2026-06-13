@@ -13,26 +13,37 @@ contract: the catalog + drift gate is the spine; these bring the implementation 
 Organizing principle: **wire-truth first** (the live editor path still launders errors until
 the Core migration lands), floor-treadmill second, polish last.
 
+**Done since this queue was written** (C#-side ⇒ pending in-editor verification):
+- ✅ In-editor smoke verified on 2020.3/2021.3/2022.3 (compiles clean, no port errors).
+- ✅ Wire-truth without the full Core swap: `Response.Result` classifies handler `{error}`
+  returns into real error envelopes across all 66 dispatch sites (`9182dd9`); the Node
+  boundary now propagates `code`/`details` (`3b82c99`). Closes the laundering on the wire
+  *today* — the `McpBridge` swap (item 2) is now an architecture cleanup, not a correctness
+  fix.
+- ✅ Handshake: editor `handshake` command (`9a1daa6`) + Node `evaluateHandshake` module with
+  protocol-version drift parity (`dd1e8e4`). Remaining: the connect-time *exchange* wiring.
+- ✅ Param-schema drift detection in the gate (`b17f176`).
+- ✅ Per-project port + filesystem discovery registry (ADR 0003).
+
 **P0 — critical path**
-1. In-editor verification round (user): `CoreSmokeTests` per floor version; derived port +
-   discovery descriptor observed. Gates every Unity-side change below.
-2. Step-2 slice 2: swap the bootstrap onto `McpBridge`, legacy `ProcessCommand` switch
-   registered as a fallback handler adapting `{error:…}` to `HandlerOutcome` — closes
-   error-laundering on the wire for all commands at once; worst case is one revert.
-3. Handshake exchange on connect (McpBridge hosts, Node consumes):
-   `PROTOCOL_VERSION_MISMATCH` / `PROJECT_PATH_MISMATCH` enforced on the wire.
+1. ~~In-editor verification round~~ — done (smoke clean on all three floors).
+2. Connect-time handshake *exchange*: server sends `handshake` on connect, runs
+   `evaluateHandshake`, warns/refuses on `PROTOCOL_VERSION_MISMATCH`/`PROJECT_PATH_MISMATCH`.
+   (Editor + evaluation module already shipped.)
+3. `McpBridge` bootstrap swap (now a structural cleanup, not a correctness gate): legacy
+   `switch` as a fallback handler; deletes the old transport in favor of the tested Core.
 
 **P1 — structural completion**
 4. Migrate handlers to real `HandlerOutcome` by category (strangler) + startup
    `CatalogConformance` check; typed error codes (`EDITOR_COMPILING`, `VALIDATION_ERROR`…).
 5. Node `tools/` leftovers: 10 double-wrapped analysis/scene tools, payload-discarding
    summaries, vestigial `validators.js`.
-6. Param-schema drift detection in the gate (the `list_components` class) + the open
-   `list_components` product decision (user call).
+6. ~~Param-schema drift detection~~ done; the `list_components` product decision (user call)
+   remains open.
 7. Server reconnect re-resolution via the registry + server-side stale reaping (ADR 0003
    follow-ups).
 8. `get_component_types`: implement the editor side or drop the tool (removes the permanent
-   knownGap warning).
+   knownGap warning) — user call.
 
 **P2 — hardening / later bets**
 9. Result-schema validation at the Node boundary (decide: minimal hand-rolled validator vs
