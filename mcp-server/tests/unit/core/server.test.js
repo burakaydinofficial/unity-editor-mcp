@@ -44,8 +44,9 @@ describe('Server', () => {
   });
 
   afterEach(async () => {
-    // Tear down the connection too — without this the process can keep a handle
-    // alive and `node --test` never exits (the source of the earlier hung-process).
+    // Defensive teardown of the connection (clears any reconnect timer). The actual
+    // hang was server.js running main() on import; that's fixed by the entry-point
+    // guard in server.js, so no --test-force-exit is needed.
     if (unityConnection && typeof unityConnection.disconnect === 'function') {
       unityConnection.disconnect();
     }

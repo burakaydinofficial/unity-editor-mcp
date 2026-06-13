@@ -10,6 +10,7 @@ import {
 import { UnityConnection } from './unityConnection.js';
 import { createHandlers } from '../handlers/index.js';
 import { config, logger } from './config.js';
+import { fileURLToPath } from 'node:url';
 import { performHandshake } from './handshake.js';
 
 // Create Unity connection
@@ -265,9 +266,13 @@ export async function createServer(customConfig = config) {
   };
 }
 
-// Start the server
-main().catch((error) => {
-  console.error('Fatal error:', error);
-  console.error('Stack trace:', error.stack);
-  process.exit(1);
-});
+// Start the server ONLY when run directly (e.g. `node src/core/server.js`), not when
+// imported — otherwise importing createServer in tests starts a real stdio server and
+// a module-level Unity connection, keeping the process alive (the prior hang root cause).
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error('Fatal error:', error);
+    console.error('Stack trace:', error.stack);
+    process.exit(1);
+  });
+}

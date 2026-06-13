@@ -215,14 +215,14 @@ describe('UnityConnection', () => {
         pending.reject(new Error('Command timeout'));
       }
       connection.pendingCommands.clear();
-      
+
       await assert.rejects(
         sendPromise,
         /Command timeout/
       );
-      
-      // Verify pending command was cleaned up
-      assert.equal(connection.pendingCommands.size, 0);
+      // No size assertion here: we cleared the map manually above to simulate the
+      // timeout, so asserting size===0 would be tautological. (The real setTimeout
+      // path is thin — delete(id) + reject — and clearTimeout fires via the wrapper.)
     });
 
     it('should handle error responses', async () => {
