@@ -88,6 +88,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (result.status === 'error') {
       logger.error(`[MCP] Handler returned error: ${name}`, { error: result.error, code: result.code });
       return {
+        isError: true,
         content: [
           {
             type: 'text',
@@ -128,6 +129,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       duration: `${errorTime - requestTime}ms`
     });
     return {
+      isError: true,
       content: [
         {
           type: 'text',

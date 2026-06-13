@@ -115,11 +115,13 @@ export class UnityConnection extends EventEmitter {
         if (!this.connected && !resolved) {
           resolved = true;
           clearConnectionTimeout();
-          // Mark as disconnecting to prevent reconnection
-          this.isDisconnecting = true;
-          // Destroy the socket to clean up properly
+          // Remove listeners before destroying so the async 'close' event cannot
+          // fire scheduleReconnect() after we've already rejected this attempt
+          // (socket.destroy() queues 'close' asynchronously). Mirrors the timeout
+          // path below.
+          this.socket.removeAllListeners();
           this.socket.destroy();
-          this.isDisconnecting = false;
+          this.socket = null;
           reject(error);
         }
       });

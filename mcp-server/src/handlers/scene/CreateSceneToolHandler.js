@@ -64,28 +64,17 @@ export class CreateSceneToolHandler extends BaseToolHandler {
       throw new Error('Unity connection not available');
     }
     
-    // Send command to Unity
+    // sendCommand already unwraps the wire envelope and resolves with the editor
+    // payload directly (a handler-level error rejects via isHandlerLevelError).
     const result = await this.unityConnection.sendCommand('create_scene', params);
-    
-    // Check for Unity-side errors
-    if (result.status === 'error') {
+
+    // Defensive: surface an error that arrived as a payload field rather than a rejection.
+    if (result && result.error) {
       const error = new Error(result.error);
       error.code = 'UNITY_ERROR';
       throw error;
     }
-    
-    // Handle undefined or null results from Unity
-    if (result.result === undefined || result.result === null) {
-      return {
-        status: 'success',
-        sceneName: params.sceneName,
-        path: params.path || 'Assets/Scenes/',
-        loadScene: params.loadScene !== false,
-        addToBuildSettings: params.addToBuildSettings === true,
-        message: 'Scene creation completed but Unity returned no details'
-      };
-    }
-    
-    return result.result;
+
+    return result;
   }
 }
