@@ -9,7 +9,11 @@ using UnityEditorMCP.Handlers;
 namespace UnityEditorMCP.Tests
 {
     /// <summary>
-    /// Unit tests for ComponentHandler functionality
+    /// Unit tests for ComponentHandler functionality.
+    ///
+    /// Handlers return anonymous objects (internal to the Editor assembly), not
+    /// Dictionaries, so results are asserted through a JObject view: a missing key
+    /// reads as null instead of throwing, and it works across the assembly boundary.
     /// </summary>
     [TestFixture]
     public class ComponentHandlerTests
@@ -51,15 +55,13 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var result = ComponentHandler.AddComponent(parameters);
+            var dict = JObject.FromObject(ComponentHandler.AddComponent(parameters));
 
             // Assert
-            Assert.IsTrue(result is Dictionary<string, object>);
-            var dict = result as Dictionary<string, object>;
             Assert.IsFalse(dict.ContainsKey("error"));
             Assert.IsTrue(dict.ContainsKey("success"));
-            Assert.AreEqual(true, dict["success"]);
-            
+            Assert.IsTrue((bool)dict["success"]);
+
             // Verify component was added
             var rb = testGameObject.GetComponent<Rigidbody>();
             Assert.IsNotNull(rb);
@@ -78,10 +80,9 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var result = ComponentHandler.AddComponent(parameters);
+            var dict = JObject.FromObject(ComponentHandler.AddComponent(parameters));
 
             // Assert
-            var dict = result as Dictionary<string, object>;
             Assert.IsTrue(dict.ContainsKey("error"));
             Assert.IsTrue(dict["error"].ToString().Contains("Component type not found"));
         }
@@ -97,10 +98,9 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var result = ComponentHandler.AddComponent(parameters);
+            var dict = JObject.FromObject(ComponentHandler.AddComponent(parameters));
 
             // Assert
-            var dict = result as Dictionary<string, object>;
             Assert.IsTrue(dict.ContainsKey("error"));
             Assert.IsTrue(dict["error"].ToString().Contains("GameObject not found"));
         }
@@ -110,7 +110,7 @@ namespace UnityEditorMCP.Tests
         {
             // Arrange
             testGameObject.AddComponent<Rigidbody>(); // Add first
-            
+
             var parameters = new JObject
             {
                 ["gameObjectPath"] = "/TestObject",
@@ -118,10 +118,9 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var result = ComponentHandler.AddComponent(parameters);
+            var dict = JObject.FromObject(ComponentHandler.AddComponent(parameters));
 
             // Assert
-            var dict = result as Dictionary<string, object>;
             Assert.IsTrue(dict.ContainsKey("error"));
             Assert.IsTrue(dict["error"].ToString().Contains("already has component"));
         }
@@ -142,10 +141,9 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var result = ComponentHandler.RemoveComponent(parameters);
+            var dict = JObject.FromObject(ComponentHandler.RemoveComponent(parameters));
 
             // Assert
-            var dict = result as Dictionary<string, object>;
             Assert.IsFalse(dict.ContainsKey("error"));
             Assert.IsTrue((bool)dict["removed"]);
             Assert.IsNull(testGameObject.GetComponent<Rigidbody>());
@@ -162,10 +160,9 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var result = ComponentHandler.RemoveComponent(parameters);
+            var dict = JObject.FromObject(ComponentHandler.RemoveComponent(parameters));
 
             // Assert
-            var dict = result as Dictionary<string, object>;
             Assert.IsFalse(dict.ContainsKey("error"));
             Assert.IsFalse((bool)dict["removed"]);
         }
@@ -181,10 +178,9 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var result = ComponentHandler.RemoveComponent(parameters);
+            var dict = JObject.FromObject(ComponentHandler.RemoveComponent(parameters));
 
             // Assert
-            var dict = result as Dictionary<string, object>;
             Assert.IsTrue(dict.ContainsKey("error"));
             Assert.IsTrue(dict["error"].ToString().Contains("Cannot remove Transform"));
         }
@@ -195,7 +191,7 @@ namespace UnityEditorMCP.Tests
             // Arrange
             testGameObject.AddComponent<BoxCollider>();
             testGameObject.AddComponent<BoxCollider>();
-            
+
             var parameters = new JObject
             {
                 ["gameObjectPath"] = "/TestObject",
@@ -204,10 +200,9 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var result = ComponentHandler.RemoveComponent(parameters);
+            var dict = JObject.FromObject(ComponentHandler.RemoveComponent(parameters));
 
             // Assert
-            var dict = result as Dictionary<string, object>;
             Assert.IsTrue((bool)dict["removed"]);
             var remainingColliders = testGameObject.GetComponents<BoxCollider>();
             Assert.AreEqual(1, remainingColliders.Length);
@@ -223,7 +218,7 @@ namespace UnityEditorMCP.Tests
             // Arrange
             var rb = testGameObject.AddComponent<Rigidbody>();
             rb.mass = 1.0f;
-            
+
             var parameters = new JObject
             {
                 ["gameObjectPath"] = "/TestObject",
@@ -236,10 +231,9 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var result = ComponentHandler.ModifyComponent(parameters);
+            var dict = JObject.FromObject(ComponentHandler.ModifyComponent(parameters));
 
             // Assert
-            var dict = result as Dictionary<string, object>;
             Assert.IsFalse(dict.ContainsKey("error"));
             Assert.AreEqual(5.0f, rb.mass);
 #if UNITY_6000_0_OR_NEWER
@@ -247,8 +241,8 @@ namespace UnityEditorMCP.Tests
 #else
             Assert.AreEqual(0.5f, rb.drag);
 #endif
-            
-            var modifiedProps = dict["modifiedProperties"] as string[];
+
+            var modifiedProps = dict["modifiedProperties"].ToObject<string[]>();
             Assert.Contains("mass", modifiedProps);
             Assert.Contains("drag", modifiedProps);
         }
@@ -258,7 +252,7 @@ namespace UnityEditorMCP.Tests
         {
             // Arrange
             testGameObject.AddComponent<Rigidbody>();
-            
+
             var parameters = new JObject
             {
                 ["gameObjectPath"] = "/TestObject",
@@ -269,13 +263,13 @@ namespace UnityEditorMCP.Tests
                 }
             };
 
-            // Act
-            var result = ComponentHandler.ModifyComponent(parameters);
+            // Act — the handler logs a WARNING for the failed conversion (not an
+            // error), so it doesn't trip the Test Runner log-check; no LogAssert needed.
+            var dict = JObject.FromObject(ComponentHandler.ModifyComponent(parameters));
 
             // Assert
-            var dict = result as Dictionary<string, object>;
             Assert.IsTrue(dict.ContainsKey("error"));
-            Assert.IsTrue(dict["error"].ToString().Contains("Invalid property value"));
+            Assert.IsTrue(dict["error"].ToString().Contains("not found or invalid"));
         }
 
         [Test]
@@ -283,7 +277,7 @@ namespace UnityEditorMCP.Tests
         {
             // Arrange
             testGameObject.AddComponent<Rigidbody>();
-            
+
             var parameters = new JObject
             {
                 ["gameObjectPath"] = "/TestObject",
@@ -295,10 +289,9 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var result = ComponentHandler.ModifyComponent(parameters);
+            var dict = JObject.FromObject(ComponentHandler.ModifyComponent(parameters));
 
             // Assert
-            var dict = result as Dictionary<string, object>;
             Assert.IsTrue(dict.ContainsKey("error"));
             Assert.IsTrue(dict["error"].ToString().Contains("Property not found"));
         }
@@ -313,20 +306,19 @@ namespace UnityEditorMCP.Tests
             // Arrange
             testGameObject.AddComponent<Rigidbody>();
             testGameObject.AddComponent<BoxCollider>();
-            
+
             var parameters = new JObject
             {
                 ["gameObjectPath"] = "/TestObject"
             };
 
             // Act
-            var result = ComponentHandler.ListComponents(parameters);
+            var dict = JObject.FromObject(ComponentHandler.ListComponents(parameters));
 
             // Assert
-            var dict = result as Dictionary<string, object>;
             Assert.IsFalse(dict.ContainsKey("error"));
-            
-            var components = dict["components"] as List<object>;
+
+            var components = (JArray)dict["components"];
             Assert.IsNotNull(components);
             Assert.AreEqual(3, components.Count); // Transform + Rigidbody + BoxCollider
         }
@@ -338,7 +330,7 @@ namespace UnityEditorMCP.Tests
             var rb = testGameObject.AddComponent<Rigidbody>();
             rb.mass = 2.5f;
             rb.useGravity = false;
-            
+
             var parameters = new JObject
             {
                 ["gameObjectPath"] = "/TestObject",
@@ -346,30 +338,29 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var result = ComponentHandler.ListComponents(parameters);
+            var dict = JObject.FromObject(ComponentHandler.ListComponents(parameters));
 
             // Assert
-            var dict = result as Dictionary<string, object>;
-            var components = dict["components"] as List<object>;
-            
+            var components = (JArray)dict["components"];
+
             // Find Rigidbody in results
-            Dictionary<string, object> rbComponent = null;
+            JObject rbComponent = null;
             foreach (var comp in components)
             {
-                var compDict = comp as Dictionary<string, object>;
-                if (compDict["type"].ToString() == "Rigidbody")
+                var compObj = (JObject)comp;
+                if ((string)compObj["type"] == "Rigidbody")
                 {
-                    rbComponent = compDict;
+                    rbComponent = compObj;
                     break;
                 }
             }
-            
+
             Assert.IsNotNull(rbComponent);
             Assert.IsTrue(rbComponent.ContainsKey("properties"));
-            
-            var props = rbComponent["properties"] as Dictionary<string, object>;
-            Assert.AreEqual(2.5f, props["mass"]);
-            Assert.AreEqual(false, props["useGravity"]);
+
+            var props = (JObject)rbComponent["properties"];
+            Assert.AreEqual(2.5f, (float)props["mass"]);
+            Assert.AreEqual(false, (bool)props["useGravity"]);
         }
 
         #endregion
@@ -381,7 +372,7 @@ namespace UnityEditorMCP.Tests
         {
             // Act
             var type = ComponentHandler.ResolveComponentType("Rigidbody");
-            
+
             // Assert
             Assert.IsNotNull(type);
             Assert.AreEqual(typeof(Rigidbody), type);
@@ -392,7 +383,7 @@ namespace UnityEditorMCP.Tests
         {
             // Act
             var type = ComponentHandler.ResolveComponentType("UnityEngine.Rigidbody");
-            
+
             // Assert
             Assert.IsNotNull(type);
             Assert.AreEqual(typeof(Rigidbody), type);
