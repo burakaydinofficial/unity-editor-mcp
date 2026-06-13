@@ -113,6 +113,71 @@ namespace UnityEditorMCP.Core.Tests
         }
 
         [Fact]
+        public void IsLive_SameHost_TrustsProcessLiveness_OverHeartbeat()
+        {
+            var now = DateTime.UtcNow;
+            var d = Descriptor("p", 1, now - TimeSpan.FromSeconds(9999)); // ancient heartbeat
+            d.Host = "HOST-A";
+            // Same host + pid alive -> live despite the stale heartbeat.
+            Assert.True(InstanceRegistry.IsLive(d, now, "host-a", pid => true));
+            // Same host + pid dead -> not live even if heartbeat were fresh.
+            Assert.False(InstanceRegistry.IsLive(d, now, "HOST-A", pid => false));
+        }
+
+        [Fact]
+        public void IsLive_OtherOrUnknownHost_FallsBackToHeartbeat()
+        {
+            var now = DateTime.UtcNow;
+            var fresh = Descriptor("p", 1, now);
+            fresh.Host = "OTHER";
+            var stale = Descriptor("p", 1, now - TimeSpan.FromSeconds(400));
+            stale.Host = "OTHER";
+            // Different host: pid check is meaningless, use the heartbeat.
+            Assert.True(InstanceRegistry.IsLive(fresh, now, "HOST-A", pid => false));
+            Assert.False(InstanceRegistry.IsLive(stale, now, "HOST-A", pid => true));
+            // Null host: also heartbeat-based.
+            Assert.True(InstanceRegistry.IsLive(Descriptor("p", 1, now), now, "HOST-A", pid => false));
+        }
+
+        [Fact]
+        public void ReapStale_SameHost_ReapsCrashedPid_EvenWithFreshHeartbeat()
+        {
+            var now = DateTime.UtcNow;
+            var alive = Descriptor("C:/projects/alive", 6500, now);
+            alive.Host = "HOST-A"; alive.Pid = 1111;
+            var crashed = Descriptor("C:/projects/crashed", 6501, now); // fresh heartbeat...
+            crashed.Host = "HOST-A"; crashed.Pid = 2222;                 // ...but pid is gone
+            _registry.Publish(alive);
+            _registry.Publish(crashed);
+
+            int reaped = _registry.ReapStale(now, "HOST-A", pid => pid == 1111);
+            Assert.Equal(1, reaped);
+            var remaining = _registry.ReadAll();
+            Assert.Single(remaining);
+            Assert.Equal("C:/projects/alive", remaining[0].ProjectPath);
+        }
+
+        [Fact]
+        public void ReapStale_RemovesOrphanTmpFiles()
+        {
+            var old = Path.Combine(_dir, "abc.1234.tmp");
+            Directory.CreateDirectory(_dir);
+            File.WriteAllText(old, "partial");
+            File.SetLastWriteTimeUtc(old, DateTime.UtcNow - TimeSpan.FromSeconds(400));
+            _registry.ReapStale(DateTime.UtcNow);
+            Assert.False(File.Exists(old));
+        }
+
+        [Fact]
+        public void Publish_AtomicReplace_OverwritesExisting()
+        {
+            _registry.Publish(Descriptor("C:/projects/game", 6500));
+            _registry.Publish(Descriptor("C:/projects/game", 7000));
+            Assert.Equal(7000, _registry.FindByProjectPath("C:/projects/game").Port);
+            Assert.Empty(Directory.GetFiles(_dir, "*.tmp")); // tmp cleaned up
+        }
+
+        [Fact]
         public void FileNameFor_IsStableAndNormalized()
         {
             Assert.Equal(InstanceRegistry.FileNameFor("C:/projects/game"), InstanceRegistry.FileNameFor("C:\\Projects\\Game\\"));

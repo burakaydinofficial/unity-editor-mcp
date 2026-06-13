@@ -92,10 +92,26 @@ namespace UnityEditorMCP.Core
 
             System.IO.Directory.CreateDirectory(_directory);
             var path = Path.Combine(_directory, FileNameFor(descriptor.ProjectPath));
-            var tmp = path + ".tmp";
+            // Unique tmp per writer so a crashed publish never collides with another.
+            var tmp = path + "." + descriptor.Pid + ".tmp";
             File.WriteAllText(tmp, descriptor.ToJson());
-            if (File.Exists(path)) File.Delete(path);
-            File.Move(tmp, path);
+            try
+            {
+                // File.Replace is atomic on NTFS (no window with a missing file);
+                // it requires the destination to exist, so Move when it doesn't.
+                if (File.Exists(path)) File.Replace(tmp, path, null);
+                else File.Move(tmp, path);
+            }
+            catch (IOException)
+            {
+                // Cross-volume or transient failure — best-effort replace.
+                if (File.Exists(path)) File.Delete(path);
+                File.Move(tmp, path);
+            }
+            finally
+            {
+                if (File.Exists(tmp)) { try { File.Delete(tmp); } catch { /* ignore */ } }
+            }
         }
 
         /// <summary>Removes the descriptor for a project (no-op if absent).</summary>
@@ -147,28 +163,81 @@ namespace UnityEditorMCP.Core
             }
         }
 
-        /// <summary>Deletes stale descriptors; returns how many were reaped.</summary>
-        public int ReapStale(DateTime nowUtc)
+        /// <summary>
+        /// Whether a descriptor represents a live editor. On the SAME host, process
+        /// liveness is authoritative (a crashed editor's pid is gone immediately,
+        /// collapsing the heartbeat-timeout window to ~0, and an idle-but-alive
+        /// editor stays discoverable even if its update pump stalled). For an unknown
+        /// or different host we can't check the pid, so fall back to the heartbeat.
+        /// </summary>
+        public static bool IsLive(InstanceDescriptor descriptor, DateTime nowUtc, string currentHost, Func<int, bool> isProcessAlive = null)
+        {
+            if (descriptor == null) return false;
+            isProcessAlive = isProcessAlive ?? IsProcessAlive;
+            if (!string.IsNullOrEmpty(descriptor.Host) && !string.IsNullOrEmpty(currentHost) &&
+                string.Equals(descriptor.Host, currentHost, StringComparison.OrdinalIgnoreCase))
+            {
+                return isProcessAlive(descriptor.Pid);
+            }
+            return descriptor.IsFresh(nowUtc, StaleAfter);
+        }
+
+        /// <summary>True if a process with this id currently exists on this host.</summary>
+        public static bool IsProcessAlive(int pid)
+        {
+            if (pid <= 0) return false;
+            try
+            {
+                using (System.Diagnostics.Process.GetProcessById(pid)) { return true; }
+            }
+            catch (ArgumentException)
+            {
+                return false; // no such process
+            }
+            catch
+            {
+                return true; // can't tell (e.g. access denied) — assume alive, don't reap
+            }
+        }
+
+        /// <summary>
+        /// Deletes descriptors that are no longer live (crashed pid on this host, or a
+        /// stale heartbeat for unknown/other hosts) plus orphaned *.tmp files; returns
+        /// how many descriptors were reaped.
+        /// </summary>
+        public int ReapStale(DateTime nowUtc, string currentHost = null, Func<int, bool> isProcessAlive = null)
         {
             int reaped = 0;
             if (!System.IO.Directory.Exists(_directory)) return 0;
+
             foreach (var file in System.IO.Directory.GetFiles(_directory, "*.json"))
             {
-                bool stale;
+                bool dead;
                 try
                 {
                     var descriptor = InstanceDescriptor.FromJson(File.ReadAllText(file));
-                    stale = descriptor == null || !descriptor.IsFresh(nowUtc, StaleAfter);
+                    dead = !IsLive(descriptor, nowUtc, currentHost, isProcessAlive);
                 }
                 catch
                 {
-                    stale = true;
+                    dead = true; // corrupt
                 }
-                if (stale)
+                if (dead)
                 {
                     try { File.Delete(file); reaped++; } catch { /* held elsewhere — skip */ }
                 }
             }
+
+            // Orphan tmp files from a crashed publish (an in-flight tmp is seconds old).
+            foreach (var tmp in System.IO.Directory.GetFiles(_directory, "*.tmp"))
+            {
+                try
+                {
+                    if (nowUtc - File.GetLastWriteTimeUtc(tmp) > StaleAfter) File.Delete(tmp);
+                }
+                catch { /* ignore */ }
+            }
+
             return reaped;
         }
     }

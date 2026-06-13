@@ -12,10 +12,14 @@ import {
   readInstances,
   findInstanceByProjectPath,
   isFresh,
+  isProcessAlive,
+  isLive,
+  reapStale,
   resolveUnityPort,
   DEFAULT_BASE_PORT,
   DEFAULT_PORT_RANGE,
 } from '../../../src/core/discovery.js';
+import { hostname } from 'node:os';
 
 const slashes = (p) => p.replace(/\\/g, '/');
 
@@ -157,6 +161,57 @@ describe('discovery', () => {
           resolveUnityPort({ UNITY_PROJECT_PATH: 'C:/projects/game', UNITY_MCP_REGISTRY_DIR: dir }),
           derivePort('C:/projects/game'));
       });
+    });
+
+    it('resolveUnityPort ignores a same-host descriptor whose pid is dead', () => {
+      withRegistry((dir) => {
+        // Fresh heartbeat, but the process is gone — must not be used.
+        const desc = descriptor({ host: hostname(), pid: 999_999_999 });
+        writeFileSync(join(dir, instanceFileName(desc.projectPath)), JSON.stringify(desc));
+        assert.strictEqual(
+          resolveUnityPort({ UNITY_PROJECT_PATH: 'C:/projects/game', UNITY_MCP_REGISTRY_DIR: dir }),
+          derivePort('C:/projects/game'));
+      });
+    });
+  });
+
+  describe('liveness', () => {
+    it('isProcessAlive: true for this process, false for a dead/invalid pid', () => {
+      assert.strictEqual(isProcessAlive(process.pid), true);
+      assert.strictEqual(isProcessAlive(999_999_999), false);
+      assert.strictEqual(isProcessAlive(0), false);
+      assert.strictEqual(isProcessAlive(-1), false);
+    });
+
+    const desc = (over = {}) => ({
+      projectPath: 'p', port: 1, pid: 4242, host: 'HOST-A',
+      lastHeartbeat: new Date().toISOString(), ...over,
+    });
+
+    it('isLive: same host trusts pid liveness over the heartbeat', () => {
+      const ancient = desc({ lastHeartbeat: new Date(Date.now() - 9_999_000).toISOString() });
+      assert.strictEqual(isLive(ancient, Date.now(), 'host-a', () => true), true);
+      assert.strictEqual(isLive(desc(), Date.now(), 'HOST-A', () => false), false);
+    });
+
+    it('isLive: other/unknown host falls back to the heartbeat', () => {
+      assert.strictEqual(isLive(desc({ host: 'OTHER' }), Date.now(), 'HOST-A', () => false), true);
+      const stale = desc({ host: 'OTHER', lastHeartbeat: new Date(Date.now() - 400_000).toISOString() });
+      assert.strictEqual(isLive(stale, Date.now(), 'HOST-A', () => true), false);
+      assert.strictEqual(isLive(desc({ host: undefined }), Date.now(), 'HOST-A', () => false), true);
+    });
+
+    it('reapStale removes dead-pid descriptors and keeps live ones', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'mcp-reap-'));
+      try {
+        writeFileSync(join(dir, instanceFileName('C:/a')), JSON.stringify(desc({ projectPath: 'C:/a', pid: 1111 })));
+        writeFileSync(join(dir, instanceFileName('C:/b')), JSON.stringify(desc({ projectPath: 'C:/b', pid: 2222 })));
+        const reaped = reapStale(dir, Date.now(), 'HOST-A', (pid) => pid === 1111);
+        assert.strictEqual(reaped, 1);
+        assert.strictEqual(readInstances(dir).length, 1);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
   });
 });

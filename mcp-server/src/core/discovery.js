@@ -11,9 +11,9 @@
  * endpoint directory; the derived port is only the default the editor tries
  * first (it falls back to an ephemeral port on collision).
  */
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
+import { homedir, hostname } from 'node:os';
 
 export const DEFAULT_BASE_PORT = 6400;
 export const DEFAULT_PORT_RANGE = 1024;
@@ -83,6 +83,31 @@ export function isFresh(descriptor, nowMs = Date.now(), staleAfterMs = STALE_AFT
   return Number.isFinite(heartbeat) && nowMs - heartbeat <= staleAfterMs;
 }
 
+/** True if a process with this id currently exists on this host (mirrors C# IsProcessAlive). */
+export function isProcessAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0); // signal 0 = liveness probe, doesn't actually signal
+    return true;
+  } catch (e) {
+    return e.code === 'EPERM'; // exists but not ours -> alive; ESRCH -> dead
+  }
+}
+
+/**
+ * Whether a descriptor represents a live editor — mirrors C# InstanceRegistry.IsLive:
+ * on the same host, process liveness is authoritative (collapses the heartbeat-timeout
+ * window); for an unknown/other host, fall back to the heartbeat.
+ */
+export function isLive(descriptor, nowMs = Date.now(), currentHost = hostname(), isAlive = isProcessAlive) {
+  if (!descriptor) return false;
+  if (descriptor.host && currentHost &&
+      String(descriptor.host).toLowerCase() === String(currentHost).toLowerCase()) {
+    return isAlive(descriptor.pid);
+  }
+  return isFresh(descriptor, nowMs);
+}
+
 /** All readable descriptors in the registry; corrupt/foreign files are skipped. */
 export function readInstances(registryDir) {
   if (!existsSync(registryDir)) return [];
@@ -99,6 +124,26 @@ export function readInstances(registryDir) {
     }
   }
   return instances;
+}
+
+/** Deletes descriptors that are no longer live; returns how many were removed. */
+export function reapStale(registryDir, nowMs = Date.now(), currentHost = hostname(), isAlive = isProcessAlive) {
+  if (!existsSync(registryDir)) return 0;
+  let reaped = 0;
+  for (const entry of readdirSync(registryDir)) {
+    if (!entry.endsWith('.json')) continue;
+    const file = join(registryDir, entry);
+    let dead;
+    try {
+      dead = !isLive(JSON.parse(readFileSync(file, 'utf8')), nowMs, currentHost, isAlive);
+    } catch {
+      dead = true; // corrupt
+    }
+    if (dead) {
+      try { unlinkSync(file); reaped++; } catch { /* held elsewhere — skip */ }
+    }
+  }
+  return reaped;
 }
 
 /** The descriptor for a project, or null (payload path checked, mirrors C#). */
@@ -131,7 +176,7 @@ export function resolveUnityPort(env = process.env) {
   if (projectPath) {
     try {
       const instance = findInstanceByProjectPath(defaultRegistryDirectory(env), projectPath);
-      if (instance && isFresh(instance) && Number.isFinite(instance.port)) {
+      if (instance && isLive(instance) && Number.isFinite(instance.port)) {
         return instance.port;
       }
     } catch {

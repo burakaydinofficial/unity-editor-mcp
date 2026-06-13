@@ -24,6 +24,9 @@ namespace UnityEditorMCP.Core
         /// <summary>Editor process id, for liveness checks.</summary>
         [JsonProperty("pid")] public int Pid { get; set; }
 
+        /// <summary>Machine name, so PID liveness is only trusted on the same host.</summary>
+        [JsonProperty("host")] public string Host { get; set; }
+
         [JsonProperty("unityVersion")] public string UnityVersion { get; set; }
 
         [JsonProperty("protocolVersion")] public string ProtocolVersion { get; set; } = CommandCatalog.ProtocolVersion;
