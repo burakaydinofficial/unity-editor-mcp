@@ -69,7 +69,9 @@ namespace UnityEditorMCP.Core
                 .ToArray(),
         };
 
-        private static McpStatus _status = McpStatus.NotConfigured;
+        // volatile: written from the background transport thread (OnMessage), read on
+        // the main thread (drain/start/shutdown) — ensures cross-thread visibility.
+        private static volatile McpStatus _status = McpStatus.NotConfigured;
         public static McpStatus Status
         {
             get => _status;
@@ -115,6 +117,11 @@ namespace UnityEditorMCP.Core
             currentPort = ResolveInitialPort();
             EditorApplication.update += ProcessCommandQueue;
             EditorApplication.quitting += Shutdown;
+            // Release the listener/port BEFORE a domain reload (recompile) tears down
+            // this domain; otherwise the orphaned TcpListener keeps the port OS-bound
+            // and the next load falls back to an ephemeral port, churning the published
+            // discovery port. Fires once per reload for this domain (Unity 2017.2+).
+            AssemblyReloadEvents.beforeAssemblyReload += StopTcpListener;
 
             // Start the TCP listener
             StartTcpListener();
@@ -300,9 +307,9 @@ namespace UnityEditorMCP.Core
 
         /// <summary>
         /// Dispatches a command through Core's tested CommandDispatcher (the migrated
-        /// path). The dispatcher never throws — it turns handler errors into a proper
-        /// error result — so the only guarded failure here is the client vanishing
-        /// mid-send.
+        /// path). Dispatch() itself never throws (handler errors become error results),
+        /// but the surrounding ToJson()/respond() can — so the catch sends a best-effort
+        /// error reply rather than leaving the client to time out.
         /// </summary>
         private static void DispatchViaCore(Command command, Action<string> respond)
         {
@@ -319,6 +326,17 @@ namespace UnityEditorMCP.Core
             catch (Exception ex)
             {
                 Debug.LogError($"[Unity Editor MCP] Error dispatching {command?.Type}: {ex}");
+                // Dispatch() never throws, but ToJson() (non-serializable payload) or
+                // respond() (client gone) can. Best-effort error reply so the Node
+                // client gets a response instead of waiting out the 30s timeout.
+                try
+                {
+                    respond(Response.ErrorResult(command?.Id, $"Internal error: {ex.Message}", "INTERNAL_ERROR"));
+                }
+                catch (Exception sendEx)
+                {
+                    Debug.LogError($"[Unity Editor MCP] Failed to send error reply for {command?.Type}: {sendEx.Message}");
+                }
             }
         }
         
@@ -683,49 +701,49 @@ namespace UnityEditorMCP.Core
                         
                     // Tag management commands
                     case "manage_tags":
-                        var tagManagementResult = TagManagementHandler.HandleCommand(command.Parameters["action"]?.ToString(), command.Parameters);
+                        var tagManagementResult = TagManagementHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
                         response = Response.Result(command.Id, tagManagementResult);
                         break;
                         
                     // Layer management commands
                     case "manage_layers":
-                        var layerManagementResult = LayerManagementHandler.HandleCommand(command.Parameters["action"]?.ToString(), command.Parameters);
+                        var layerManagementResult = LayerManagementHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
                         response = Response.Result(command.Id, layerManagementResult);
                         break;
                         
                     // Selection management commands
                     case "manage_selection":
-                        var selectionManagementResult = SelectionHandler.HandleCommand(command.Parameters["action"]?.ToString(), command.Parameters);
+                        var selectionManagementResult = SelectionHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
                         response = Response.Result(command.Id, selectionManagementResult);
                         break;
                         
                     // Window management commands
                     case "manage_windows":
-                        var windowManagementResult = WindowManagementHandler.HandleCommand(command.Parameters["action"]?.ToString(), command.Parameters);
+                        var windowManagementResult = WindowManagementHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
                         response = Response.Result(command.Id, windowManagementResult);
                         break;
                         
                     // Tool management commands
                     case "manage_tools":
-                        var toolManagementResult = ToolManagementHandler.HandleCommand(command.Parameters["action"]?.ToString(), command.Parameters);
+                        var toolManagementResult = ToolManagementHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
                         response = Response.Result(command.Id, toolManagementResult);
                         break;
                         
                     // Asset import settings commands
                     case "manage_asset_import_settings":
-                        var assetImportSettingsResult = AssetImportSettingsHandler.HandleCommand(command.Parameters["action"]?.ToString(), command.Parameters);
+                        var assetImportSettingsResult = AssetImportSettingsHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
                         response = Response.Result(command.Id, assetImportSettingsResult);
                         break;
                         
                     // Asset database commands
                     case "manage_asset_database":
-                        var assetDatabaseResult = AssetDatabaseHandler.HandleCommand(command.Parameters["action"]?.ToString(), command.Parameters);
+                        var assetDatabaseResult = AssetDatabaseHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
                         response = Response.Result(command.Id, assetDatabaseResult);
                         break;
                         
                     // Asset dependency analysis commands
                     case "analyze_asset_dependencies":
-                        var assetDependencyResult = AssetDependencyHandler.HandleCommand(command.Parameters["action"]?.ToString(), command.Parameters);
+                        var assetDependencyResult = AssetDependencyHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
                         response = Response.Result(command.Id, assetDependencyResult);
                         break;
                         
