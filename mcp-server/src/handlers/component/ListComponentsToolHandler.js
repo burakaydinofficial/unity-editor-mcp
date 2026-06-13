@@ -46,11 +46,13 @@ export class ListComponentsToolHandler extends BaseToolHandler {
       throw new Error(response.error);
     }
 
-    // Return result
+    // Return result (success + message are catalog-required)
     return {
+      success: response.success !== false,
       gameObjectPath: response.gameObjectPath,
       components: response.components || [],
       componentCount: response.componentCount || 0,
+      message: response.message || 'Components listed',
       ...(response.includesInherited !== undefined && { includesInherited: response.includesInherited })
     };
   }

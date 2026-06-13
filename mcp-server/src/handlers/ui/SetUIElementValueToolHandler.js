@@ -45,6 +45,12 @@ export class SetUIElementValueToolHandler extends BaseToolHandler {
             triggerEvents
         });
 
+        // Surface editor-side failures rather than returning them as success
+        // (matches ClickUIElement / GetUIElementState).
+        if (result && result.error) {
+            throw new Error(result.error);
+        }
+
         return result;
     }
 }

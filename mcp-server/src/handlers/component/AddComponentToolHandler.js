@@ -75,7 +75,7 @@ export class AddComponentToolHandler extends BaseToolHandler {
       componentType: response.componentType,
       gameObjectPath: response.gameObjectPath,
       message: response.message || 'Component added successfully',
-      ...(response.properties && { appliedProperties: response.properties })
+      ...(response.appliedProperties && { appliedProperties: response.appliedProperties })
     };
   }
 
