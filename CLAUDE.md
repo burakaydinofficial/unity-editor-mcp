@@ -111,8 +111,9 @@ MCP client (Claude/Cursor) ⇄ stdio (JSON-RPC) ⇄ Node server ⇄ TCP loopback
 The TCP protocol is length-prefixed JSON: a 4-byte big-endian length header followed by a UTF-8
 JSON payload, in both directions. Framing/parsing lives in
 `mcp-server/src/core/unityConnection.js` (Node side, includes 1MB message cap and corrupt-frame
-recovery) and `unity-editor-mcp/Editor/Core/UnityEditorMCP.cs` (`SendFramedMessage` /
-`HandleClientAsync`). Commands carry an `id`; the Node side correlates responses via a
+recovery) and the Unity-independent `unity-editor-mcp/Core/` (`TcpTransport` accept/read loop +
+`MessageFramer` in `Framing.cs`, same 1MB cap), wired into the editor by
+`Editor/Core/UnityEditorMCP.cs`. Commands carry an `id`; the Node side correlates responses via a
 pending-command map with a 30s timeout and reconnects with exponential backoff.
 
 **Node side** (`mcp-server/src/`):
@@ -128,11 +129,13 @@ pending-command map with a 30s timeout and reconnects with exponential backoff.
   handler with the shared `UnityConnection`.
 
 **Unity side** (`unity-editor-mcp/Editor/`):
-- `Core/UnityEditorMCP.cs` — `[InitializeOnLoad]` static class. Starts a `TcpListener` on
-  loopback:6400, re-arms automatically after every domain reload. Incoming commands are queued and
-  executed on the **main thread** via `EditorApplication.update` (Unity APIs are not thread-safe).
-  Dispatch is a big `switch (command.Type)` in `ProcessCommand` mapping command type strings to
-  static handler classes.
+- `Core/UnityEditorMCP.cs` — `[InitializeOnLoad]` static class. Starts Core's `TcpTransport` on a
+  **derived per-project port** (`ResolveInitialPort` → `EndpointAddressing.DerivePort`, ADR 0003;
+  `UNITY_MCP_PORT` overrides), re-arms after every domain reload (and unbinds the listener on
+  `beforeAssemblyReload`). Incoming commands are queued and executed on the **main thread** via
+  `EditorApplication.update` (Unity APIs are not thread-safe). Dispatch tries Core's
+  `CommandDispatcher` first (`_dispatcher.IsRegistered(type)` → `DispatchViaCore`) and falls back to
+  the legacy `switch (command.Type)` in `ProcessCommand` for not-yet-migrated commands.
 - `Handlers/*Handler.cs` — static classes doing the actual editor work, taking `JObject`
   parameters. Some are one-method-per-command (`GameObjectHandler.CreateGameObject`), others use an
   `action` parameter dispatched through `HandleCommand(action, params)` (tags, layers, selection,
@@ -151,8 +154,9 @@ serialize an error as a success, all covered by `dotnet test`. The live transpor
 `Editor/Core/UnityEditorMCP.cs` now runs on Core's `TcpTransport` (slice 1), and Core's
 `CommandDispatcher` is the live dispatch front (slice 2): commands registered on it (`handshake`,
 `get_component_types`) are served by the tested Core path, while the legacy `ProcessCommand` switch
-still handles the rest and is migrated onto the rail incrementally (`CommandDispatcher.SetFallback`
-is the strangler hook).
+still handles the rest and is migrated onto the rail incrementally: `ProcessCommand` routes to
+`DispatchViaCore` when `_dispatcher.IsRegistered(command.Type)`, else the legacy switch (the explicit
+strangler check).
 
 ### Adding a new MCP tool
 

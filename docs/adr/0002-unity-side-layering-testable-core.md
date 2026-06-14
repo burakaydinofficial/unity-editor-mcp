@@ -59,7 +59,7 @@ for contributors.
 
 ## Status
 
-- Done (all `dotnet test`-verified, 53 tests, + CI lane `csharp-core.yml`):
+- Done (all `dotnet test`-verified, 103 tests, + CI lane `csharp-core.yml`):
   - `UnityEditorMCP.Core` framing, command/result models, dispatcher, logger seam.
   - `CommandQueue` (main-thread marshalling seam) and `ProtocolCompatibility`
     (version negotiation).

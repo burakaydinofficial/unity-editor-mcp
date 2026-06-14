@@ -5,8 +5,8 @@ Status: Proposed (design agreed; v0.2.0 down-payment shipped, generic surface is
 ## Context
 
 The MCP tool surface is static and hardcoded. `createHandlers()` instantiates a fixed
-`HANDLER_CLASSES` list (66 typed handlers); `server.js`'s `ListToolsRequestSchema` returns
-`handlers.values().map(getDefinition)` — the same 66 tools regardless of which editor (if any)
+`HANDLER_CLASSES` list (67 typed handlers); `server.js`'s `ListToolsRequestSchema` returns
+`handlers.values().map(getDefinition)` — the same 67 tools regardless of which editor (if any)
 is connected. The catalog (`protocol/catalog/commands.json`, 68 commands incl. internal) is the
 contract both halves conform to, enforced by `check-drift.mjs`.
 
@@ -19,7 +19,7 @@ projects at once** (the reason old-LTS support exists; see `unity-mcp-fork-requi
 3. **Cold start** (no editor up yet) and the multi-instance case have no clean answer. The obvious
    "generate the list from the connected editor at startup" variant produces an **empty tool list**
    when Unity isn't running and a **stale** one when a second instance appears — both unacceptable.
-4. A fixed 66-tool (growing) list is an **always-on context tax** in *every* session the MCP is
+4. A fixed 67-tool (growing) list is an **always-on context tax** in *every* session the MCP is
    installed in — including ones that never touch Unity — and pushes against client tool-count
    limits as the surface grows.
 
@@ -80,7 +80,7 @@ each supports, where a call goes) is fetched fresh per call, never encoded in li
   polish). This is the "longest-supported" mission expressed as architecture.
 - **Context economics invert.** Low fixed cost (a handful of meta-tools) + pay-as-you-go discovery.
   A non-Unity session pays ~nothing; a sub-agent carries the tool weight only where the work
-  happens, instead of every session being born with 66+ definitions.
+  happens, instead of every session being born with 67+ definitions.
 - **Multi-instance becomes first-class** — `list_unity_instances` + per-call routing serve the
   legacy ICP (several editors at once), surfacing the capability the registry already supports but
   Node never exposed (closes the `list instances` follow-up noted in ADR 0003).

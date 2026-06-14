@@ -29,9 +29,9 @@ in sync when you add or remove a guard.
 | File : line | Guard | API (newer ⇄ older) | Notes |
 | --- | --- | --- | --- |
 | `unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs:13` | `UNITY_2021_2_OR_NEWER` | `UnityEditor.SceneManagement.PrefabStageUtility` ⇄ `UnityEditor.Experimental.SceneManagement.PrefabStageUtility` | `using`-alias; call sites at 743, 756, 814, 873. `StageUtility` (843) is non-experimental in all versions. |
-| `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:509` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping` ⇄ `Rigidbody.drag` (write) | |
-| `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:520` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.angularDamping` ⇄ `Rigidbody.angularDrag` (write) | |
-| `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:638` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping`/`angularDamping` ⇄ `drag`/`angularDrag` (read) | |
+| `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:592` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping` ⇄ `Rigidbody.drag` (write) | |
+| `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:603` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.angularDamping` ⇄ `Rigidbody.angularDrag` (write) | |
+| `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:721` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping`/`angularDamping` ⇄ `drag`/`angularDrag` (read) | |
 | `unity-editor-mcp/Editor/Handlers/SceneAnalysisHandler.cs:249` | `UNITY_6000_0_OR_NEWER` | `Rigidbody` damping ⇄ drag (read) | |
 | `unity-editor-mcp/Editor/Handlers/SceneAnalysisHandler.cs:554` | `UNITY_6000_0_OR_NEWER` | `LightType.Rectangle` ⇄ `LightType.Area` | Area-light enum rename. |
 | `unity-editor-mcp/Editor/Tests/ComponentHandlerTests.cs:245` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping` ⇄ `drag` | Test mirror of the write guard. |
