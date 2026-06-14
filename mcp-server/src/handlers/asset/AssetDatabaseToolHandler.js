@@ -122,8 +122,7 @@ export class AssetDatabaseToolHandler extends BaseToolHandler {
   }
 
   async execute(params) {
-    this.validate(params);
-    
+    // validate() already ran in BaseToolHandler.handle() before execute() — no need to repeat it.
     if (!this.unityConnection.isConnected()) {
       await this.unityConnection.connect();
     }

@@ -162,7 +162,8 @@ export class EnhancedReadLogsToolHandler extends BaseToolHandler {
    * @returns {boolean} True if valid
    */
   isValidISO8601(timestamp) {
-    const regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+    // Accept naive, UTC (Z), and offset-aware (+HH:MM / -HHMM) ISO 8601, with any fractional digits.
+    const regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/;
     if (!regex.test(timestamp)) {
       return false;
     }

@@ -26,6 +26,13 @@ export class CallUnityToolToolHandler extends BaseToolHandler {
     this.manager = manager;
   }
 
+  validate(params) {
+    super.validate(params); // 'tool' is required
+    if (typeof params.tool !== 'string' || params.tool.trim() === '') {
+      throw new Error('tool must be a non-empty string (the tool name to invoke; see list_unity_tools)');
+    }
+  }
+
   async execute(params = {}) {
     const conn = this.manager.getConnectionForInstance(params.instance);
     if (!conn) {

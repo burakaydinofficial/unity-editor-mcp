@@ -116,7 +116,7 @@ export class DeleteScriptToolHandler extends BaseToolHandler {
     const response = await this.unityConnection.sendCommand('delete_script', commandParams);
 
     // Handle Unity response
-    if (response.success === false || response.status === 'error') {
+    if (response.success === false) {
       throw new Error(response.error || 'Failed to delete script');
     }
 

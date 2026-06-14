@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { 
-  ListToolsRequestSchema, 
+import {
+  ListToolsRequestSchema,
   CallToolRequestSchema,
   ListResourcesRequestSchema,
   ListPromptsRequestSchema
@@ -29,157 +29,92 @@ function toMcpResponse(result, name) {
       }]
     };
   }
-  logger.info(`[MCP] Returning success response for: ${name} at ${new Date().toISOString()}`);
+  logger.debug(`[MCP] success response for: ${name}`);
   const responseText = (result.result === undefined || result.result === null)
     ? JSON.stringify({ status: 'success', message: 'Operation completed successfully but no details were returned', tool: name }, null, 2)
     : JSON.stringify(result.result, null, 2);
   return { content: [{ type: 'text', text: responseText }] };
 }
 
-// Create the connection manager + the active/default connection (ADR 0005). The manager lets the
-// instance meta-tools route to any editor; the active connection serves the typed tools and the
-// default path and env-resolves its port on each connect.
-const manager = new UnityConnectionManager();
-const unityConnection = manager.getActiveConnection();
-
-// Create tool handlers (typed handlers use the active connection; meta-tools use the manager).
-const handlers = createHandlers(unityConnection, manager);
-
 // The generic instance meta-tools are the canonical v0.3.0 surface (ADR 0004): by default tools/list
 // advertises only them, so a client isn't born carrying ~70 definitions it may never use. The full
 // typed catalog stays reachable via call_unity_tool, and is re-advertised with UNITY_MCP_TYPED_TOOLS=true.
 const TYPED_TOOLS_DEFAULT = false;
 
-// Create MCP server
-const server = new Server(
-  {
-    name: config.server.name,
-    version: config.server.version,
-  },
-  {
-    capabilities: {
-      tools: {},
-      resources: {},
-      prompts: {}
+/**
+ * Wires an MCP Server's request handlers over a handler map + connection manager. Shared by main()
+ * and createServer so the live server and the test server behave identically.
+ */
+function registerRequestHandlers(server, handlers) {
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const all = Array.from(handlers.values()).map((handler) => handler.getDefinition());
+    return { tools: filterListedTools(all, process.env, TYPED_TOOLS_DEFAULT) };
+  });
+  server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [] }));
+  server.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [] }));
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    logger.debug(`[MCP] tool call: ${name}`, { args });
+    const handler = handlers.get(name);
+    if (!handler) {
+      logger.error(`[MCP] Tool not found: ${name}`);
+      return toMcpResponse({ status: 'error', error: `Tool not found: ${name}`, code: 'TOOL_NOT_FOUND' }, name);
     }
-  }
-);
+    // handle() is designed not to throw, but the transport must never reject — guard anyway.
+    try {
+      return toMcpResponse(await handler.handle(args), name);
+    } catch (error) {
+      logger.error(`[MCP] Handler threw: ${name}: ${error.message}`);
+      return { isError: true, content: [{ type: 'text', text: `Error: ${error.message}` }] };
+    }
+  });
+}
 
-// Register MCP protocol handlers
-// Note: Do not log here as it breaks MCP protocol initialization
-
-// Handle tool listing
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  const all = Array.from(handlers.values()).map(handler => handler.getDefinition());
-  return { tools: filterListedTools(all, process.env, TYPED_TOOLS_DEFAULT) };
-});
-
-// Handle resources listing
-server.setRequestHandler(ListResourcesRequestSchema, async () => {
-  logger.debug('[MCP] Received resources/list request');
-  // Unity MCP server doesn't provide resources
-  return { resources: [] };
-});
-
-// Handle prompts listing
-server.setRequestHandler(ListPromptsRequestSchema, async () => {
-  logger.debug('[MCP] Received prompts/list request');
-  // Unity MCP server doesn't provide prompts
-  return { prompts: [] };
-});
-
-// Handle tool execution
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-  const requestTime = Date.now();
-  
-  logger.info(`[MCP] Received tool call request: ${name} at ${new Date(requestTime).toISOString()}`, { args });
-  
-  const handler = handlers.get(name);
-  if (!handler) {
-    logger.error(`[MCP] Tool not found: ${name}`);
-    // Return a normal isError tool response (matches the createServer helper) rather than throwing
-    // a JSON-RPC protocol error — consistent shape for the client. (Audit finding.)
-    return toMcpResponse({ status: 'error', error: `Tool not found: ${name}`, code: 'TOOL_NOT_FOUND' }, name);
-  }
-  
-  try {
-    logger.info(`[MCP] Starting handler execution for: ${name} at ${new Date().toISOString()}`);
-    const startTime = Date.now();
-    
-    // Handler returns response in our format
-    const result = await handler.handle(args);
-    
-    const duration = Date.now() - startTime;
-    const totalDuration = Date.now() - requestTime;
-    logger.info(`[MCP] Handler completed at ${new Date().toISOString()}: ${name}`, { 
-      handlerDuration: `${duration}ms`,
-      totalDuration: `${totalDuration}ms`,
-      status: result.status 
-    });
-    
-    // Convert to MCP format (shared with createServer)
-    return toMcpResponse(result, name);
-  } catch (error) {
-    const errorTime = Date.now();
-    logger.error(`[MCP] Handler threw exception at ${new Date(errorTime).toISOString()}: ${name}`, { 
-      error: error.message, 
-      stack: error.stack,
-      duration: `${errorTime - requestTime}ms`
-    });
-    return {
-      isError: true,
-      content: [
-        {
-          type: 'text',
-          text: `Error: ${error.message}`
-        }
-      ]
-    };
-  }
-});
-
-// Connection lifecycle logging. The connect-time handshake (protocol/project check + manifest
-// caching onto editorInfo) is wired by the manager for every connection it manages (ADR 0004/0005).
-unityConnection.on('connected', () => logger.info('Unity connection established'));
-unityConnection.on('disconnected', () => logger.info('Unity connection lost'));
-unityConnection.on('error', (error) => logger.error('Unity connection error:', error.message));
-
-// Initialize server
+/**
+ * Initialize and run the live server. All live objects (manager, connection, handlers, MCP server)
+ * are constructed HERE, not at module top, so importing this module (e.g. createServer in tests) has
+ * no side effects. (Audit finding.)
+ */
 export async function main() {
   try {
-    // Create transport - no logging before connection
+    // The connection manager + the active/default connection (ADR 0005). The manager lets the
+    // instance meta-tools route to any editor; the active connection serves the typed tools.
+    const manager = new UnityConnectionManager();
+    const unityConnection = manager.getActiveConnection();
+    const handlers = createHandlers(unityConnection, manager);
+
+    const server = new Server(
+      { name: config.server.name, version: config.server.version },
+      { capabilities: { tools: {}, resources: {}, prompts: {} } },
+    );
+    registerRequestHandlers(server, handlers);
+
+    // Connection lifecycle logging. The connect-time handshake (protocol/project check + manifest
+    // caching onto editorInfo) is wired by the manager for every connection it manages.
+    unityConnection.on('connected', () => logger.info('Unity connection established'));
+    unityConnection.on('disconnected', () => logger.info('Unity connection lost'));
+    unityConnection.on('error', (error) => logger.error('Unity connection error:', error.message));
+
     const transport = new StdioServerTransport();
-    
-    // Connect to transport
     await server.connect(transport);
-    
-    // Now safe to log after connection established
     logger.info('MCP server started successfully');
-    
-    // Attempt to connect to Unity
+
+    // Attempt to connect to Unity (retries automatically on failure).
     try {
       await unityConnection.connect();
     } catch (error) {
       logger.error('Initial Unity connection failed:', error.message);
       logger.info('Unity connection will retry automatically');
     }
-    
-    // Handle shutdown
-    process.on('SIGINT', async () => {
+
+    const shutdown = async () => {
       logger.info('Shutting down...');
       manager.disconnectAll();
       await server.close();
       process.exit(0);
-    });
-    
-    process.on('SIGTERM', async () => {
-      logger.info('Shutting down...');
-      manager.disconnectAll();
-      await server.close();
-      process.exit(0);
-    });
-    
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
   } catch (error) {
     console.error('Failed to start server:', error);
     console.error('Stack trace:', error.stack);
@@ -187,57 +122,21 @@ export async function main() {
   }
 }
 
-// Export for testing
+/**
+ * Builds a server + handler map for tests (no transport, no Unity connection). Returns the active
+ * connection + manager so tests can drive/inspect them.
+ */
 export async function createServer(customConfig = config) {
   const testManager = new UnityConnectionManager();
   const testUnityConnection = testManager.getActiveConnection();
   const testHandlers = createHandlers(testUnityConnection, testManager);
-  
-  const testServer = new Server(
-    {
-      name: customConfig.server.name,
-      version: customConfig.server.version,
-    },
-    {
-      capabilities: {
-        tools: {},
-        resources: {},
-        prompts: {}
-      }
-    }
-  );
-  
-  // Register handlers for test server
-  testServer.setRequestHandler(ListToolsRequestSchema, async () => {
-    const all = Array.from(testHandlers.values()).map(handler => handler.getDefinition());
-    return { tools: filterListedTools(all, process.env, TYPED_TOOLS_DEFAULT) };
-  });
-  
-  testServer.setRequestHandler(ListResourcesRequestSchema, async () => {
-    return { resources: [] };
-  });
-  
-  testServer.setRequestHandler(ListPromptsRequestSchema, async () => {
-    return { prompts: [] };
-  });
-  
-  testServer.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const { name, arguments: args } = request.params;
-    
-    const handler = testHandlers.get(name);
-    if (!handler) {
-      return toMcpResponse({ status: 'error', error: `Tool not found: ${name}`, code: 'TOOL_NOT_FOUND' }, name);
-    }
 
-    // Mirror the live handler's exception guard so createServer has true parity
-    // (handle() is designed not to throw, but a wrapped transport must never reject).
-    try {
-      return toMcpResponse(await handler.handle(args), name);
-    } catch (error) {
-      return { isError: true, content: [{ type: 'text', text: `Error: ${error.message}` }] };
-    }
-  });
-  
+  const testServer = new Server(
+    { name: customConfig.server.name, version: customConfig.server.version },
+    { capabilities: { tools: {}, resources: {}, prompts: {} } },
+  );
+  registerRequestHandlers(testServer, testHandlers);
+
   return {
     server: testServer,
     unityConnection: testUnityConnection,
@@ -245,9 +144,8 @@ export async function createServer(customConfig = config) {
   };
 }
 
-// Start the server ONLY when run directly (e.g. `node src/core/server.js`), not when
-// imported — otherwise importing createServer in tests starts a real stdio server and
-// a module-level Unity connection, keeping the process alive (the prior hang root cause).
+// Start the server ONLY when run directly (e.g. `node src/core/server.js`), not when imported —
+// otherwise importing createServer in tests would start a real stdio server (the prior hang root cause).
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
     console.error('Fatal error:', error);

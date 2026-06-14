@@ -130,7 +130,7 @@ export class ValidateScriptToolHandler extends BaseToolHandler {
     const response = await this.unityConnection.sendCommand('validate_script', commandParams);
 
     // Handle Unity response
-    if (response.success === false || response.status === 'error') {
+    if (response.success === false) {
       throw new Error(response.error || 'Failed to validate script');
     }
 

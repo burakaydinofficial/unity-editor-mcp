@@ -45,6 +45,7 @@ export class CreateScriptToolHandler extends BaseToolHandler {
    * @throws {Error} If validation fails
    */
   validate(params) {
+    super.validate(params); // enforce inputSchema.required before the custom checks
     const { scriptName, scriptType, path, namespace } = params;
 
     // Validate script name
@@ -112,7 +113,7 @@ export class CreateScriptToolHandler extends BaseToolHandler {
     const response = await this.unityConnection.sendCommand('create_script', commandParams);
 
     // Handle Unity response
-    if (response.success === false || response.status === 'error') {
+    if (response.success === false) {
       throw new Error(response.error || 'Failed to create script');
     }
 

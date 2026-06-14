@@ -133,7 +133,7 @@ export class ListScriptsToolHandler extends BaseToolHandler {
     const response = await this.unityConnection.sendCommand('list_scripts', commandParams);
 
     // Handle Unity response
-    if (response.success === false || response.status === 'error') {
+    if (response.success === false) {
       throw new Error(response.error || 'Failed to list scripts');
     }
 

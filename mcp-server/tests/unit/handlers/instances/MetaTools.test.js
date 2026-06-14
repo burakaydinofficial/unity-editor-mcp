@@ -93,6 +93,13 @@ describe('call_unity_tool', () => {
     assert.equal(res.status, 'error');
   });
 
+  it('rejects an empty/whitespace tool name', async () => {
+    const h = new CallUnityToolToolHandler({}, fakeManager());
+    const res = await h.handle({ tool: '   ' });
+    assert.equal(res.status, 'error');
+    assert.match(res.error, /non-empty/);
+  });
+
   it('errors on an unresolved instance', async () => {
     const h = new CallUnityToolToolHandler({}, fakeManager({ getConnectionForInstance: () => null }));
     const res = await h.handle({ tool: 'ping', instance: 'C:/missing' });

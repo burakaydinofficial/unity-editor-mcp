@@ -1,3 +1,5 @@
+import { logger } from '../../core/config.js';
+
 /**
  * Base class for all tool handlers
  * Provides common functionality for validation, execution, and error handling
@@ -42,30 +44,28 @@ export class BaseToolHandler {
    * @returns {Promise<object>} Standardized response
    */
   async handle(params = {}) {
-    console.error(`[Handler ${this.name}] Starting handle() with params:`, params);
-    
+    // Route through the level-gated logger (stderr) instead of unconditional console.error, so a
+    // tool call doesn't emit several debug lines at every LOG_LEVEL. (Audit finding.)
+    logger.debug(`[Handler ${this.name}] handle() with params:`, params);
+
     try {
       // Validate parameters
-      console.error(`[Handler ${this.name}] Validating parameters...`);
       this.validate(params);
-      console.error(`[Handler ${this.name}] Validation passed`);
-      
+
       // Execute tool logic
-      console.error(`[Handler ${this.name}] Executing tool logic...`);
       const startTime = Date.now();
       const result = await this.execute(params);
-      const duration = Date.now() - startTime;
-      console.error(`[Handler ${this.name}] Execution completed in ${duration}ms`);
-      
+      logger.debug(`[Handler ${this.name}] execute() completed in ${Date.now() - startTime}ms`);
+
       // Return success response in new format
       return {
         status: 'success',
         result
       };
     } catch (error) {
-      console.error(`[Handler ${this.name}] Error occurred:`, error.message);
-      console.error(`[Handler ${this.name}] Error stack:`, error.stack);
-      
+      logger.error(`[Handler ${this.name}] error: ${error.message}`);
+      logger.debug(`[Handler ${this.name}] stack:`, error.stack);
+
       // Return error response in new format
       return {
         status: 'error',
