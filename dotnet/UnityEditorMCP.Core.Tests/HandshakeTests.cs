@@ -1,3 +1,5 @@
+using System.Linq;
+using Newtonsoft.Json.Linq;
 using UnityEditorMCP.Core;
 using Xunit;
 
@@ -33,6 +35,45 @@ namespace UnityEditorMCP.Core.Tests
         {
             var back = Handshake.FromJson("{\"protocolVersion\":\"1.0.0\"}");
             Assert.Empty(back.AvailableCommands);
+        }
+
+        [Fact]
+        public void ToJson_FromJson_RoundTripsCommandsManifest()
+        {
+            var h = new Handshake
+            {
+                ProtocolVersion = "1.0.0",
+                Commands = JArray.Parse("[{\"name\":\"ping\",\"params\":{\"type\":\"object\"}}]"),
+            };
+            var back = Handshake.FromJson(h.ToJson());
+            Assert.Single(back.Commands);
+            Assert.Equal("ping", (string)back.Commands[0]["name"]);
+            Assert.NotNull(back.Commands[0]["params"]);
+        }
+
+        [Fact]
+        public void FromJson_MissingCommands_IsEmptyArray()
+        {
+            var back = Handshake.FromJson("{\"protocolVersion\":\"1.0.0\"}");
+            Assert.Empty(back.Commands);
+        }
+
+        [Fact]
+        public void CommandManifestJson_ParsesToSchemaBearingEntries()
+        {
+            var manifest = JArray.Parse(CommandCatalog.CommandManifestJson);
+            Assert.NotEmpty(manifest);
+            foreach (var e in manifest)
+            {
+                Assert.False(string.IsNullOrEmpty((string)e["name"]));
+                Assert.NotNull(e["params"]);
+            }
+            // The server-only list_unity_instances is NOT an editor command — not advertised.
+            Assert.DoesNotContain(manifest, e => (string)e["name"] == "list_unity_instances");
+            // A real editor command is present, carrying its params schema.
+            var ping = manifest.FirstOrDefault(e => (string)e["name"] == "ping");
+            Assert.NotNull(ping);
+            Assert.NotNull(ping["params"]);
         }
 
         [Fact]

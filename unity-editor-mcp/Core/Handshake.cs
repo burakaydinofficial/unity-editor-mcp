@@ -21,6 +21,14 @@ namespace UnityEditorMCP.Core
         public string ProjectPath { get; set; }
         public IReadOnlyList<string> AvailableCommands { get; set; } = Array.Empty<string>();
 
+        /// <summary>
+        /// Per-command {name, description, params} manifest the editor advertises so the server
+        /// learns this instance's tool surface AND its schemas at runtime — the version-agnostic
+        /// generic surface (ADR 0004). Empty from editors that predate it (back-compatible:
+        /// such peers still advertise <see cref="AvailableCommands"/>).
+        /// </summary>
+        public JArray Commands { get; set; } = new JArray();
+
         public string ToJson()
         {
             var commands = new JArray();
@@ -31,6 +39,7 @@ namespace UnityEditorMCP.Core
                 ["unityVersion"] = UnityVersion,
                 ["projectPath"] = ProjectPath,
                 ["availableCommands"] = commands,
+                ["commands"] = Commands ?? new JArray(),
             };
             return o.ToString(Formatting.None);
         }
@@ -47,6 +56,7 @@ namespace UnityEditorMCP.Core
                 AvailableCommands = o["availableCommands"] is JArray arr
                     ? arr.Select(t => (string)t).Where(s => s != null).ToList()
                     : new List<string>(),
+                Commands = o["commands"] as JArray ?? new JArray(),
             };
         }
 

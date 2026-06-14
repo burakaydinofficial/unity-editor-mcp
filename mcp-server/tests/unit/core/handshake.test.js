@@ -89,6 +89,19 @@ describe('handshake', () => {
       assert.deepEqual(r.handshake, okHandshake);
     });
 
+    it('preserves the advertised commands manifest in the returned handshake', async () => {
+      const withManifest = {
+        ...okHandshake,
+        commands: [{ name: 'ping', description: 'Test connection', params: { type: 'object' } }],
+      };
+      const r = await performHandshake(mockConn(() => withManifest), { expectedProjectPath: 'C:/projects/game' });
+      assert.equal(r.performed, true);
+      assert.equal(r.compatible, true);
+      assert.equal(r.handshake.commands.length, 1);
+      assert.equal(r.handshake.commands[0].name, 'ping');
+      assert.deepEqual(r.handshake.commands[0].params, { type: 'object' });
+    });
+
     it('reports a protocol mismatch without throwing', async () => {
       const r = await performHandshake(mockConn(() => ({ ...okHandshake, protocolVersion: '2.0.0' })));
       assert.equal(r.performed, true);

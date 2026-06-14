@@ -67,6 +67,9 @@ namespace UnityEditorMCP.Core
             AvailableCommands = CommandCatalog.EditorCommands
                 .Except(CommandCatalog.KnownEditorGaps)
                 .ToArray(),
+            // Advertise the full {name, description, params} manifest so the server learns this
+            // instance's tool surface + schemas at runtime — the version-agnostic surface (ADR 0004).
+            Commands = JArray.Parse(CommandCatalog.CommandManifestJson),
         };
 
         // volatile: written from the background transport thread (OnMessage), read on
