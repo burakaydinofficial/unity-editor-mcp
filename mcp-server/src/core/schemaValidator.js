@@ -51,10 +51,35 @@ function walk(value, schema, path, errors) {
     errors.push(`${path || 'value'}: must be one of ${JSON.stringify(schema.enum)}, got ${JSON.stringify(value)}`);
   }
 
+  // Numeric range, string length/pattern, array length — the catalog uses minimum/maximum/pattern
+  // (the sole call_unity_tool gate silently ignored them before). (Audit finding.)
+  const where = path || 'value';
+  if (typeof value === 'number') {
+    if (typeof schema.minimum === 'number' && value < schema.minimum) errors.push(`${where}: must be >= ${schema.minimum}, got ${value}`);
+    if (typeof schema.maximum === 'number' && value > schema.maximum) errors.push(`${where}: must be <= ${schema.maximum}, got ${value}`);
+  }
+  if (typeof value === 'string') {
+    if (typeof schema.minLength === 'number' && value.length < schema.minLength) errors.push(`${where}: must be at least ${schema.minLength} characters`);
+    if (typeof schema.maxLength === 'number' && value.length > schema.maxLength) errors.push(`${where}: must be at most ${schema.maxLength} characters`);
+    if (typeof schema.pattern === 'string') {
+      let re = null;
+      try { re = new RegExp(schema.pattern); } catch { /* invalid pattern in schema -> skip */ }
+      if (re && !re.test(value)) errors.push(`${where}: must match pattern ${schema.pattern}`);
+    }
+  }
+  if (Array.isArray(value)) {
+    if (typeof schema.minItems === 'number' && value.length < schema.minItems) errors.push(`${where}: must have at least ${schema.minItems} item(s)`);
+    if (typeof schema.maxItems === 'number' && value.length > schema.maxItems) errors.push(`${where}: must have at most ${schema.maxItems} item(s)`);
+  }
+
   if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
     if (Array.isArray(schema.required)) {
       for (const req of schema.required) {
-        if (!(req in value)) errors.push(`${path || 'value'}: missing required property "${req}"`);
+        // Own-property AND not undefined: catches an absent key, a key explicitly set to undefined
+        // (JSON.stringify drops it from the wire), and inherited names like "toString". (Audit.)
+        if (!Object.prototype.hasOwnProperty.call(value, req) || value[req] === undefined) {
+          errors.push(`${path || 'value'}: missing required property "${req}"`);
+        }
       }
     }
     if (schema.properties && typeof schema.properties === 'object') {

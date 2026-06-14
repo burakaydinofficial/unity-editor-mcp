@@ -86,10 +86,39 @@ describe('validateAgainstSchema', () => {
     assert.ok(r.errors.length >= 2, 'errors: ' + JSON.stringify(r.errors));
   });
 
-  it('a null value for a required, present key is the key being absent -> still flagged', () => {
-    // (required is presence; an absent key is the realistic failure for a missing param)
+  it('flags an absent required key', () => {
     const schema = { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] };
     ok(validateAgainstSchema({ name: 'x' }, schema));
     bad(validateAgainstSchema({ other: 1 }, schema), /required.*name/i);
+  });
+
+  it('flags a required key whose value is undefined (JSON.stringify would drop it from the wire)', () => {
+    const schema = { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] };
+    bad(validateAgainstSchema({ name: undefined }, schema), /required.*name/i);
+  });
+
+  it('flags a required inherited-name property — no prototype-chain bypass', () => {
+    const schema = { type: 'object', properties: {}, required: ['toString'] };
+    bad(validateAgainstSchema({}, schema), /required.*toString/i);
+  });
+
+  it('a null value for a typed required key fails the type check', () => {
+    const schema = { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] };
+    bad(validateAgainstSchema({ name: null }, schema), /name.*string/);
+  });
+
+  it('enforces minimum and maximum', () => {
+    const schema = { type: 'number', minimum: 1, maximum: 10 };
+    ok(validateAgainstSchema(5, schema));
+    bad(validateAgainstSchema(0, schema), />= ?1/);
+    bad(validateAgainstSchema(11, schema), /<= ?10/);
+  });
+
+  it('enforces string length and pattern', () => {
+    ok(validateAgainstSchema('abc', { type: 'string', minLength: 2, maxLength: 5 }));
+    bad(validateAgainstSchema('a', { type: 'string', minLength: 2 }), /at least 2/);
+    bad(validateAgainstSchema('toolong', { type: 'string', maxLength: 3 }), /at most 3/);
+    ok(validateAgainstSchema('AB12', { type: 'string', pattern: '^[A-Z0-9]+$' }));
+    bad(validateAgainstSchema('ab', { type: 'string', pattern: '^[A-Z0-9]+$' }), /pattern/);
   });
 });
