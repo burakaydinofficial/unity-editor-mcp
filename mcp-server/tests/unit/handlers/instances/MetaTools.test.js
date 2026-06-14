@@ -108,6 +108,39 @@ describe('call_unity_tool', () => {
   });
 });
 
+describe('graceful degradation (editor without a rich manifest)', () => {
+  // An older package build advertises availableCommands (names) only — no rich `commands` manifest.
+  const degradedConn = (sendImpl) => ({
+    editorInfo: { availableCommands: ['ping', 'get_editor_state'] },
+    isConnected: () => true,
+    sendCommand: sendImpl || (async (type, p) => ({ ok: true, type, p })),
+  });
+
+  it('list_unity_tools falls back to names with schemasAvailable:false', async () => {
+    const h = new ListUnityToolsToolHandler({}, fakeManager({ conn: degradedConn() }));
+    const r = await h.execute({});
+    assert.equal(r.schemasAvailable, false);
+    assert.deepEqual(r.tools.map((t) => t.name).sort(), ['get_editor_state', 'ping']);
+    assert.equal(r.tools[0].category, null);
+  });
+
+  it('call_unity_tool invokes a names-only tool, passing params through without schema validation', async () => {
+    let sent;
+    const conn = degradedConn(async (type, p) => { sent = { type, p }; return { state: {} }; });
+    const h = new CallUnityToolToolHandler({}, fakeManager({ conn }));
+    const r = await h.execute({ tool: 'get_editor_state', params: { anything: 123 } }); // would fail a schema; no schema here
+    assert.deepEqual(sent, { type: 'get_editor_state', p: { anything: 123 } });
+    assert.deepEqual(r, { state: {} });
+  });
+
+  it('call_unity_tool still rejects a tool the editor does not advertise', async () => {
+    const h = new CallUnityToolToolHandler({}, fakeManager({ conn: degradedConn() }));
+    const res = await h.handle({ tool: 'not_a_real_tool' });
+    assert.equal(res.status, 'error');
+    assert.match(res.error, /not available/);
+  });
+});
+
 describe('set_active_unity_instance', () => {
   it('sets the active instance', async () => {
     const h = new SetActiveUnityInstanceToolHandler({}, fakeManager({ setActiveInstance: (ref) => ({ host: 'localhost', port: Number(ref) }) }));

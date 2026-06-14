@@ -7399,7 +7399,8 @@
           "instance": { "type": ["string", "null"] },
           "count": { "type": "number" },
           "tools": { "type": "array", "items": { "type": "object" }, "description": "Each: {name, category, description}. Omitted when a single 'name' was requested." },
-          "tool": { "type": "object", "description": "The full {name, category, description, params} for the requested 'name'." }
+          "tool": { "type": "object", "description": "The full {name, category, description, params} for the requested 'name'." },
+          "schemasAvailable": { "type": "boolean", "description": "False when the editor advertises command names only (older package build); call_unity_tool then passes params through unvalidated." }
         }
       }
     },

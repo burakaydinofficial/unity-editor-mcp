@@ -1,9 +1,11 @@
 import { BaseToolHandler } from '../base/BaseToolHandler.js';
+import { editorToolSurface } from '../../core/editorToolSurface.js';
 
 /**
  * Lists the tools a connected Unity editor actually supports, with their schemas — learned from the
  * editor's handshake manifest at runtime (ADR 0004), so it reflects that exact instance/version.
- * The discovery half of the generic surface: the agent calls this, then call_unity_tool.
+ * The discovery half of the generic surface: the agent calls this, then call_unity_tool. Degrades to
+ * names-only (schemasAvailable:false) for an editor running an older package build.
  */
 export class ListUnityToolsToolHandler extends BaseToolHandler {
   constructor(unityConnection, manager) {
@@ -30,20 +32,21 @@ export class ListUnityToolsToolHandler extends BaseToolHandler {
       throw new Error(`No Unity instance found for "${params.instance}". Use list_unity_instances to see what's running.`);
     }
     await this.manager.ensureReady(conn);
-    const manifest = conn.editorInfo && Array.isArray(conn.editorInfo.commands) ? conn.editorInfo.commands : [];
+    const { tools: surface, hasSchemas } = editorToolSurface(conn.editorInfo);
 
     if (params.name) {
-      const tool = manifest.find((t) => t && t.name === params.name);
+      const tool = surface.find((t) => t.name === params.name);
       if (!tool) throw new Error(`Tool "${params.name}" is not available on this instance. Use list_unity_tools to see what is.`);
-      return { instance: params.instance ?? null, tool };
+      return { instance: params.instance ?? null, tool, schemasAvailable: hasSchemas };
     }
 
-    let tools = manifest;
-    if (params.category) tools = tools.filter((t) => t && t.category === params.category);
+    let tools = surface;
+    if (params.category) tools = tools.filter((t) => t.category === params.category);
     return {
       instance: params.instance ?? null,
       count: tools.length,
       tools: tools.map((t) => ({ name: t.name, category: t.category ?? null, description: t.description ?? '' })),
+      schemasAvailable: hasSchemas,
     };
   }
 }

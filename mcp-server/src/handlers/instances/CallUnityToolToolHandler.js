@@ -1,5 +1,6 @@
 import { BaseToolHandler } from '../base/BaseToolHandler.js';
 import { validateAgainstSchema } from '../../core/schemaValidator.js';
+import { editorToolSurface } from '../../core/editorToolSurface.js';
 
 /**
  * Invokes any tool a connected Unity editor supports, by name — the generic dispatch half of the
@@ -39,18 +40,23 @@ export class CallUnityToolToolHandler extends BaseToolHandler {
       throw new Error(`No Unity instance found for "${params.instance}". Use list_unity_instances to see what's running.`);
     }
     await this.manager.ensureReady(conn);
-    const manifest = conn.editorInfo && Array.isArray(conn.editorInfo.commands) ? conn.editorInfo.commands : [];
-    const entry = manifest.find((t) => t && t.name === params.tool);
+    const { tools } = editorToolSurface(conn.editorInfo);
+    const entry = tools.find((t) => t.name === params.tool);
     if (!entry) {
       throw new Error(`Tool "${params.tool}" is not available on this instance. Use list_unity_tools to see what is.`);
     }
 
     const callParams = params.params || {};
-    const { valid, errors } = validateAgainstSchema(callParams, entry.params || { type: 'object' }, 'params');
-    if (!valid) {
-      const err = new Error(`Invalid params for "${params.tool}": ${errors.join('; ')}`);
-      err.code = 'INVALID_PARAMS';
-      throw err;
+    // Validate against the editor-advertised schema when one is known. An editor running an older
+    // package build advertises names only (entry.params === null) — pass the params through
+    // unvalidated, exactly as a typed tool does (the editor itself validates). Graceful degradation.
+    if (entry.params) {
+      const { valid, errors } = validateAgainstSchema(callParams, entry.params, 'params');
+      if (!valid) {
+        const err = new Error(`Invalid params for "${params.tool}": ${errors.join('; ')}`);
+        err.code = 'INVALID_PARAMS';
+        throw err;
+      }
     }
 
     // Routes to the resolved instance's connection (ADR 0005). sendCommand unwraps the result and
