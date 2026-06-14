@@ -1,6 +1,6 @@
 # ADR 0004 — Capability-driven tool surface (version-agnostic server)
 
-Status: Proposed (design agreed; v1 down-payment only, full surface deferred to 1.x) · Date: 2026-06
+Status: Proposed (design agreed; v0.2.0 down-payment shipped, generic surface is a v0.3.0 strong requirement) · Date: 2026-06
 
 ## Context
 
@@ -89,8 +89,12 @@ each supports, where a call goes) is fetched fresh per call, never encoded in li
   calls). The validator's quality is load-bearing — a weak one makes generic dispatch feel flaky.
 - **New dependency decision:** a pure-JS JSON-Schema validator, the one departure from the current
   single-runtime-dependency posture (honors "no native modules").
-- **Sequencing — 1.x flagship, not a v1 blocker.** v1 ships the current static typed surface (the
-  hardened base) **plus** the cheap, on-strategy down-payment that's safe now: `list_unity_instances`
-  (read-only, built on existing `discovery.js`), so the multi-editor story is real at v1. The
-  handshake-schema extension, generic `call_unity_tool`, the validator, lazy `list_unity_tools`, and
-  the typed-exposure flag land in 1.x.
+- **Sequencing — concrete release ladder.**
+  - **v0.2.0** — single active connection + the static typed surface (hardened base) **plus**
+    `list_unity_instances` (read-only, on existing `discovery.js`). Shipped: the multi-editor
+    story is *visible* at v0.2.0 even though a session still acts on one editor.
+  - **v0.3.0 (strong requirement)** — the generic interface (handshake-schema advertisement,
+    generic `call_unity_tool`, the JSON-Schema validator, lazy `list_unity_tools`, typed-exposure
+    opt-in, and the flip of generic to default) **together with any-to-any MCP↔Unity
+    connectivity (ADR 0005)**. The generic surface is the *what the agent sees*; ADR 0005 is the
+    *connection topology underneath it* — they ship as one unit.
