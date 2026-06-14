@@ -42,7 +42,7 @@ export async function buildCatalogSource() {
   const gapSet = new Set(gaps);
   const manifest = catalog.commands
     .filter((c) => c.sides.includes('editor') && !gapSet.has(c.name))
-    .map((c) => ({ name: c.name, description: c.description, params: c.params ?? { type: 'object' } }))
+    .map((c) => ({ name: c.name, category: c.category, description: c.description, params: c.params ?? { type: 'object' } }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const manifestCs = JSON.stringify(manifest).replace(/"/g, '""');
 

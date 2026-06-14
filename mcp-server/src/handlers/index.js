@@ -103,6 +103,9 @@ export { CancelTestsToolHandler } from './test/CancelTestsToolHandler.js';
 
 // Instance handlers
 export { ListUnityInstancesToolHandler } from './instances/ListUnityInstancesToolHandler.js';
+export { ListUnityToolsToolHandler } from './instances/ListUnityToolsToolHandler.js';
+export { CallUnityToolToolHandler } from './instances/CallUnityToolToolHandler.js';
+export { SetActiveUnityInstanceToolHandler } from './instances/SetActiveUnityInstanceToolHandler.js';
 
 // Import all handler classes at once
 import { PingToolHandler } from './system/PingToolHandler.js';
@@ -172,6 +175,9 @@ import { RunTestsToolHandler } from './test/RunTestsToolHandler.js';
 import { GetTestResultsToolHandler } from './test/GetTestResultsToolHandler.js';
 import { CancelTestsToolHandler } from './test/CancelTestsToolHandler.js';
 import { ListUnityInstancesToolHandler } from './instances/ListUnityInstancesToolHandler.js';
+import { ListUnityToolsToolHandler } from './instances/ListUnityToolsToolHandler.js';
+import { CallUnityToolToolHandler } from './instances/CallUnityToolToolHandler.js';
+import { SetActiveUnityInstanceToolHandler } from './instances/SetActiveUnityInstanceToolHandler.js';
 
 // Handler registry - single source of truth
 const HANDLER_CLASSES = [
@@ -272,22 +278,28 @@ const HANDLER_CLASSES = [
   CancelTestsToolHandler,
 
   // Instance handlers
-  ListUnityInstancesToolHandler
+  ListUnityInstancesToolHandler,
+  ListUnityToolsToolHandler,
+  CallUnityToolToolHandler,
+  SetActiveUnityInstanceToolHandler
 ];
 
 /**
  * Creates and returns all tool handlers
- * @param {UnityConnection} unityConnection - Connection to Unity
+ * @param {UnityConnection} unityConnection - The active/default connection (typed handlers use this)
+ * @param {UnityConnectionManager} [manager] - The connection manager; the instance meta-tools use it
+ *   to route to any editor (ADR 0005). Typed handlers ignore the extra arg.
  * @returns {Map<string, BaseToolHandler>} Map of tool name to handler
  */
-export function createHandlers(unityConnection) {
+export function createHandlers(unityConnection, manager) {
   const handlers = new Map();
-  
-  // Instantiate all handlers from the registry
+
+  // Instantiate every handler with the active connection + the manager. Typed handlers take only
+  // the connection (the extra arg is harmless); the instance meta-tools use the manager to route.
   for (const HandlerClass of HANDLER_CLASSES) {
-    const handler = new HandlerClass(unityConnection);
+    const handler = new HandlerClass(unityConnection, manager);
     handlers.set(handler.name, handler);
   }
-  
+
   return handlers;
 }

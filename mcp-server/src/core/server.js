@@ -7,11 +7,10 @@ import {
   ListResourcesRequestSchema,
   ListPromptsRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
-import { UnityConnection } from './unityConnection.js';
+import { UnityConnectionManager } from './unityConnectionManager.js';
 import { createHandlers } from '../handlers/index.js';
 import { config, logger } from './config.js';
 import { fileURLToPath } from 'node:url';
-import { performHandshake } from './handshake.js';
 
 /**
  * Converts a handler result ({ status:'success', result } | { status:'error', error,
@@ -36,11 +35,14 @@ function toMcpResponse(result, name) {
   return { content: [{ type: 'text', text: responseText }] };
 }
 
-// Create Unity connection
-const unityConnection = new UnityConnection();
+// Create the connection manager + the active/default connection (ADR 0005). The manager lets the
+// instance meta-tools route to any editor; the active connection serves the typed tools and the
+// default path and env-resolves its port on each connect.
+const manager = new UnityConnectionManager();
+const unityConnection = manager.getActiveConnection();
 
-// Create tool handlers
-const handlers = createHandlers(unityConnection);
+// Create tool handlers (typed handlers use the active connection; meta-tools use the manager).
+const handlers = createHandlers(unityConnection, manager);
 
 // Create MCP server
 const server = new Server(
@@ -129,34 +131,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-// Handle connection events
-unityConnection.on('connected', async () => {
-  logger.info('Unity connection established');
-  // Connect-time handshake: confirm protocol/project and record editor identity.
-  // Resilient — never throws, never breaks the connection (ADR 0003 / G7).
-  try {
-    const result = await performHandshake(unityConnection);
-    unityConnection.editorInfo = result.handshake || null;
-    if (!result.performed) {
-      logger.debug(`[Handshake] skipped: ${result.message}`);
-    } else if (!result.compatible) {
-      logger.warn(`[Handshake] ${result.code}: ${result.message}`);
-    } else {
-      const h = result.handshake || {};
-      logger.info(`[Handshake] ${result.message} (Unity ${h.unityVersion}, project ${h.projectPath})`);
-    }
-  } catch (err) {
-    logger.debug(`[Handshake] error: ${err.message}`);
-  }
-});
-
-unityConnection.on('disconnected', () => {
-  logger.info('Unity connection lost');
-});
-
-unityConnection.on('error', (error) => {
-  logger.error('Unity connection error:', error.message);
-});
+// Connection lifecycle logging. The connect-time handshake (protocol/project check + manifest
+// caching onto editorInfo) is wired by the manager for every connection it manages (ADR 0004/0005).
+unityConnection.on('connected', () => logger.info('Unity connection established'));
+unityConnection.on('disconnected', () => logger.info('Unity connection lost'));
+unityConnection.on('error', (error) => logger.error('Unity connection error:', error.message));
 
 // Initialize server
 export async function main() {
@@ -181,14 +160,14 @@ export async function main() {
     // Handle shutdown
     process.on('SIGINT', async () => {
       logger.info('Shutting down...');
-      unityConnection.disconnect();
+      manager.disconnectAll();
       await server.close();
       process.exit(0);
     });
     
     process.on('SIGTERM', async () => {
       logger.info('Shutting down...');
-      unityConnection.disconnect();
+      manager.disconnectAll();
       await server.close();
       process.exit(0);
     });
@@ -202,8 +181,9 @@ export async function main() {
 
 // Export for testing
 export async function createServer(customConfig = config) {
-  const testUnityConnection = new UnityConnection();
-  const testHandlers = createHandlers(testUnityConnection);
+  const testManager = new UnityConnectionManager();
+  const testUnityConnection = testManager.getActiveConnection();
+  const testHandlers = createHandlers(testUnityConnection, testManager);
   
   const testServer = new Server(
     {
@@ -252,7 +232,8 @@ export async function createServer(customConfig = config) {
   
   return {
     server: testServer,
-    unityConnection: testUnityConnection
+    unityConnection: testUnityConnection,
+    manager: testManager
   };
 }
 
