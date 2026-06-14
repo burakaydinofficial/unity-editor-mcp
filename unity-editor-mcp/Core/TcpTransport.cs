@@ -60,11 +60,17 @@ namespace UnityEditorMCP.Core
 
         public void Stop()
         {
-            try { _cts?.Cancel(); } catch { /* ignore */ }
+            // Capture + null the field first so nothing starts using a disposing CTS; then cancel,
+            // stop the listener, and dispose the CTS (it owns a WaitHandle once its Token is used —
+            // not disposing leaked one per domain reload). The accept loop already handles the
+            // ObjectDisposedException this can surface. (Audit finding.)
+            var cts = _cts;
+            _cts = null;
+            try { cts?.Cancel(); } catch { /* ignore */ }
             try { _listener?.Stop(); } catch { /* ignore */ }
             IsListening = false;
             _listener = null;
-            _cts = null;
+            try { cts?.Dispose(); } catch { /* ignore */ }
         }
 
         public void Dispose() => Stop();

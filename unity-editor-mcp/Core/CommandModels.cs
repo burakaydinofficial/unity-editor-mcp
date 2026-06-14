@@ -78,17 +78,27 @@ namespace UnityEditorMCP.Core
                 o["error"] = _error;
                 o["code"] = _code;
                 if (_remediation != null) o["remediation"] = _remediation;
-                if (_details != null) o["details"] = _details as JToken ?? JToken.FromObject(_details);
+                if (_details != null) o["details"] = SafeToken(_details);
             }
             else
             {
                 o["status"] = "success";
-                // Avoid re-serializing a payload that is already a JToken (the common case —
-                // handlers return JObject); only FromObject for POCOs/anonymous types.
-                o["result"] = _payload == null ? (JToken)JValue.CreateNull()
-                    : _payload as JToken ?? JToken.FromObject(_payload);
+                // SafeToken: an already-JToken passes through (the common case — handlers return JObject);
+                // POCOs/anonymous types go through FromObject; null becomes JSON null.
+                o["result"] = SafeToken(_payload);
             }
             return o.ToString(Formatting.None);
+        }
+
+        // Converts an arbitrary value to a JToken without ever throwing — a non-serializable payload or
+        // details (circular ref, Exception, Type, IntPtr) would otherwise throw out of ToJson() and drop
+        // the whole framed reply on the drain path. (Audit finding.)
+        private static JToken SafeToken(object value)
+        {
+            if (value == null) return JValue.CreateNull();
+            if (value is JToken token) return token;
+            try { return JToken.FromObject(value); }
+            catch (System.Exception ex) { return new JValue($"[unserializable {value.GetType().Name}: {ex.Message}]"); }
         }
     }
 }

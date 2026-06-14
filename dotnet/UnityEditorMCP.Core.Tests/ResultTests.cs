@@ -38,5 +38,17 @@ namespace UnityEditorMCP.Core.Tests
             Assert.Equal("error", (string)json["status"]);
             Assert.Equal("INTERNAL_ERROR", (string)json["code"]);
         }
+
+        private class Circular { public Circular Self { get; set; } }
+
+        [Fact]
+        public void ToJson_NonSerializablePayload_DoesNotThrow_AndFallsBack()
+        {
+            var c = new Circular();
+            c.Self = c; // circular reference -> JToken.FromObject would throw
+            var json = JObject.Parse(CommandResult.FromOutcome("1", HandlerOutcome.Ok(c)).ToJson());
+            Assert.Equal("success", (string)json["status"]);
+            Assert.Contains("unserializable", (string)json["result"]);
+        }
     }
 }
