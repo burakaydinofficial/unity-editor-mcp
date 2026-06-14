@@ -52,8 +52,10 @@ each supports, where a call goes) is fetched fresh per call, never encoded in li
 2. **The instance is the source of truth for its own surface.** Extend the handshake to carry full
    **param schemas** — today `Handshake.cs`/`handshake.js` ship `availableCommands: string[]`
    (names only), though the schemas already exist in the catalog / `CommandCatalog.g.cs`. Node
-   caches the manifest **per instance, keyed by a digest the handshake sends**, and re-pulls only
-   when the digest changes (covers domain-reload recompiles → reconnect → re-handshake).
+   caches the manifest **per instance** on the connection (`editorInfo`) and re-handshakes on each
+   reconnect, clearing the cache first so a domain-reload recompile never serves a stale manifest.
+   (A handshake digest to skip re-parsing an unchanged manifest is a possible future optimization,
+   not currently implemented.)
 
 3. **Node validates every `call_unity_tool` against the cached schema before the wire.** The MCP
    client cannot gate the inner payload — in the generic envelope `function_params` is an opaque
