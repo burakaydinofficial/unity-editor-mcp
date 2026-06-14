@@ -13,6 +13,29 @@ import { config, logger } from './config.js';
 import { fileURLToPath } from 'node:url';
 import { performHandshake } from './handshake.js';
 
+/**
+ * Converts a handler result ({ status:'success', result } | { status:'error', error,
+ * code, details }) into an MCP tool response. Shared by the live request handler and the
+ * createServer test helper so both speak the same MCP shape (errors carry isError:true).
+ */
+function toMcpResponse(result, name) {
+  if (result.status === 'error') {
+    logger.error(`[MCP] Handler returned error: ${name}`, { error: result.error, code: result.code });
+    return {
+      isError: true,
+      content: [{
+        type: 'text',
+        text: `Error: ${result.error}\nCode: ${result.code || 'UNKNOWN_ERROR'}${result.details ? '\nDetails: ' + JSON.stringify(result.details, null, 2) : ''}`
+      }]
+    };
+  }
+  logger.info(`[MCP] Returning success response for: ${name} at ${new Date().toISOString()}`);
+  const responseText = (result.result === undefined || result.result === null)
+    ? JSON.stringify({ status: 'success', message: 'Operation completed successfully but no details were returned', tool: name }, null, 2)
+    : JSON.stringify(result.result, null, 2);
+  return { content: [{ type: 'text', text: responseText }] };
+}
+
 // Create Unity connection
 const unityConnection = new UnityConnection();
 
@@ -85,43 +108,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       status: result.status 
     });
     
-    // Convert to MCP format
-    if (result.status === 'error') {
-      logger.error(`[MCP] Handler returned error: ${name}`, { error: result.error, code: result.code });
-      return {
-        isError: true,
-        content: [
-          {
-            type: 'text',
-            text: `Error: ${result.error}\nCode: ${result.code || 'UNKNOWN_ERROR'}${result.details ? '\nDetails: ' + JSON.stringify(result.details, null, 2) : ''}`
-          }
-        ]
-      };
-    }
-    
-    // Success response
-    logger.info(`[MCP] Returning success response for: ${name} at ${new Date().toISOString()}`);
-    
-    // Handle undefined or null results from handlers
-    let responseText;
-    if (result.result === undefined || result.result === null) {
-      responseText = JSON.stringify({
-        status: 'success',
-        message: 'Operation completed successfully but no details were returned',
-        tool: name
-      }, null, 2);
-    } else {
-      responseText = JSON.stringify(result.result, null, 2);
-    }
-    
-    return {
-      content: [
-        {
-          type: 'text',
-          text: responseText
-        }
-      ]
-    };
+    // Convert to MCP format (shared with createServer)
+    return toMcpResponse(result, name);
   } catch (error) {
     const errorTime = Date.now();
     logger.error(`[MCP] Handler threw exception at ${new Date(errorTime).toISOString()}: ${name}`, { 
@@ -250,14 +238,10 @@ export async function createServer(customConfig = config) {
     
     const handler = testHandlers.get(name);
     if (!handler) {
-      return {
-        status: 'error',
-        error: `Tool not found: ${name}`,
-        code: 'TOOL_NOT_FOUND'
-      };
+      return toMcpResponse({ status: 'error', error: `Tool not found: ${name}`, code: 'TOOL_NOT_FOUND' }, name);
     }
-    
-    return await handler.handle(args);
+
+    return toMcpResponse(await handler.handle(args), name);
   });
   
   return {
