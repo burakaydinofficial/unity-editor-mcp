@@ -46,18 +46,20 @@ describe('UnityConnectionManager', () => {
     assert.equal(mgr.connections.size, 2);
   });
 
-  it('getActiveConnection targets the env/registry-resolved port', () => {
-    const { mgr } = makeManager({ resolvePort: 6543 });
-    const conn = mgr.getActiveConnection();
-    assert.equal(conn.opts.port, 6543);
+  it('getActiveConnection returns a single env-resolving default (no pinned port, reused)', () => {
+    const { mgr, created } = makeManager({ resolvePort: 6543 });
+    const a = mgr.getActiveConnection();
+    const b = mgr.getActiveConnection();
+    assert.equal(a, b);
+    assert.equal(a.opts.port, undefined); // env-resolves each connect; not pinned (re-resolution preserved)
+    assert.equal(created.length, 1);
   });
 
-  it('handshakes on connect and caches the manifest on editorInfo', async () => {
+  it('ensureReady connects, handshakes, and caches the manifest on editorInfo', async () => {
     const { mgr } = makeManager();
     const conn = mgr.getConnection('localhost', 7000);
-    await conn.connect();
-    // editorInfo is set asynchronously in the connected handler; allow the microtask to run.
-    await new Promise((r) => setImmediate(r));
+    await mgr.ensureReady(conn);
+    assert.equal(conn.connected, true);
     assert.ok(conn.editorInfo);
     assert.equal(conn.editorInfo.commands[0].name, 'ping');
   });
@@ -80,11 +82,14 @@ describe('UnityConnectionManager', () => {
     assert.equal(mgr.getConnectionForInstance('C:/proj/missing'), null);
   });
 
-  it('setActiveInstance changes the default target', () => {
+  it('setActiveInstance pins the default, and null clears it back to env-resolving', () => {
     const { mgr } = makeManager({ resolvePort: 6400 });
     mgr.setActiveInstance(7200);
-    assert.equal(mgr.getActiveConnection().opts.port, 7200);
+    assert.equal(mgr.getActiveConnection().opts.port, 7200); // pinned
     assert.deepEqual(mgr.activeTarget(), { host: 'localhost', port: 7200 });
+    mgr.setActiveInstance(null);
+    assert.equal(mgr.activeOverride, null);
+    assert.equal(mgr.getActiveConnection().opts.port, undefined); // back to env-resolving
   });
 
   it('prune closes + drops connections whose editor is no longer live', () => {
@@ -113,8 +118,7 @@ describe('UnityConnectionManager', () => {
   it('listConnections reports key, connected, and editorInfo', async () => {
     const { mgr } = makeManager();
     const conn = mgr.getConnection('localhost', 7000);
-    await conn.connect();
-    await new Promise((r) => setImmediate(r));
+    await mgr.ensureReady(conn);
     const list = mgr.listConnections();
     assert.equal(list.length, 1);
     assert.equal(list[0].key, 'localhost:7000');
