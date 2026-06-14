@@ -98,7 +98,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const handler = handlers.get(name);
   if (!handler) {
     logger.error(`[MCP] Tool not found: ${name}`);
-    throw new Error(`Tool not found: ${name}`);
+    // Return a normal isError tool response (matches the createServer helper) rather than throwing
+    // a JSON-RPC protocol error — consistent shape for the client. (Audit finding.)
+    return toMcpResponse({ status: 'error', error: `Tool not found: ${name}`, code: 'TOOL_NOT_FOUND' }, name);
   }
   
   try {
