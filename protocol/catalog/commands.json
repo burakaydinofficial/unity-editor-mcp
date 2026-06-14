@@ -7392,6 +7392,15 @@
           "name": { "type": "string", "description": "Return the full {name, category, description, params} schema for just this one tool." }
         },
         "required": []
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "instance": { "type": ["string", "null"] },
+          "count": { "type": "number" },
+          "tools": { "type": "array", "items": { "type": "object" }, "description": "Each: {name, category, description}. Omitted when a single 'name' was requested." },
+          "tool": { "type": "object", "description": "The full {name, category, description, params} for the requested 'name'." }
+        }
       }
     },
     {
@@ -7409,6 +7418,10 @@
           "params": { "type": "object", "description": "Parameters for the tool, matching its advertised schema." }
         },
         "required": ["tool"]
+      },
+      "result": {
+        "type": "object",
+        "description": "The invoked tool's result, passed through verbatim; its shape depends on the tool (see that tool's result schema)."
       }
     },
     {
@@ -7424,6 +7437,13 @@
           "instance": { "type": "string", "description": "Project path or port to make active. Omit to reset to the auto-resolved default." }
         },
         "required": []
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "active": { "type": ["object", "null"], "description": "{host, port} of the new default, or null (reset to the auto-resolved default)." },
+          "message": { "type": "string" }
+        }
       }
     }
   ]

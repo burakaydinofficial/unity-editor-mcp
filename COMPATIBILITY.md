@@ -34,7 +34,7 @@ in sync when you add or remove a guard.
 | `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:721` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping`/`angularDamping` ⇄ `drag`/`angularDrag` (read) | |
 | `unity-editor-mcp/Editor/Handlers/SceneAnalysisHandler.cs:249` | `UNITY_6000_0_OR_NEWER` | `Rigidbody` damping ⇄ drag (read) | |
 | `unity-editor-mcp/Editor/Handlers/SceneAnalysisHandler.cs:554` | `UNITY_6000_0_OR_NEWER` | `LightType.Rectangle` ⇄ `LightType.Area` | Area-light enum rename. |
-| `unity-editor-mcp/Editor/Tests/ComponentHandlerTests.cs:245` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping` ⇄ `drag` | Test mirror of the write guard. |
+| `unity-editor-mcp/Tests/Editor/Handlers/ComponentHandlerTests.cs:239` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping` ⇄ `drag` | Test mirror of the write guard. |
 
 ## Known compatibility / packaging issues
 

@@ -30,7 +30,7 @@ Unity Editor MCP (Model Context Protocol) enables AI assistants like Claude and 
 
 ### Prerequisites
 
-- ✅ Unity 2020.3 LTS or newer
+- ✅ Unity 2020.3 LTS or newer (the tested floor; 2019.4 is a guarded best-effort target — see `COMPATIBILITY.md`)
 - ✅ Node.js 18.0.0 or newer  
 - ✅ Claude Desktop or Cursor
 

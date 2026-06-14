@@ -130,12 +130,13 @@ describe('UnityConnection', () => {
       connection.isDisconnecting = true;
     });
 
-    it.skip('should handle connection error', async () => {
-      // Skipping this test temporarily due to Node.js test runner issues
-      // The test works correctly but the test runner reports false failures
-      // Original issue: connection timeout (30s) was firing after test completion
-      // This has been fixed in UnityConnection.connect() by clearing timeouts properly
-      // However, the test runner still reports uncaught exceptions incorrectly
+    it('should reject and clean up on a socket error during connect', async () => {
+      connection.on('error', () => {}); // absorb the re-emitted 'error' (server.js/the manager attach one in prod)
+      const p = connection.connect();
+      process.nextTick(() => mockSocket.emit('error', new Error('ECONNREFUSED')));
+      await assert.rejects(p, /ECONNREFUSED/);
+      assert.equal(connection.connected, false);
+      assert.equal(connection.socket, null);
     });
 
     it('should reset reconnect attempts on successful connection', async () => {

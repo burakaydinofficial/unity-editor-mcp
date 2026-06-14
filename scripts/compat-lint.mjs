@@ -33,7 +33,7 @@ const RULES = [
 // #else floor branch. That line is intentional and floor-correct — allowlist it. (If the
 // file shifts, the lint fails loudly and this line number must be updated — not a silent miss.)
 const ALLOWLIST = [
-  { file: 'unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs', line: 16 },
+  { file: 'unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs', line: 16, api: 'PrefabStageUtility (qualified)' },
 ];
 
 async function* walkCs(dir) {
@@ -94,7 +94,7 @@ const violations = [];
 for await (const file of walkCs(SCAN_DIR)) {
   const rel = relative(ROOT, file).replace(/\\/g, '/');
   for (const h of scan(await readFile(file, 'utf8'))) {
-    if (ALLOWLIST.some((a) => a.file === rel && a.line === h.line)) continue;
+    if (ALLOWLIST.some((a) => a.file === rel && a.line === h.line && (a.api === undefined || a.api === h.api))) continue;
     violations.push({ file: rel, ...h });
   }
 }

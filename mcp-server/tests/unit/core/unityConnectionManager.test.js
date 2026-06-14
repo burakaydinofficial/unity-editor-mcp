@@ -155,4 +155,13 @@ describe('UnityConnectionManager', () => {
     await mgr.ensureReady(conn);
     assert.equal(conn.editorInfo, null); // failed handshake must not leave the phantom manifest
   });
+
+  it('concurrent ensureReady calls both resolve with the manifest set', async () => {
+    const { mgr } = makeManager();
+    const conn = mgr.getConnection('localhost', 7000);
+    await Promise.all([mgr.ensureReady(conn), mgr.ensureReady(conn)]);
+    assert.equal(conn.connected, true);
+    assert.ok(conn.editorInfo);
+    assert.equal(conn.editorInfo.commands[0].name, 'ping');
+  });
 });
