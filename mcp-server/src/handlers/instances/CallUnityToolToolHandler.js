@@ -40,18 +40,21 @@ export class CallUnityToolToolHandler extends BaseToolHandler {
       throw new Error(`No Unity instance found for "${params.instance}". Use list_unity_instances to see what's running.`);
     }
     await this.manager.ensureReady(conn);
-    const { tools } = editorToolSurface(conn.editorInfo);
+    const { tools, hasSchemas } = editorToolSurface(conn.editorInfo);
     const entry = tools.find((t) => t.name === params.tool);
     if (!entry) {
       throw new Error(`Tool "${params.tool}" is not available on this instance. Use list_unity_tools to see what is.`);
     }
 
     const callParams = params.params || {};
-    // Validate against the editor-advertised schema when one is known. An editor running an older
-    // package build advertises names only (entry.params === null) — pass the params through
-    // unvalidated, exactly as a typed tool does (the editor itself validates). Graceful degradation.
-    if (entry.params) {
-      const { valid, errors } = validateAgainstSchema(callParams, entry.params, 'params');
+    // When the editor advertises a rich manifest the Node side is the SOLE gate, so it ALWAYS
+    // validates — a per-entry missing schema defaults to {type:object} (as the pre-degradation code
+    // did). Only a names-only editor (older build, hasSchemas:false) skips validation and passes
+    // through; the editor validates there. Gating on the manifest MODE — not on a per-entry params —
+    // stops a rich-manifest entry that merely omits its schema from silently bypassing the gate.
+    // (Delta-audit finding.)
+    if (hasSchemas) {
+      const { valid, errors } = validateAgainstSchema(callParams, entry.params || { type: 'object' }, 'params');
       if (!valid) {
         const err = new Error(`Invalid params for "${params.tool}": ${errors.join('; ')}`);
         err.code = 'INVALID_PARAMS';

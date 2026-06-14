@@ -137,8 +137,8 @@ Add to your `claude_desktop_config.json`:
 npm cache clean --force
 
 # Reinstall
-npm uninstall -g unity-editor-mcp
-npm install -g unity-editor-mcp
+npm uninstall -g @burakaydinofficial/unity-editor-mcp
+npm install -g @burakaydinofficial/unity-editor-mcp
 ```
 
 ## Repository

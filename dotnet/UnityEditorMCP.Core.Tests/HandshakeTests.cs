@@ -70,6 +70,10 @@ namespace UnityEditorMCP.Core.Tests
             }
             // The server-only list_unity_instances is NOT an editor command — not advertised.
             Assert.DoesNotContain(manifest, e => (string)e["name"] == "list_unity_instances");
+            // Internal commands are excluded — BuildHandshakePayload derives availableCommands from
+            // this manifest, so neither the rich nor the degraded (names-only) view leaks them.
+            Assert.DoesNotContain(manifest, e => (string)e["name"] == "handshake");
+            Assert.DoesNotContain(manifest, e => (string)e["name"] == "clear_logs");
             // A real editor command is present, carrying its params schema.
             var ping = manifest.FirstOrDefault(e => (string)e["name"] == "ping");
             Assert.NotNull(ping);

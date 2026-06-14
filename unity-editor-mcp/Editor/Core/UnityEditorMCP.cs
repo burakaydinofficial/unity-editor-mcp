@@ -60,17 +60,22 @@ namespace UnityEditorMCP.Core
             return dispatcher;
         }
 
-        private static Handshake BuildHandshakePayload() => new Handshake
+        private static Handshake BuildHandshakePayload()
         {
-            UnityVersion = Application.unityVersion,
-            ProjectPath = ProjectRoot(),
-            AvailableCommands = CommandCatalog.EditorCommands
-                .Except(CommandCatalog.KnownEditorGaps)
-                .ToArray(),
-            // Advertise the full {name, description, params} manifest so the server learns this
-            // instance's tool surface + schemas at runtime — the version-agnostic surface (ADR 0004).
-            Commands = JArray.Parse(CommandCatalog.CommandManifestJson),
-        };
+            // The manifest is the public tool surface: it already excludes internal commands
+            // (handshake, clear_logs) and known gaps. Advertise it as Commands AND derive the
+            // names-only availableCommands from it, so the rich and the degraded (older-build) views
+            // stay consistent and neither exposes an internal command. EditorCommands stays the full
+            // registered surface for conformance. (ADR 0004; delta-audit finding.)
+            var manifest = JArray.Parse(CommandCatalog.CommandManifestJson);
+            return new Handshake
+            {
+                UnityVersion = Application.unityVersion,
+                ProjectPath = ProjectRoot(),
+                AvailableCommands = manifest.Select(c => (string)c["name"]).Where(n => n != null).ToArray(),
+                Commands = manifest,
+            };
+        }
 
         // volatile: written from the background transport thread (OnMessage), read on
         // the main thread (drain/start/shutdown) — ensures cross-thread visibility.
