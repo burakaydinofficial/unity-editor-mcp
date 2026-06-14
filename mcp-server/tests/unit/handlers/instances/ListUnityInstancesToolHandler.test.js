@@ -75,6 +75,15 @@ describe('ListUnityInstancesToolHandler', () => {
     assert.equal(r.registryDir, '/fake/registry');
   });
 
+  it('never marks a dead instance active even when its port matches activePort', async () => {
+    const h = new ListUnityInstancesToolHandler({}, fakeDeps([
+      inst({ projectPath: 'C:/proj/A', port: 6600, __live: false }),
+    ], 6600));
+    const r = await h.execute({ includeStale: true });
+    assert.equal(r.instances[0].live, false);
+    assert.equal(r.instances[0].active, false);
+  });
+
   it('a throwing resolveUnityPort does not break listing', async () => {
     const deps = fakeDeps([inst({ __live: true })]);
     deps.resolveUnityPort = () => { throw new Error('boom'); };

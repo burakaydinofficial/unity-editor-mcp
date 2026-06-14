@@ -323,7 +323,10 @@ export class UnityConnection extends EventEmitter {
             if (response.status === 'success' || response.success === true) {
               logger.info(`[Unity] Command ${response.id} succeeded`);
               
-              let result = response.result || response.data || {};
+              // Nullish (??), NOT ||: a legitimately falsy payload (0, false, "",
+              // and explicit null meaning "not found") must survive to the caller.
+              // `||` silently coerced all of these to {} (audit finding).
+              let result = response.result ?? response.data ?? {};
               
               // If result is a string, try to parse it as JSON
               if (typeof result === 'string') {

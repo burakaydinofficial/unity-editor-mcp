@@ -57,7 +57,11 @@ export class ListUnityInstancesToolHandler extends BaseToolHandler {
         startedAt: d.startedAt ?? null,
         lastHeartbeat: d.lastHeartbeat ?? null,
         live,
-        active: Number.isFinite(d.port) && activePort != null && d.port === activePort,
+        // Only a LIVE instance can be the active target. resolveUnityPort falls back
+        // to the derived port for a dead project, which equals the dead descriptor's
+        // stored port — without the `live &&` guard a dead instance would show
+        // active:true (audit finding, surfaces under includeStale).
+        active: live && Number.isFinite(d.port) && activePort != null && d.port === activePort,
       }))
       .sort((a, b) => String(a.projectPath).localeCompare(String(b.projectPath)));
 

@@ -225,6 +225,22 @@ describe('UnityConnection', () => {
       // path is thin — delete(id) + reject — and clearTimeout fires via the wrapper.)
     });
 
+    it('should preserve a legitimately falsy result instead of coercing it to {}', async () => {
+      // A Unity handler may legitimately return 0 / false / "" / null. The old
+      // `response.result || response.data || {}` discarded all of these.
+      const sendPromise = connection.sendCommand('count');
+      mockSocket.emit('data', frame({ id: '1', status: 'success', result: 0 }));
+      const result = await sendPromise;
+      assert.equal(result, 0);
+    });
+
+    it('should preserve a falsy boolean result', async () => {
+      const sendPromise = connection.sendCommand('flag');
+      mockSocket.emit('data', frame({ id: '1', status: 'success', result: false }));
+      const result = await sendPromise;
+      assert.equal(result, false);
+    });
+
     it('should handle error responses', async () => {
       const sendPromise = connection.sendCommand('bad-command');
 

@@ -34,6 +34,15 @@ export function normalizeProjectPath(path) {
     .replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
 }
 
+/**
+ * ASCII-only lowercase (A–Z → a–z), matching .NET StringComparison.OrdinalIgnoreCase.
+ * NOT String.prototype.toLowerCase(), whose full-Unicode casing diverges from .NET
+ * (e.g. U+0130) — the same parity hazard normalizeProjectPath guards against.
+ */
+function asciiLower(value) {
+  return String(value).replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+}
+
 /** 32-bit FNV-1a over UTF-16 code units (mirrors C# — NOT over UTF-8 bytes). */
 export function fnv1a(value) {
   let hash = 2166136261 >>> 0;
@@ -102,7 +111,7 @@ export function isProcessAlive(pid) {
 export function isLive(descriptor, nowMs = Date.now(), currentHost = hostname(), isAlive = isProcessAlive) {
   if (!descriptor) return false;
   if (descriptor.host && currentHost &&
-      String(descriptor.host).toLowerCase() === String(currentHost).toLowerCase()) {
+      asciiLower(descriptor.host) === asciiLower(currentHost)) {
     return isAlive(descriptor.pid);
   }
   return isFresh(descriptor, nowMs);
