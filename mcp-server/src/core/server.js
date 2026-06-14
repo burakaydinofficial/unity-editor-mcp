@@ -45,10 +45,10 @@ const unityConnection = manager.getActiveConnection();
 // Create tool handlers (typed handlers use the active connection; meta-tools use the manager).
 const handlers = createHandlers(unityConnection, manager);
 
-// Whether the static typed tools are listed when UNITY_MCP_TYPED_TOOLS is unset. Stage 3a keeps
-// the v0.2.0 behavior (typed listed by default); Stage 3b flips this to false so the generic
-// meta-tools are the canonical surface and typed tools become opt-in (ADR 0004).
-const TYPED_TOOLS_DEFAULT = true;
+// The generic instance meta-tools are the canonical v0.3.0 surface (ADR 0004): by default tools/list
+// advertises only them, so a client isn't born carrying ~70 definitions it may never use. The full
+// typed catalog stays reachable via call_unity_tool, and is re-advertised with UNITY_MCP_TYPED_TOOLS=true.
+const TYPED_TOOLS_DEFAULT = false;
 
 // Create MCP server
 const server = new Server(

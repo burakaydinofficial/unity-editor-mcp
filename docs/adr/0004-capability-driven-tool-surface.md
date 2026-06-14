@@ -1,6 +1,6 @@
 # ADR 0004 — Capability-driven tool surface (version-agnostic server)
 
-Status: Proposed (design agreed; v0.2.0 down-payment shipped, generic surface is a v0.3.0 strong requirement) · Date: 2026-06
+Status: Accepted — implemented in v0.3.0 (generic meta-tools are the canonical surface; typed tools opt-in via `UNITY_MCP_TYPED_TOOLS`) · Date: 2026-06
 
 ## Context
 

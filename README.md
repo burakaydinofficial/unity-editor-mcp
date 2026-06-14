@@ -82,6 +82,14 @@ Add the same configuration to Cursor's MCP settings
 
 Unity Editor MCP provides **70 comprehensive tools** across 13 categories for complete Unity Editor automation:
 
+> **Default surface (v0.3.0):** the server advertises a small **generic surface** — `list_unity_instances`,
+> `list_unity_tools`, `call_unity_tool`, and `set_active_unity_instance`. The agent discovers each connected
+> editor's real tools (with schemas, learned at runtime) via `list_unity_tools`, then invokes them via
+> `call_unity_tool` — so **one server works with any Unity version and several editors at once**, without
+> paying the context cost of ~70 tool definitions up front. To advertise the full typed catalog below as
+> individual MCP tools instead, set `UNITY_MCP_TYPED_TOOLS=true`. The catalog below documents what each
+> editor exposes either way.
+
 ### System & Core Tools (3 tools)
 - **`ping`** - Test connection to Unity Editor and verify server status
 - **`read_logs`** - Read Unity console logs with filtering by type (Log, Warning, Error, etc.)

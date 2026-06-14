@@ -1,6 +1,6 @@
 # ADR 0005 — Any-to-any MCP ↔ Unity connectivity
 
-Status: Proposed (v0.3.0 strong requirement; design recorded, not yet implemented) · Date: 2026-06
+Status: Accepted — implemented in v0.3.0 (Node `UnityConnectionManager` pools per-instance connections; the editor's concurrent-client path is validated by `McpBridgeTests.ConcurrentClients_EachReceivesItsOwnResponse`) · Date: 2026-06
 
 ## Context
 
