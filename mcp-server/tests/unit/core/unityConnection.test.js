@@ -89,6 +89,18 @@ describe('UnityConnection', () => {
     it('should be an EventEmitter', () => {
       assert(connection instanceof EventEmitter);
     });
+
+    it('stores an explicit {host,port} target and resolves to it over env', () => {
+      const c = new UnityConnection({ host: '127.0.0.1', port: 7777 });
+      assert.equal(c.targetHost, '127.0.0.1');
+      assert.equal(c.targetPort, 7777);
+      assert.equal(c.resolveTargetPort({ UNITY_PORT: '6400' }), 7777); // explicit target wins
+    });
+
+    it('ignores an out-of-range target port (falls back to resolution)', () => {
+      assert.equal(new UnityConnection({ port: 0 }).targetPort, null);
+      assert.equal(new UnityConnection({ port: 99999 }).targetPort, null);
+    });
   });
 
   describe('connect', () => {

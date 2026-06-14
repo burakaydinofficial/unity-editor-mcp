@@ -29,8 +29,13 @@ export function isHandlerLevelError(result) {
  * Manages TCP connection to Unity Editor
  */
 export class UnityConnection extends EventEmitter {
-  constructor() {
+  constructor(options = {}) {
     super();
+    // Optional fixed target for THIS connection. When set, it overrides env/registry
+    // resolution — the connection manager (ADR 0005) uses it to point each connection at a
+    // SPECIFIC editor instance. Omitted (no-arg) => the v0.2.0 env-resolved default.
+    this.targetHost = options.host || null;
+    this.targetPort = (Number.isFinite(options.port) && options.port > 0 && options.port < 65536) ? options.port : null;
     this.socket = null;
     this.connected = false;
     this.reconnectAttempts = 0;
@@ -50,6 +55,9 @@ export class UnityConnection extends EventEmitter {
    * @returns {number}
    */
   resolveTargetPort(env = process.env) {
+    // An explicit per-connection target (set by the connection manager) wins over
+    // env/registry resolution.
+    if (this.targetPort) return this.targetPort;
     try {
       if (env.UNITY_PROJECT_PATH && !env.UNITY_PORT) {
         try { reapStale(defaultRegistryDirectory(env)); } catch { /* best effort */ }
@@ -79,7 +87,8 @@ export class UnityConnection extends EventEmitter {
       }
 
       const targetPort = this.resolveTargetPort();
-      logger.info(`Connecting to Unity at ${config.unity.host}:${targetPort}...`);
+      const targetHost = this.targetHost || config.unity.host;
+      logger.info(`Connecting to Unity at ${targetHost}:${targetPort}...`);
 
       this.socket = new net.Socket();
       let connectionTimeout = null;
@@ -158,7 +167,7 @@ export class UnityConnection extends EventEmitter {
       });
 
       // Attempt connection
-      this.socket.connect(targetPort, config.unity.host);
+      this.socket.connect(targetPort, targetHost);
       
       // Set timeout for initial connection
       connectionTimeout = setTimeout(() => {
