@@ -443,7 +443,15 @@ namespace UnityEditorMCP.Handlers
             // full name has no assembly hint for Type.GetType above).
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                type = assembly.GetTypes().FirstOrDefault(t =>
+                // GetTypes() throws ReflectionTypeLoadException on assemblies with
+                // unresolvable references; recover the types that DID load (mirrors the
+                // guarded enumeration in GetComponentTypes) so resolution doesn't fail
+                // project-wide because one plugin assembly is half-broken.
+                Type[] asmTypes;
+                try { asmTypes = assembly.GetTypes(); }
+                catch (ReflectionTypeLoadException ex) { asmTypes = ex.Types.Where(t => t != null).ToArray(); }
+                catch { continue; }
+                type = asmTypes.FirstOrDefault(t =>
                     (t.Name == typeName || t.FullName == typeName) &&
                     typeof(Component).IsAssignableFrom(t));
 

@@ -78,12 +78,15 @@ namespace UnityEditorMCP.Core
                 o["error"] = _error;
                 o["code"] = _code;
                 if (_remediation != null) o["remediation"] = _remediation;
-                if (_details != null) o["details"] = JToken.FromObject(_details);
+                if (_details != null) o["details"] = _details as JToken ?? JToken.FromObject(_details);
             }
             else
             {
                 o["status"] = "success";
-                o["result"] = _payload == null ? JValue.CreateNull() : JToken.FromObject(_payload);
+                // Avoid re-serializing a payload that is already a JToken (the common case —
+                // handlers return JObject); only FromObject for POCOs/anonymous types.
+                o["result"] = _payload == null ? (JToken)JValue.CreateNull()
+                    : _payload as JToken ?? JToken.FromObject(_payload);
             }
             return o.ToString(Formatting.None);
         }

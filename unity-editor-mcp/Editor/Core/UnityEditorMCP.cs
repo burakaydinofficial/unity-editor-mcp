@@ -324,9 +324,9 @@ namespace UnityEditorMCP.Core
             {
                 var request = new CommandRequest
                 {
-                    Id = command.Id,
-                    Type = command.Type,
-                    Params = command.Parameters
+                    Id = command?.Id,
+                    Type = command?.Type,
+                    Params = command?.Parameters
                 };
                 respond(_dispatcher.Dispatch(request).ToJson());
             }
@@ -354,6 +354,8 @@ namespace UnityEditorMCP.Core
         {
             try
             {
+                // Never hand a null Parameters to a handler — many index params["x"] directly.
+                if (command.Parameters == null) command.Parameters = new JObject();
                 Debug.Log($"[Unity Editor MCP] Processing command: {JsonConvert.SerializeObject(command)}");
                 
                 string response;
@@ -827,6 +829,9 @@ namespace UnityEditorMCP.Core
             try { instanceRegistry?.Remove(ProjectRoot()); } catch { /* best effort */ }
             EditorApplication.update -= ProcessCommandQueue;
             EditorApplication.quitting -= Shutdown;
+            // Pair the static-ctor subscription so quit doesn't leave a dangling handler
+            // that re-fires StopTcpListener on the next reload after teardown.
+            AssemblyReloadEvents.beforeAssemblyReload -= StopTcpListener;
         }
         
         /// <summary>

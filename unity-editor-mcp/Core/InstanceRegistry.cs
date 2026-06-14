@@ -94,9 +94,11 @@ namespace UnityEditorMCP.Core
             var path = Path.Combine(_directory, FileNameFor(descriptor.ProjectPath));
             // Unique tmp per writer so a crashed publish never collides with another.
             var tmp = path + "." + descriptor.Pid + ".tmp";
-            File.WriteAllText(tmp, descriptor.ToJson());
             try
             {
+                // Write inside the try so a failure here is still cleaned by the finally
+                // below rather than leaking the (possibly partial) tmp file.
+                File.WriteAllText(tmp, descriptor.ToJson());
                 // File.Replace is atomic on NTFS (no window with a missing file);
                 // it requires the destination to exist, so Move when it doesn't.
                 if (File.Exists(path)) File.Replace(tmp, path, null);

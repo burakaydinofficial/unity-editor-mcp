@@ -24,7 +24,9 @@ namespace UnityEditorMCP.Core
             if (data == null) throw new ArgumentNullException(nameof(data));
             if (offset < 0 || count < 0 || offset + count > data.Length)
                 throw new ArgumentOutOfRangeException(nameof(count));
-            for (int i = 0; i < count; i++) _buffer.Add(data[offset + i]);
+            // Bulk copy — ArraySegment is an ICollection<byte>, so AddRange uses CopyTo
+            // instead of a per-byte Add (cheaper for large frames).
+            _buffer.AddRange(new ArraySegment<byte>(data, offset, count));
         }
 
         /// <summary>Appends an entire received array to the internal buffer.</summary>
