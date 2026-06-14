@@ -1,334 +1,159 @@
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'net';
+import { EventEmitter } from 'events';
 import { UnityConnection } from '../../../src/core/unityConnection.js';
 
-describe('UnityConnection Retry Logic', () => {
+// Exercises the REAL reconnection logic — scheduleReconnect's exponential backoff, the
+// close-triggers-reconnect flow, and pending-command draining — against a MOCKED net.Socket
+// (the same pattern as unityConnection.test.js), not real TCP.
+//
+// The previous version was vacuous: it pointed connect() at real servers via config.unity.port
+// (which connect() never reads — it resolves via resolveTargetPort), spoke newline-delimited JSON
+// instead of the length-prefix protocol, and replaced scheduleReconnect with a self-referential
+// copy of the backoff formula, so it asserted its own arithmetic. (Audit findings.)
+//
+// connect() refuses under NODE_ENV=test / CI=true; those vars are cleared per-test (and restored)
+// so connect() actually runs against the mock — making this deterministic and safe to gate in CI.
+describe('UnityConnection reconnection', () => {
   let connection;
-  let mockServer;
-  let serverPort;
+  let mockSocket;
+  let originalSocket;
   let originalConfig;
+  let savedEnv;
 
   beforeEach(async () => {
-    // Store original config
+    savedEnv = { CI: process.env.CI, NODE_ENV: process.env.NODE_ENV, DISABLE_AUTO_RECONNECT: process.env.DISABLE_AUTO_RECONNECT };
+    delete process.env.CI;
+    delete process.env.NODE_ENV;
+    delete process.env.DISABLE_AUTO_RECONNECT;
+
     const { config } = await import('../../../src/core/config.js');
     originalConfig = { ...config.unity };
-    
-    // Speed up tests by reducing delays
     config.unity.reconnectDelay = 100;
     config.unity.maxReconnectDelay = 500;
+    config.unity.reconnectBackoffMultiplier = 2;
     config.unity.commandTimeout = 1000;
-    
+
+    mockSocket = new EventEmitter();
+    mockSocket.write = mock.fn((data, cb) => { if (cb) cb(); });
+    mockSocket.destroy = mock.fn(() => {});
+    mockSocket.connect = mock.fn(() => {}); // no auto-connect; tests emit 'connect' explicitly
+    originalSocket = net.Socket;
+    net.Socket = function () { return mockSocket; };
+
     connection = new UnityConnection();
   });
 
   afterEach(async () => {
-    // Restore config
+    connection.isDisconnecting = true;
+    if (connection.reconnectTimer) { clearTimeout(connection.reconnectTimer); connection.reconnectTimer = null; }
+    if (connection.socket && connection.socket.removeAllListeners) connection.socket.removeAllListeners();
+    connection.socket = null;
+    net.Socket = originalSocket;
     const { config } = await import('../../../src/core/config.js');
     Object.assign(config.unity, originalConfig);
-    
-    // Clean up
-    if (connection) {
-      connection.disconnect();
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
     }
-    if (mockServer) {
-      mockServer.close();
-    }
+    mock.restoreAll();
   });
 
-  describe('Automatic Reconnection', () => {
-    it('should attempt to reconnect after connection loss', async () => {
-      // Create a server that will accept and then close connections
-      mockServer = net.createServer((socket) => {
-        // Immediately close connection to simulate disconnect
-        setTimeout(() => socket.destroy(), 50);
-      });
-      
-      await new Promise(resolve => {
-        mockServer.listen(0, 'localhost', () => {
-          serverPort = mockServer.address().port;
-          resolve();
-        });
-      });
+  // Drive connect() to success against the mock socket.
+  async function connect() {
+    const p = connection.connect();
+    process.nextTick(() => mockSocket.emit('connect'));
+    await p;
+  }
 
-      // Track reconnection attempts
-      let reconnectAttempts = 0;
-      connection.on('disconnected', () => {
-        reconnectAttempts++;
-      });
-
-      // Override config to use test server
-      const { config } = await import('../../../src/core/config.js');
-      config.unity.port = serverPort;
-
-      // Attempt initial connection (will fail/disconnect)
-      try {
-        await connection.connect();
-      } catch (error) {
-        // Expected to fail
-      }
-
-      // Wait for reconnection attempts
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Should have attempted reconnection
-      assert(reconnectAttempts > 0, 'Should have attempted reconnection');
-      assert(connection.reconnectTimer || connection.reconnectAttempts > 0, 
-        'Should have reconnection scheduled or attempts recorded');
-    });
-
-    it('should use exponential backoff for reconnection', async () => {
-      const { config } = await import('../../../src/core/config.js');
-      
-      // Create connection and mock scheduleReconnect
+  describe('scheduleReconnect backoff', () => {
+    it('grows exponentially and caps at maxReconnectDelay (real scheduleReconnect)', () => {
       const delays = [];
-      const originalSchedule = connection.scheduleReconnect.bind(connection);
-      
-      connection.scheduleReconnect = function() {
-        const delay = Math.min(
-          config.unity.reconnectDelay * Math.pow(config.unity.reconnectBackoffMultiplier, this.reconnectAttempts),
-          config.unity.maxReconnectDelay
-        );
-        delays.push(delay);
-        this.reconnectAttempts++;
-      };
-
-      // Simulate multiple reconnection attempts
-      for (let i = 0; i < 4; i++) {
-        connection.scheduleReconnect();
+      const realSetTimeout = global.setTimeout;
+      global.setTimeout = (fn, delay) => { delays.push(delay); return { __fake: true }; };
+      try {
+        for (let attempt = 0; attempt < 5; attempt++) {
+          connection.reconnectTimer = null; // allow another schedule
+          connection.reconnectAttempts = attempt;
+          connection.scheduleReconnect();
+        }
+      } finally {
+        global.setTimeout = realSetTimeout;
+        connection.reconnectTimer = null;
       }
-
-      // Verify exponential backoff
-      assert.equal(delays.length, 4);
-      assert(delays[0] < delays[1], 'Second delay should be longer');
-      assert(delays[1] < delays[2], 'Third delay should be longer');
-      assert(delays[3] <= config.unity.maxReconnectDelay, 'Should not exceed max delay');
+      // 100*2^0, 100*2^1, 100*2^2 = 100,200,400; then 800 and 1600 both capped to 500.
+      assert.deepEqual(delays, [100, 200, 400, 500, 500]);
     });
 
-    it('should reset reconnect attempts on successful connection', async () => {
-      // Create a working server
-      mockServer = net.createServer((socket) => {
-        socket.on('data', (data) => {
-          // Echo back data
-          socket.write(data);
-        });
-      });
+    it('does not schedule a second timer while one is already pending', () => {
+      let calls = 0;
+      const realSetTimeout = global.setTimeout;
+      global.setTimeout = () => { calls++; return { __fake: true }; };
+      try {
+        connection.reconnectTimer = null;
+        connection.scheduleReconnect(); // schedules
+        connection.scheduleReconnect(); // reconnectTimer truthy -> early return
+      } finally {
+        global.setTimeout = realSetTimeout;
+        connection.reconnectTimer = null;
+      }
+      assert.equal(calls, 1);
+    });
+  });
 
-      await new Promise(resolve => {
-        mockServer.listen(0, 'localhost', () => {
-          serverPort = mockServer.address().port;
-          resolve();
-        });
-      });
+  describe('on unexpected close', () => {
+    it('marks disconnected, drains pending commands, and schedules a reconnect', async () => {
+      await connect();
+      assert.equal(connection.connected, true);
 
-      const { config } = await import('../../../src/core/config.js');
-      config.unity.port = serverPort;
+      const pending = connection.sendCommand('slow', {});
+      assert.equal(connection.pendingCommands.size, 1);
 
-      // Set initial reconnect attempts
+      let scheduled = 0;
+      connection.scheduleReconnect = () => { scheduled++; };
+
+      mockSocket.emit('close');
+
+      await assert.rejects(pending, /Connection closed/);
+      assert.equal(connection.connected, false);
+      assert.equal(connection.pendingCommands.size, 0);
+      assert.equal(scheduled, 1);
+    });
+
+    it('does not schedule a reconnect when DISABLE_AUTO_RECONNECT=true', async () => {
+      await connect();
+      process.env.DISABLE_AUTO_RECONNECT = 'true';
+      let scheduled = 0;
+      connection.scheduleReconnect = () => { scheduled++; };
+      mockSocket.emit('close');
+      assert.equal(scheduled, 0);
+    });
+  });
+
+  describe('intentional disconnect', () => {
+    it('clears the reconnect timer and does not reconnect on the resulting close', async () => {
+      await connect();
+      let scheduled = 0;
+      connection.scheduleReconnect = () => { scheduled++; };
+      connection.disconnect(); // removes listeners, destroys + nulls the socket
+      mockSocket.emit('close'); // listeners removed -> no-op
+      assert.equal(scheduled, 0);
+      assert.equal(connection.reconnectTimer, null);
+      assert.equal(connection.connected, false);
+    });
+  });
+
+  describe('successful (re)connect', () => {
+    it('resets reconnectAttempts to 0', async () => {
       connection.reconnectAttempts = 5;
-
-      // Connect successfully
-      await connection.connect();
-
-      // Verify attempts were reset
-      assert.equal(connection.reconnectAttempts, 0, 'Reconnect attempts should be reset');
-      assert.equal(connection.connected, true, 'Should be connected');
-    });
-
-    it('should not reconnect when intentionally disconnected', async () => {
-      // Create a server
-      mockServer = net.createServer();
-      await new Promise(resolve => {
-        mockServer.listen(0, 'localhost', () => {
-          serverPort = mockServer.address().port;
-          resolve();
-        });
-      });
-
-      const { config } = await import('../../../src/core/config.js');
-      config.unity.port = serverPort;
-
-      await connection.connect();
-      
-      // Track if reconnection is scheduled
-      let reconnectScheduled = false;
-      const originalSchedule = connection.scheduleReconnect.bind(connection);
-      connection.scheduleReconnect = function() {
-        reconnectScheduled = true;
-        originalSchedule.call(this);
-      };
-
-      // Intentionally disconnect
-      connection.disconnect();
-
-      // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      // Should not have scheduled reconnection
-      assert.equal(reconnectScheduled, false, 'Should not schedule reconnection after disconnect()');
-      assert.equal(connection.reconnectTimer, null, 'Should not have reconnect timer');
-    });
-
-    it('should handle connection timeout with retry', async () => {
-      // Don't create a server - connection will timeout
-      const { config } = await import('../../../src/core/config.js');
-      config.unity.port = 65534; // Unlikely to be in use
-      config.unity.commandTimeout = 100; // Fast timeout
-
-      let connectionError = null;
-      try {
-        await connection.connect();
-      } catch (error) {
-        connectionError = error;
-      }
-
-      assert(connectionError, 'Should have connection error');
-      assert(connectionError.message.includes('Connection timeout') || 
-             connectionError.message.includes('ECONNREFUSED'), 
-             'Should be timeout or connection refused');
-    });
-
-    it('should clear pending commands on reconnection', async () => {
-      // Create a server that closes after receiving data
-      mockServer = net.createServer((socket) => {
-        socket.on('data', () => {
-          socket.destroy();
-        });
-      });
-
-      await new Promise(resolve => {
-        mockServer.listen(0, 'localhost', () => {
-          serverPort = mockServer.address().port;
-          resolve();
-        });
-      });
-
-      const { config } = await import('../../../src/core/config.js');
-      config.unity.port = serverPort;
-
-      await connection.connect();
-
-      // Send a command that will cause disconnection
-      const commandPromise = connection.sendCommand('test', {});
-      
-      await assert.rejects(
-        commandPromise,
-        /Connection closed/,
-        'Command should fail with connection closed'
-      );
-
-      // Verify pending commands were cleared
-      assert.equal(connection.pendingCommands.size, 0, 'Pending commands should be cleared');
+      await connect();
+      assert.equal(connection.reconnectAttempts, 0);
     });
   });
 
-  describe('Reconnection Events', () => {
-    it('should emit proper events during reconnection cycle', async () => {
-      const events = [];
-      
-      // Track events
-      connection.on('connected', () => events.push('connected'));
-      connection.on('disconnected', () => events.push('disconnected'));
-      connection.on('error', (err) => events.push(`error: ${err.message}`));
-
-      // Create a flaky server
-      let acceptConnections = true;
-      mockServer = net.createServer((socket) => {
-        if (acceptConnections) {
-          // Accept first connection then close it
-          acceptConnections = false;
-          setTimeout(() => socket.destroy(), 100);
-        } else {
-          // Reject subsequent connections
-          socket.destroy();
-        }
-      });
-
-      await new Promise(resolve => {
-        mockServer.listen(0, 'localhost', () => {
-          serverPort = mockServer.address().port;
-          resolve();
-        });
-      });
-
-      const { config } = await import('../../../src/core/config.js');
-      config.unity.port = serverPort;
-
-      // Connect
-      await connection.connect();
-      
-      // Wait for disconnect and reconnection attempt
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Should have connection events
-      assert(events.includes('connected'), 'Should emit connected event');
-      assert(events.includes('disconnected'), 'Should emit disconnected event');
-    });
-  });
-
-  describe('Command Handling During Reconnection', () => {
-    it('should reject commands when not connected', async () => {
-      // Don't connect
-      await assert.rejects(
-        connection.sendCommand('test', {}),
-        /Not connected to Unity/,
-        'Should reject command when not connected'
-      );
-    });
-
-    it('should handle commands sent during reconnection', async () => {
-      // Create a server that accepts connections after a delay
-      let acceptConnections = false;
-      mockServer = net.createServer((socket) => {
-        if (acceptConnections) {
-          socket.on('data', (data) => {
-            try {
-              const cmd = JSON.parse(data.toString());
-              const response = {
-                id: cmd.id,
-                success: true,
-                data: { echo: cmd.type }
-              };
-              socket.write(JSON.stringify(response) + '\n');
-            } catch (e) {
-              // Ignore
-            }
-          });
-        } else {
-          socket.destroy();
-        }
-      });
-
-      await new Promise(resolve => {
-        mockServer.listen(0, 'localhost', () => {
-          serverPort = mockServer.address().port;
-          resolve();
-        });
-      });
-
-      const { config } = await import('../../../src/core/config.js');
-      config.unity.port = serverPort;
-
-      // Try to connect (will fail)
-      try {
-        await connection.connect();
-      } catch (e) {
-        // Expected
-      }
-
-      // Enable connections
-      setTimeout(() => {
-        acceptConnections = true;
-      }, 200);
-
-      // Wait for reconnection
-      await new Promise(resolve => setTimeout(resolve, 400));
-
-      // If connected, try a command
-      if (connection.connected) {
-        const result = await connection.sendCommand('test', {});
-        assert.equal(result.echo, 'test', 'Command should work after reconnection');
-      }
+  describe('sendCommand without a connection', () => {
+    it('rejects with "Not connected"', async () => {
+      await assert.rejects(connection.sendCommand('test', {}), /Not connected to Unity/);
     });
   });
 });
