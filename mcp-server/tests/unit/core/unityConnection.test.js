@@ -150,6 +150,17 @@ describe('UnityConnection', () => {
       
       assert.equal(connection.reconnectAttempts, 0);
     });
+
+    it('dedups concurrent connect() calls into a single socket attempt', async () => {
+      let creations = 0;
+      net.Socket = function () { creations++; return mockSocket; };
+      const p1 = connection.connect();
+      const p2 = connection.connect();
+      process.nextTick(() => mockSocket.emit('connect'));
+      await Promise.all([p1, p2]);
+      assert.equal(creations, 1); // second concurrent call reuses the in-flight attempt
+      connection.isDisconnecting = true;
+    });
   });
 
   describe('disconnect', () => {

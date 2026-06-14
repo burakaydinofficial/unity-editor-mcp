@@ -125,4 +125,34 @@ describe('UnityConnectionManager', () => {
     assert.equal(list[0].connected, true);
     assert.ok(list[0].editorInfo);
   });
+
+  it('attaches an error listener to every connection (no unhandled-error crash)', () => {
+    const { mgr } = makeManager();
+    const conn = mgr.getConnection('localhost', 7000);
+    assert.ok(conn.listenerCount('error') >= 1);
+  });
+
+  it('prune never closes the active-override connection even when its editor is not live', () => {
+    const { mgr } = makeManager({ instances: [] }); // registry empty -> nothing "live"
+    mgr.setActiveInstance(7000);
+    const overrideConn = mgr.getActiveConnection(); // pinned at localhost:7000
+    const pruned = mgr.prune();
+    assert.equal(pruned, 0);
+    assert.equal(mgr.connections.has('localhost:7000'), true);
+    assert.equal(overrideConn.disconnected, false);
+  });
+
+  it('resets editorInfo to null when the (re)connect handshake fails', async () => {
+    const mgr = new UnityConnectionManager({
+      createConnection: (opts) => new FakeConn(opts),
+      performHandshake: async () => { throw new Error('handshake boom'); },
+      discovery: { resolveUnityPort: () => 6400, defaultRegistryDirectory: () => '/reg', findInstanceByProjectPath: () => null, readInstances: () => [], isLive: () => true },
+      env: {},
+      host: 'localhost',
+    });
+    const conn = mgr.getConnection('localhost', 7000);
+    conn.editorInfo = { commands: [{ name: 'stale' }] }; // a prior session's manifest
+    await mgr.ensureReady(conn);
+    assert.equal(conn.editorInfo, null); // failed handshake must not leave the phantom manifest
+  });
 });

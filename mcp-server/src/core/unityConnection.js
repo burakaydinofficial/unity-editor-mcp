@@ -44,6 +44,7 @@ export class UnityConnection extends EventEmitter {
     this.pendingCommands = new Map();
     this.isDisconnecting = false;
     this.messageBuffer = Buffer.alloc(0);
+    this._connectPromise = null; // in-flight connect() dedup
   }
 
   /**
@@ -69,10 +70,24 @@ export class UnityConnection extends EventEmitter {
   }
 
   /**
-   * Connects to Unity Editor
+   * Connects to Unity Editor. Concurrent callers share a single in-flight attempt (dedup), so two
+   * simultaneous ensureReady()/tool calls — or a reconnect racing a call — can't each create a
+   * socket and abandon the previous one (whose listeners still mutate `this`). (Audit finding.)
    * @returns {Promise<void>}
    */
   async connect() {
+    if (this.connected) return;
+    if (this._connectPromise) return this._connectPromise;
+    this._connectPromise = this._doConnect();
+    try {
+      await this._connectPromise;
+    } finally {
+      this._connectPromise = null;
+    }
+  }
+
+  /** The actual single-socket connection attempt; wrapped by connect() for in-flight dedup. */
+  _doConnect() {
     return new Promise((resolve, reject) => {
       if (this.connected) {
         resolve();

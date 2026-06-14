@@ -35,7 +35,14 @@ export class UnityConnectionManager {
   /** Attaches a handshake-on-connect handler that caches the editor manifest on the connection. */
   wireHandshake(conn, k) {
     if (typeof conn.on !== 'function') return conn;
+    // Every managed connection MUST have an 'error' listener: a socket error on an EventEmitter with
+    // no 'error' listener throws and crashes the process. server.js attaches one to the active
+    // connection, but pooled instance connections had none. (Audit finding.)
+    conn.on('error', (e) => logger.error(`[Manager ${k}] connection error: ${e && e.message}`));
     conn.on('connected', () => {
+      // Clear any manifest from a previous session BEFORE re-handshaking, so a failed reconnect
+      // handshake never leaves a stale/phantom manifest in place. (Audit finding.)
+      conn.editorInfo = null;
       // Store the in-flight handshake so ensureReady() can await manifest readiness. The handler
       // runs synchronously during emit('connected') (before connect() resolves), so the promise is
       // set by the time the caller's `await connect()` returns.
@@ -46,6 +53,7 @@ export class UnityConnectionManager {
           if (r.performed && !r.compatible) logger.warn(`[Manager ${k}] ${r.code}: ${r.message}`);
           return r;
         } catch (e) {
+          conn.editorInfo = null; // failed handshake -> no manifest (don't serve a phantom one)
           logger.debug(`[Manager ${k}] handshake error: ${e.message}`);
           return null;
         }
@@ -145,9 +153,13 @@ export class UnityConnectionManager {
     } catch {
       return 0;
     }
+    // Never prune the default connections — the env-resolving active OR the pinned active override.
+    // Pruning the override's connection would leave activeOverride dangling, so getActiveConnection
+    // would silently vend a fresh, manifest-free connection. (Audit finding.)
+    const overrideKey = this.activeOverride ? this.key(this.activeOverride.host, this.activeOverride.port) : null;
     let pruned = 0;
     for (const [k, conn] of this.connections) {
-      if (k === ACTIVE_KEY) continue; // the env-resolving default is never pruned
+      if (k === ACTIVE_KEY || k === overrideKey) continue;
       if (!live.has(k)) {
         try { conn.disconnect(); } catch { /* ignore */ }
         this.connections.delete(k);
