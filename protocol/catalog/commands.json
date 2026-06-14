@@ -7345,6 +7345,24 @@
           "totalActions"
         ]
       }
+    },
+    {
+      "name": "list_unity_instances",
+      "category": "instances",
+      "sides": ["server"],
+      "internal": false,
+      "destructive": false,
+      "description": "List the Unity editor instances currently running and discoverable (project path, Unity version, port, and which one this server targets by default). Use this to see what editors are available before acting; works even when no editor is connected.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "includeStale": {
+            "type": "boolean",
+            "description": "Also include descriptors whose process is gone / heartbeat is stale (for diagnosing a missing editor). Default: false."
+          }
+        },
+        "required": []
+      }
     }
   ]
 }
