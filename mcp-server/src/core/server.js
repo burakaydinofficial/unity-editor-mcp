@@ -171,7 +171,7 @@ unityConnection.on('error', (error) => {
 });
 
 // Initialize server
-async function main() {
+export async function main() {
   try {
     // Create transport - no logging before connection
     const transport = new StdioServerTransport();
