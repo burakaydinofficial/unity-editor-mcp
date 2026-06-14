@@ -17,6 +17,8 @@ const VERSION = (await readFile(new URL('../VERSION', import.meta.url), 'utf8'))
 // derived result schemas (anything with a real `type`) must survive re-running
 // bootstrap, since they are not recoverable from the source code.
 const preserved = new Map();
+const preservedSides = new Map();
+const preservedCategory = new Map();
 let preservedSource;
 try {
   const existing = await loadCatalog();
@@ -24,6 +26,11 @@ try {
   for (const c of existing.commands ?? []) {
     // "Real" schema = anything that isn't the TODO placeholder ({ $comment } only).
     if (c.result && Object.keys(c.result).some((k) => k !== '$comment')) preserved.set(c.name, c.result);
+    // Curated sides/category must survive a re-baseline too — otherwise a server-only
+    // command (e.g. list_unity_instances, sides:['server']) is silently widened back to
+    // ['server','editor'], which then fails the drift gate on the next run. (Audit finding.)
+    if (Array.isArray(c.sides) && c.sides.length) preservedSides.set(c.name, c.sides);
+    if (typeof c.category === 'string') preservedCategory.set(c.name, c.category);
   }
 } catch {
   // No existing catalog (first bootstrap) — nothing to preserve.
@@ -72,8 +79,8 @@ const commands = [];
 for (const tool of serverTools) {
   commands.push({
     name: tool.name,
-    category: CATEGORY[tool.name] ?? 'uncategorized',
-    sides: ['server', 'editor'],
+    category: preservedCategory.get(tool.name) ?? CATEGORY[tool.name] ?? 'uncategorized',
+    sides: preservedSides.get(tool.name) ?? ['server', 'editor'],
     internal: false,
     destructive: DESTRUCTIVE.has(tool.name),
     description: tool.description,
@@ -106,7 +113,10 @@ commands.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCom
 const editorSet = new Set(editorCmds);
 const knownGaps = [];
 for (const tool of serverTools) {
-  if (!editorSet.has(tool.name)) {
+  // Only a tool that is SUPPOSED to have an editor side (curated sides include 'editor',
+  // or the default) counts as a gap. A deliberately server-only command is not a gap.
+  const sides = preservedSides.get(tool.name) ?? ['server', 'editor'];
+  if (sides.includes('editor') && !editorSet.has(tool.name)) {
     knownGaps.push({
       command: tool.name,
       missing: 'editor',

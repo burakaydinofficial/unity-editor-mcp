@@ -28,7 +28,13 @@ const RULES = [
 ];
 
 // Known-safe exceptions: { file: '<repo-relative path>', line: <number> }.
-const ALLOWLIST = [];
+// Now that scan() lints the FLOOR branch of a version guard, the one rule that matches
+// BOTH namespace forms (PrefabStageUtility) flags the correct old-namespace alias in the
+// #else floor branch. That line is intentional and floor-correct — allowlist it. (If the
+// file shifts, the lint fails loudly and this line number must be updated — not a silent miss.)
+const ALLOWLIST = [
+  { file: 'unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs', line: 16 },
+];
 
 async function* walkCs(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -38,17 +44,44 @@ async function* walkCs(dir) {
   }
 }
 
-/** Returns risky-token hits that sit at preprocessor depth 0 (unguarded). */
+/**
+ * Returns risky-token hits that sit in FLOOR-compiled code — either unguarded, or in
+ * the floor branch of a version guard. A line is exempt (skipped) only when it is in a
+ * branch the floor (old Unity) does NOT compile: the #if of a positive
+ * `UNITY_x_OR_NEWER` guard, or the #else of a negated one. The floor branches — the
+ * #else of a positive guard and the #if of a negated one — ARE scanned, because a new
+ * API misplaced there silently breaks the floor (audit finding: the old depth-only
+ * scan skipped every #else). Non-version guards keep the historical "skip everything
+ * guarded" behaviour, so this never adds a false positive on correct code (floor
+ * branches use the OLD APIs, which are not in RULES).
+ */
 function scan(source) {
   const lines = source.split(/\r\n|\r|\n/);
   const hits = [];
-  let depth = 0;
+  const stack = []; // { exempt: bool, verGuard: bool }
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trimStart();
-    if (/^#\s*if\b/.test(trimmed)) { depth++; continue; }
-    if (/^#\s*endif\b/.test(trimmed)) { depth = Math.max(0, depth - 1); continue; }
-    if (/^#\s*(elif|else)\b/.test(trimmed)) continue;
-    if (depth > 0) continue; // inside a guard — intentional version divergence
+    const mIf = trimmed.match(/^#\s*if\b(.*)$/);
+    if (mIf) {
+      const isVer = /UNITY_\d[\w]*_OR_NEWER/.test(mIf[1]);
+      const negated = /!\s*UNITY_\d[\w]*_OR_NEWER/.test(mIf[1]);
+      // positive version guard => #if branch is the NEW (exempt) path; negated => #if
+      // branch is the FLOOR (scanned) path; non-version => exempt (conservative).
+      stack.push({ exempt: isVer ? !negated : true, verGuard: isVer });
+      continue;
+    }
+    if (/^#\s*endif\b/.test(trimmed)) { stack.pop(); continue; }
+    if (/^#\s*else\b/.test(trimmed)) {
+      const top = stack[stack.length - 1];
+      if (top && top.verGuard) top.exempt = !top.exempt; // the opposite branch
+      continue;
+    }
+    if (/^#\s*elif\b/.test(trimmed)) {
+      const top = stack[stack.length - 1];
+      if (top) top.exempt = true; // precise #elif floor-detection out of scope — stay safe
+      continue;
+    }
+    if (stack.some((f) => f.exempt)) continue; // inside a non-floor branch
     const code = lines[i].replace(/\/\/.*$/, ''); // ignore line comments
     for (const rule of RULES) {
       if (rule.re.test(code)) hits.push({ line: i + 1, api: rule.api, reason: rule.reason });
