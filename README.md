@@ -80,7 +80,7 @@ Add the same configuration to Cursor's MCP settings
 
 ## Available Tools
 
-Unity Editor MCP provides **66 comprehensive tools** across 15 categories for complete Unity Editor automation:
+Unity Editor MCP provides **66 comprehensive tools** across 12 categories for complete Unity Editor automation:
 
 ### System & Core Tools (3 tools)
 - **`ping`** - Test connection to Unity Editor and verify server status
@@ -165,6 +165,12 @@ Unity Editor MCP provides **66 comprehensive tools** across 15 categories for co
 - **`start_compilation_monitoring`** - Start monitoring Unity compilation with real-time error detection
 - **`stop_compilation_monitoring`** - Stop compilation monitoring and get final status
 - **`get_compilation_state`** - Get current Unity compilation state and errors
+
+### Test Runner (4 tools)
+- **`run_tests`** - Run Unity EditMode/PlayMode tests (all, or filtered by name/class/category/assembly)
+- **`get_test_results`** - Get results of a test run (summary plus optional per-test details, filterable by status)
+- **`list_tests`** - List available tests without running them
+- **`cancel_tests`** - Cancel a test run in progress
 
 
 ## Troubleshooting

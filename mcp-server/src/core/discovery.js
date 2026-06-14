@@ -170,7 +170,9 @@ export function findInstanceByProjectPath(registryDir, projectPath) {
  */
 export function resolveUnityPort(env = process.env) {
   const explicit = parseInt(env.UNITY_PORT, 10);
-  if (Number.isFinite(explicit)) return explicit;
+  // A valid TCP target port is 1..65535; ignore 0 (and out-of-range) so an empty/
+  // bogus UNITY_PORT falls through to discovery/derivation rather than being used.
+  if (Number.isFinite(explicit) && explicit > 0 && explicit < 65536) return explicit;
 
   const projectPath = env.UNITY_PROJECT_PATH;
   if (projectPath) {

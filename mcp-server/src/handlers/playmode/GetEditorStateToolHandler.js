@@ -31,8 +31,10 @@ export class GetEditorStateToolHandler extends BaseToolHandler {
     // Send get state command to Unity
     const result = await this.unityConnection.sendCommand('get_editor_state', params);
     
-    // Check for Unity-side errors
-    if (result.status === 'error') {
+    // Defensive: surface an error that arrived as a payload field (handler-level
+    // errors normally reject in sendCommand). The old result.status check was dead
+    // after the R3 envelope change — the unwrapped payload carries no status key.
+    if (result && result.error) {
       const error = new Error(result.error);
       error.code = 'UNITY_ERROR';
       throw error;

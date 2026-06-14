@@ -137,7 +137,6 @@ export class UnityConnection extends EventEmitter {
         
         logger.info('Disconnected from Unity Editor');
         this.connected = false;
-        const wasSocket = this.socket;
         this.socket = null;
         
         // Clear message buffer
@@ -434,8 +433,19 @@ export class UnityConnection extends EventEmitter {
       const framedMessage = Buffer.concat([lengthBuffer, messageBuffer]);
       
       logger.info(`[Unity] Sending framed command ${id}: ${json}`);
-      
-      this.socket.write(framedMessage, (error) => {
+
+      // Capture the socket up front: if a concurrent 'close' raced it to null, a
+      // synchronous this.socket.write throw would escape the pending-cleanup below,
+      // leaking the pendingCommands entry and its 30s timer.
+      const sock = this.socket;
+      if (!sock) {
+        this.pendingCommands.delete(id);
+        clearTimeout(timeout);
+        reject(new Error('Socket closed before command could be sent'));
+        return;
+      }
+
+      sock.write(framedMessage, (error) => {
         if (error) {
           logger.error(`[Unity] Failed to write command ${id}:`, error.message);
           this.pendingCommands.delete(id);

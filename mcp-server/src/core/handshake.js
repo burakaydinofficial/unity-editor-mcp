@@ -51,10 +51,19 @@ export function checkProtocolCompatibility(localVersion, remoteVersion) {
   };
 }
 
-/** Normalizes a project path for comparison (mirrors C# EndpointAddressing.Normalize). */
+/**
+ * Normalizes a project path for the PROJECT_PATH_MISMATCH check. Mirrors C#
+ * Handshake.Normalize (separator + trailing-slash) plus the OrdinalIgnoreCase
+ * comparison it uses — folded here as ASCII-only (same as discovery.js
+ * normalizeProjectPath), so non-ASCII paths don't diverge the way JS
+ * .toLowerCase() (full-Unicode, locale-sensitive) would.
+ */
 function normalizePath(path) {
   if (!path) return '';
-  return path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  return path
+    .replace(/\\/g, '/')
+    .replace(/\/+$/, '')
+    .replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
 }
 
 /**
