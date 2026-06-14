@@ -196,7 +196,9 @@ describe('Menu Security Patch Tests', () => {
       });
     });
 
-    it('should allow legitimate menu paths with safety disabled', () => {
+    it('should block dangerous menus even with safety disabled (blacklist is unconditional)', () => {
+      // safetyCheck:false no longer overrides the blacklist — it is unconditional on
+      // both the Node and C# sides, so these must be rejected regardless.
       const dangerousMenus = [
         'File/Quit',
         'Assets/Delete',
@@ -204,9 +206,10 @@ describe('Menu Security Patch Tests', () => {
       ];
 
       dangerousMenus.forEach(menuPath => {
-        assert.doesNotThrow(
+        assert.throws(
           () => handler.validate({ menuPath, safetyCheck: false }),
-          `Failed to allow dangerous menu with safety disabled: ${menuPath}`
+          /Menu item is blacklisted for safety/,
+          `Blacklist must be unconditional, but ${menuPath} was allowed with safetyCheck:false`
         );
       });
     });

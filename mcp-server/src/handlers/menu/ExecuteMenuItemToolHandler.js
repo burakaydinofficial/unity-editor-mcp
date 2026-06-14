@@ -93,7 +93,7 @@ export class ExecuteMenuItemToolHandler extends BaseToolHandler {
    * @throws {Error} If validation fails
    */
   validate(params) {
-    const { menuPath, action, safetyCheck = true } = params;
+    const { menuPath, action } = params;
 
     // menuPath is required
     if (!menuPath) {
@@ -104,9 +104,11 @@ export class ExecuteMenuItemToolHandler extends BaseToolHandler {
       throw new Error('menuPath cannot be empty');
     }
 
-    // Safety check for blacklisted items with security normalization (BEFORE format validation)
-    if (safetyCheck && this.isMenuPathBlacklisted(menuPath)) {
-      throw new Error(`Menu item is blacklisted for safety: ${menuPath}. Use safetyCheck: false to override.`);
+    // Blacklist is UNCONDITIONAL (matches the C# MenuHandler) — safetyCheck no longer
+    // overrides it, so a blacklisted menu is rejected here (with homograph/zero-width
+    // normalization) before it can reach the editor. Defense-in-depth + consistency.
+    if (this.isMenuPathBlacklisted(menuPath)) {
+      throw new Error(`Menu item is blacklisted for safety and cannot be executed: ${menuPath}`);
     }
 
     // Validate menu path format (should contain at least one slash) - after normalization for security
