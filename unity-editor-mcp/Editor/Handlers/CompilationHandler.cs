@@ -316,6 +316,9 @@ namespace UnityEditorMCP.Handlers
             lastCompilationMessages.Clear();
         }
 
+        // Guards against stacking multiple delayCall captures across repeated compilations (audit #35).
+        private static bool captureScheduled;
+
         /// <summary>
         /// Event handler for compilation finished
         /// </summary>
@@ -323,9 +326,15 @@ namespace UnityEditorMCP.Handlers
         {
             lastCompilationTime = DateTime.Now;
             Debug.Log($"[CompilationHandler] Compilation finished at {lastCompilationTime:HH:mm:ss}");
-            
-            // Capture any compilation messages after a brief delay
-            EditorApplication.delayCall += () => CaptureCompilationResults();
+
+            // Schedule the post-compilation capture exactly once. A named method group (not an
+            // anonymous lambda) is removable, and the guard prevents stacking N copies of the
+            // capture onto delayCall across repeated compilations. (Audit #35.)
+            if (!captureScheduled)
+            {
+                captureScheduled = true;
+                EditorApplication.delayCall += CaptureCompilationResults;
+            }
         }
 
 
@@ -358,6 +367,7 @@ namespace UnityEditorMCP.Handlers
         /// </summary>
         private static void CaptureCompilationResults()
         {
+            captureScheduled = false; // allow the next compilation to schedule a fresh capture
             try
             {
                 // Read fresh compilation logs

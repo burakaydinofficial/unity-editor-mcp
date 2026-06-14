@@ -749,10 +749,13 @@ namespace UnityEditorMCP.Handlers
                 }
                 else
                 {
-                    // Open the prefab in prefab mode
+                    // Open the prefab in prefab mode. NOTE (audit #33): on the 2020.3 floor there is no
+                    // public synchronous prefab-stage open — PrefabStageUtility.OpenPrefab is not in the
+                    // Experimental.SceneManagement namespace — so AssetDatabase.OpenAsset is used and the
+                    // stage is read back below; if it is not ready this frame the caller can retry.
                     AssetDatabase.OpenAsset(prefabAsset);
-                    
-                    // Wait for prefab stage to be ready
+
+                    // Read the (possibly just-opened) prefab stage.
                     currentStage = PrefabStageUtility.GetCurrentPrefabStage();
                 }
 

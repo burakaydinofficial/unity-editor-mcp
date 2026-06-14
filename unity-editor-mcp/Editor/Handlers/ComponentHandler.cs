@@ -64,6 +64,11 @@ namespace UnityEditorMCP.Handlers
                     return new { error = $"Failed to add component: {componentType}" };
                 }
 
+                // Register the creation undo immediately after creating the component (idiomatic order),
+                // before applying properties — undo destroys the whole component, so its applied
+                // properties go with it. (Audit finding #29.)
+                Undo.RegisterCreatedObjectUndo(newComponent, $"Add {componentType}");
+
                 // Apply properties if provided
                 var appliedProperties = new List<string>();
                 if (properties != null && properties.HasValues)
@@ -76,9 +81,6 @@ namespace UnityEditorMCP.Handlers
                         }
                     }
                 }
-
-                // Register undo
-                Undo.RegisterCreatedObjectUndo(newComponent, $"Add {componentType}");
 
                 return new
                 {
@@ -530,51 +532,64 @@ namespace UnityEditorMCP.Handlers
         private static bool SetNestedProperty(Component component, string propertyPath, JToken value)
         {
             string[] parts = propertyPath.Split('.');
+
+            // Record the navigation chain so value-type (struct) intermediates are written back: a
+            // struct read via reflection is a boxed COPY, so setting the final field on it is silently
+            // lost unless the copy is propagated back up to its owner (e.g. transform.localPosition.x).
+            // (Audit finding #37.)
+            var chain = new List<(object owner, MemberInfo member)>();
             object current = component;
             Type currentType = component.GetType();
 
-            // Navigate to the nested property
             for (int i = 0; i < parts.Length - 1; i++)
             {
-                var field = currentType.GetField(parts[i], BindingFlags.Public | BindingFlags.Instance);
-                if (field != null)
-                {
-                    current = field.GetValue(current);
-                    currentType = field.FieldType;
-                    continue;
-                }
-
-                var prop = currentType.GetProperty(parts[i], BindingFlags.Public | BindingFlags.Instance);
-                if (prop != null)
-                {
-                    current = prop.GetValue(current);
-                    currentType = prop.PropertyType;
-                    continue;
-                }
-
-                return false;
+                MemberInfo member = (MemberInfo)currentType.GetField(parts[i], BindingFlags.Public | BindingFlags.Instance)
+                    ?? currentType.GetProperty(parts[i], BindingFlags.Public | BindingFlags.Instance);
+                if (member == null) return false;
+                chain.Add((current, member));
+                current = GetMemberValue(member, current);
+                if (current == null) return false;
+                currentType = current.GetType();
             }
 
-            // Set the final property
+            // Set the final field/property on the deepest (possibly boxed) object.
             string finalProp = parts[parts.Length - 1];
-            var finalField = currentType.GetField(finalProp, BindingFlags.Public | BindingFlags.Instance);
-            if (finalField != null)
-            {
-                object convertedValue = ConvertValue(value, finalField.FieldType);
-                finalField.SetValue(current, convertedValue);
-                return true;
-            }
+            MemberInfo finalMember = (MemberInfo)currentType.GetField(finalProp, BindingFlags.Public | BindingFlags.Instance)
+                ?? currentType.GetProperty(finalProp, BindingFlags.Public | BindingFlags.Instance);
+            if (finalMember == null || !CanWriteMember(finalMember)) return false;
+            SetMemberValue(finalMember, current, ConvertValue(value, MemberValueType(finalMember)));
 
-            var finalProperty = currentType.GetProperty(finalProp, BindingFlags.Public | BindingFlags.Instance);
-            if (finalProperty != null && finalProperty.CanWrite)
+            // Propagate the (possibly mutated) boxed value back up the chain. Reference-type
+            // intermediates were already mutated in place; struct intermediates MUST be written back.
+            for (int i = chain.Count - 1; i >= 0; i--)
             {
-                object convertedValue = ConvertValue(value, finalProperty.PropertyType);
-                finalProperty.SetValue(current, convertedValue);
-                return true;
+                var (owner, member) = chain[i];
+                if (!CanWriteMember(member))
+                {
+                    // A get-only struct intermediate can't receive the mutated copy -> the set won't stick.
+                    if (MemberValueType(member).IsValueType) return false;
+                    break; // reference type already mutated in place
+                }
+                SetMemberValue(member, owner, current);
+                current = owner;
             }
-
-            return false;
+            return true;
         }
+
+        private static object GetMemberValue(MemberInfo m, object obj) =>
+            m is FieldInfo f ? f.GetValue(obj) : ((PropertyInfo)m).GetValue(obj);
+
+        private static void SetMemberValue(MemberInfo m, object obj, object val)
+        {
+            if (m is FieldInfo f) f.SetValue(obj, val);
+            else ((PropertyInfo)m).SetValue(obj, val);
+        }
+
+        private static Type MemberValueType(MemberInfo m) =>
+            m is FieldInfo f ? f.FieldType : ((PropertyInfo)m).PropertyType;
+
+        private static bool CanWriteMember(MemberInfo m) =>
+            m is FieldInfo f ? !f.IsInitOnly : ((PropertyInfo)m).CanWrite;
 
         /// <summary>
         /// Preserves MCP Rigidbody field names across Unity versions.

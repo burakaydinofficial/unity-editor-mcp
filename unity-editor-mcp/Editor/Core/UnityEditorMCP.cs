@@ -713,49 +713,49 @@ namespace UnityEditorMCP.Core
                         
                     // Tag management commands
                     case "manage_tags":
-                        var tagManagementResult = TagManagementHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
+                        var tagManagementResult = TagManagementHandler.HandleCommand(command.Parameters?["action"]?.ToString() ?? string.Empty, command.Parameters);
                         response = Response.Result(command.Id, tagManagementResult);
                         break;
                         
                     // Layer management commands
                     case "manage_layers":
-                        var layerManagementResult = LayerManagementHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
+                        var layerManagementResult = LayerManagementHandler.HandleCommand(command.Parameters?["action"]?.ToString() ?? string.Empty, command.Parameters);
                         response = Response.Result(command.Id, layerManagementResult);
                         break;
                         
                     // Selection management commands
                     case "manage_selection":
-                        var selectionManagementResult = SelectionHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
+                        var selectionManagementResult = SelectionHandler.HandleCommand(command.Parameters?["action"]?.ToString() ?? string.Empty, command.Parameters);
                         response = Response.Result(command.Id, selectionManagementResult);
                         break;
                         
                     // Window management commands
                     case "manage_windows":
-                        var windowManagementResult = WindowManagementHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
+                        var windowManagementResult = WindowManagementHandler.HandleCommand(command.Parameters?["action"]?.ToString() ?? string.Empty, command.Parameters);
                         response = Response.Result(command.Id, windowManagementResult);
                         break;
                         
                     // Tool management commands
                     case "manage_tools":
-                        var toolManagementResult = ToolManagementHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
+                        var toolManagementResult = ToolManagementHandler.HandleCommand(command.Parameters?["action"]?.ToString() ?? string.Empty, command.Parameters);
                         response = Response.Result(command.Id, toolManagementResult);
                         break;
                         
                     // Asset import settings commands
                     case "manage_asset_import_settings":
-                        var assetImportSettingsResult = AssetImportSettingsHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
+                        var assetImportSettingsResult = AssetImportSettingsHandler.HandleCommand(command.Parameters?["action"]?.ToString() ?? string.Empty, command.Parameters);
                         response = Response.Result(command.Id, assetImportSettingsResult);
                         break;
                         
                     // Asset database commands
                     case "manage_asset_database":
-                        var assetDatabaseResult = AssetDatabaseHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
+                        var assetDatabaseResult = AssetDatabaseHandler.HandleCommand(command.Parameters?["action"]?.ToString() ?? string.Empty, command.Parameters);
                         response = Response.Result(command.Id, assetDatabaseResult);
                         break;
                         
                     // Asset dependency analysis commands
                     case "analyze_asset_dependencies":
-                        var assetDependencyResult = AssetDependencyHandler.HandleCommand(command.Parameters?["action"]?.ToString(), command.Parameters);
+                        var assetDependencyResult = AssetDependencyHandler.HandleCommand(command.Parameters?["action"]?.ToString() ?? string.Empty, command.Parameters);
                         response = Response.Result(command.Id, assetDependencyResult);
                         break;
                         

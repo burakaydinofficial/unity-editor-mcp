@@ -98,25 +98,21 @@ namespace UnityEditorMCP.Handlers
                 int captureWidth = width > 0 ? width : currentResolution.x;
                 int captureHeight = height > 0 ? height : currentResolution.y;
                 
-                // Take screenshot using ScreenCapture
-                string tempPath = Path.GetTempFileName() + ".png";
-                ScreenCapture.CaptureScreenshot(tempPath);
-                
-                // Wait for file to be written
-                System.Threading.Thread.Sleep(100);
-                
-                // Read and process the screenshot
-                if (File.Exists(tempPath))
+                // Capture the Game View SYNCHRONOUSLY into a texture. ScreenCapture.CaptureScreenshot
+                // writes its file after the next rendered frame, so the old code did Thread.Sleep(100)
+                // on the main thread to wait for it — freezing the whole editor on every screenshot.
+                // CaptureScreenshotAsTexture returns immediately, no file wait, no sleep. (Audit #30.)
+                Texture2D captured = ScreenCapture.CaptureScreenshotAsTexture();
+                try
                 {
-                    byte[] imageBytes = File.ReadAllBytes(tempPath);
-                    
+                    byte[] imageBytes = captured.EncodeToPNG();
+
                     // Save to final location
                     File.WriteAllBytes(outputPath, imageBytes);
-                    File.Delete(tempPath);
-                    
+
                     // Refresh asset database
                     AssetDatabase.Refresh();
-                    
+
                     var result = new
                     {
                         success = true,
@@ -128,7 +124,7 @@ namespace UnityEditorMCP.Handlers
                         fileSize = imageBytes.Length,
                         message = "Game View screenshot captured successfully"
                     };
-                    
+
                     // Add base64 if requested
                     if (encodeAsBase64)
                     {
@@ -145,12 +141,12 @@ namespace UnityEditorMCP.Handlers
                             base64Data = Convert.ToBase64String(imageBytes)
                         };
                     }
-                    
+
                     return result;
                 }
-                else
+                finally
                 {
-                    return new { error = "Failed to capture screenshot - file not created" };
+                    if (captured != null) UnityEngine.Object.DestroyImmediate(captured);
                 }
             }
             catch (Exception ex)
@@ -470,19 +466,23 @@ namespace UnityEditorMCP.Handlers
                 edgePixelRatio = 0.0f
             };
             
-            // Simple edge detection to identify UI elements
+            // Simple edge detection to identify UI elements. Read the whole pixel buffer ONCE
+            // (GetPixels) instead of three GetPixel native round-trips per pixel — the old loop did
+            // ~3*W*H managed->native calls, seconds of main-thread stall on a real image. (Audit #36.)
+            int w = texture.width, h = texture.height;
+            Color[] pixels = texture.GetPixels();
             int edgePixels = 0;
-            for (int y = 1; y < texture.height - 1; y++)
+            for (int y = 1; y < h - 1; y++)
             {
-                for (int x = 1; x < texture.width - 1; x++)
+                for (int x = 1; x < w - 1; x++)
                 {
-                    Color current = texture.GetPixel(x, y);
-                    Color right = texture.GetPixel(x + 1, y);
-                    Color bottom = texture.GetPixel(x, y + 1);
-                    
+                    Color current = pixels[y * w + x];
+                    Color right = pixels[y * w + (x + 1)];
+                    Color bottom = pixels[(y + 1) * w + x];
+
                     float diffRight = Mathf.Abs(current.grayscale - right.grayscale);
                     float diffBottom = Mathf.Abs(current.grayscale - bottom.grayscale);
-                    
+
                     if (diffRight > 0.3f || diffBottom > 0.3f)
                     {
                         edgePixels++;

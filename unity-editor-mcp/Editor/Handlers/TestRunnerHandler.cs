@@ -16,7 +16,11 @@ namespace UnityEditorMCP.Handlers
     /// </summary>
     public static class TestRunnerHandler
     {
-        private static TestRunnerApi testRunnerApi = ScriptableObject.CreateInstance<TestRunnerApi>();
+        private static TestRunnerApi _testRunnerApi;
+        // Lazily created on first use instead of at domain-load static init, so CreateInstance does
+        // not run before the Test Runner subsystem that backs the API is ready. (Audit #31.)
+        private static TestRunnerApi testRunnerApi =>
+            _testRunnerApi != null ? _testRunnerApi : (_testRunnerApi = ScriptableObject.CreateInstance<TestRunnerApi>());
         private static TestRunCallback currentCallback;
         private static Dictionary<string, TestResult> lastTestResults = new Dictionary<string, TestResult>();
         private static bool isRunningTests = false;
@@ -246,6 +250,15 @@ namespace UnityEditorMCP.Handlers
                 // Unity doesn't provide a direct way to cancel tests, but we can try to stop the test runner
                 EditorApplication.isPlaying = false;
                 isRunningTests = false;
+
+                // Unregister + clear the run callback so it isn't left registered after a cancel; the
+                // next run re-creates a fresh one (RunTests registers only when currentCallback == null).
+                // (Audit #32.)
+                if (currentCallback != null)
+                {
+                    testRunnerApi.UnregisterCallbacks(currentCallback);
+                    currentCallback = null;
+                }
 
                 return new
                 {
