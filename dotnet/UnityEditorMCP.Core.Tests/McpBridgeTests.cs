@@ -88,6 +88,39 @@ namespace UnityEditorMCP.Core.Tests
         }
 
         [Fact]
+        public async Task ConcurrentClients_EachReceivesItsOwnResponse()
+        {
+            // ADR 0005 ("many MCP servers -> one editor"): the transport accepts concurrent clients,
+            // and each queued command carries its originating client's responder, so replies route
+            // back without cross-talk. This proves the Core composition the editor bootstrap uses.
+            using var bridge = new McpBridge(IPAddress.Loopback, 0);
+            bridge.Register("echo", p => HandlerOutcome.Ok(new { who = (string)p["who"] }));
+            bridge.Start();
+
+            using var clientA = new TcpClient();
+            using var clientB = new TcpClient();
+            await clientA.ConnectAsync(IPAddress.Loopback, bridge.Port).WaitAsync(Timeout);
+            await clientB.ConnectAsync(IPAddress.Loopback, bridge.Port).WaitAsync(Timeout);
+            var streamA = clientA.GetStream();
+            var streamB = clientB.GetStream();
+
+            await SendFrameAsync(streamA, "{\"id\":\"A\",\"type\":\"echo\",\"params\":{\"who\":\"alice\"}}");
+            await SendFrameAsync(streamB, "{\"id\":\"B\",\"type\":\"echo\",\"params\":{\"who\":\"bob\"}}");
+
+            await WaitUntil(() => bridge.PendingCount >= 2); // both received off the wire
+            bridge.Drain();                                  // main-thread pump processes both
+
+            var replyA = JObject.Parse(await ReadOneFramedAsync(streamA));
+            var replyB = JObject.Parse(await ReadOneFramedAsync(streamB));
+
+            // Each client gets ITS OWN response — no cross-routing.
+            Assert.Equal("A", (string)replyA["id"]);
+            Assert.Equal("alice", (string)replyA["result"]["who"]);
+            Assert.Equal("B", (string)replyB["id"]);
+            Assert.Equal("bob", (string)replyB["result"]["who"]);
+        }
+
+        [Fact]
         public async Task EndToEnd_MalformedJson_AnsweredImmediately_NoDrainNeeded()
         {
             using var bridge = new McpBridge(IPAddress.Loopback, 0);
