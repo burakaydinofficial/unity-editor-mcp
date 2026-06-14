@@ -150,5 +150,34 @@ namespace UnityEditorMCP.Core.Tests
             Assert.False(o.IsError);
             Assert.Null(o.Payload);
         }
+
+        // --- PlayModeHandler opaque shapes (R3) — regression guard for the refactor
+        //     that dropped the inline status/envelope keys from those handlers ---
+
+        [Fact]
+        public void PlayModeStatePayload_IsOpaqueSuccess()
+        {
+            var o = ResponseClassifier.Classify(new JObject { ["state"] = new JObject { ["isPlaying"] = true } });
+            Assert.False(o.IsError);
+            Assert.True((bool)((JObject)o.Payload)["state"]["isPlaying"]);
+        }
+
+        [Fact]
+        public void PlayModeMessageStatePayload_IsOpaqueSuccess()
+        {
+            var o = ResponseClassifier.Classify(new JObject { ["message"] = "Entered play mode", ["state"] = new JObject { ["isPlaying"] = true } });
+            Assert.False(o.IsError);
+            var p = (JObject)o.Payload;
+            Assert.Equal("Entered play mode", (string)p["message"]);
+            Assert.True((bool)p["state"]["isPlaying"]);
+        }
+
+        [Fact]
+        public void PlayModeErrorPayload_IsError()
+        {
+            var o = ResponseClassifier.Classify(new JObject { ["error"] = "not in play mode" });
+            Assert.True(o.IsError);
+            Assert.Equal("not in play mode", o.Error);
+        }
     }
 }

@@ -137,6 +137,11 @@ namespace UnityEditorMCP.Core
                         catch (Exception ex) when (!ct.IsCancellationRequested)
                         {
                             _log.Warn($"Client write ended: {ex.Message}");
+                            // The writer is dead (e.g. the client's socket is gone). Stop
+                            // accepting further frames so Respond() becomes a no-op instead
+                            // of enqueuing into a queue nothing drains. Idempotent with the
+                            // read loop's finally CompleteAdding().
+                            try { outbound.CompleteAdding(); } catch { /* already completed */ }
                         }
                     });
 

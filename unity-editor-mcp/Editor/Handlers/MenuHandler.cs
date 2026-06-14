@@ -254,6 +254,10 @@ namespace UnityEditorMCP.Handlers
                 "Window/Animation/Animator"
             };
 
+            // Don't advertise blacklisted menus as available — ExecuteMenuAction refuses
+            // them unconditionally, so listing them as executable is misleading.
+            commonMenus.RemoveAll(m => BlacklistedMenus.Contains(m));
+
             // Filter by pattern if provided
             var filter = parameters?["filter"]?.ToString();
             var filteredMenus = commonMenus;
