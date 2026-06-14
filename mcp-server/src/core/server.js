@@ -10,6 +10,7 @@ import {
 import { UnityConnectionManager } from './unityConnectionManager.js';
 import { createHandlers } from '../handlers/index.js';
 import { config, logger } from './config.js';
+import { filterListedTools } from './toolExposure.js';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -44,6 +45,11 @@ const unityConnection = manager.getActiveConnection();
 // Create tool handlers (typed handlers use the active connection; meta-tools use the manager).
 const handlers = createHandlers(unityConnection, manager);
 
+// Whether the static typed tools are listed when UNITY_MCP_TYPED_TOOLS is unset. Stage 3a keeps
+// the v0.2.0 behavior (typed listed by default); Stage 3b flips this to false so the generic
+// meta-tools are the canonical surface and typed tools become opt-in (ADR 0004).
+const TYPED_TOOLS_DEFAULT = true;
+
 // Create MCP server
 const server = new Server(
   {
@@ -64,8 +70,8 @@ const server = new Server(
 
 // Handle tool listing
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-  const tools = Array.from(handlers.values()).map(handler => handler.getDefinition());
-  return { tools };
+  const all = Array.from(handlers.values()).map(handler => handler.getDefinition());
+  return { tools: filterListedTools(all, process.env, TYPED_TOOLS_DEFAULT) };
 });
 
 // Handle resources listing
@@ -201,8 +207,8 @@ export async function createServer(customConfig = config) {
   
   // Register handlers for test server
   testServer.setRequestHandler(ListToolsRequestSchema, async () => {
-    const tools = Array.from(testHandlers.values()).map(handler => handler.getDefinition());
-    return { tools };
+    const all = Array.from(testHandlers.values()).map(handler => handler.getDefinition());
+    return { tools: filterListedTools(all, process.env, TYPED_TOOLS_DEFAULT) };
   });
   
   testServer.setRequestHandler(ListResourcesRequestSchema, async () => {
