@@ -1,0 +1,60 @@
+# Unity floor matrix — proves the Editor C# compiles + its EditMode tests pass on every
+# supported LTS. This is the verification behind the "old-Unity compatible" claim.
+#
+# STATUS: scaffold. Two one-time setup tasks make it live (see docs/floor-testing.md):
+#   1. Repo secrets: UNITY_EMAIL, UNITY_PASSWORD, UNITY_LICENSE (free Personal license).
+#   2. Minimal committed host projects under ci/unity-host-<version>/ (the git-ignored
+#      unity-test-projects/ are not available in CI).
+# Until then it is manual-dispatch only and skips on forks without secrets.
+
+name: floor-matrix
+
+on:
+  workflow_dispatch:
+  # push:
+  #   tags: ['v*']
+  # pull_request:
+  #   paths: ['unity-editor-mcp/**']
+
+jobs:
+  editmode:
+    name: EditMode @ Unity ${{ matrix.unity }}
+    runs-on: ubuntu-latest
+    # Only runs where the Unity license secrets exist (the canonical repo), so forks skip.
+    if: ${{ github.repository == 'burakaydinofficial/unity-editor-mcp' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        unity:
+          - 2020.3.49f1
+          - 2021.3.45f1
+          - 2022.3.50f1
+          # - 6000.0.34f1   # add once a Unity 6 host project exists
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: ci/unity-host-${{ matrix.unity }}/Library
+          key: Library-${{ matrix.unity }}-${{ hashFiles('unity-editor-mcp/**') }}
+          restore-keys: |
+            Library-${{ matrix.unity }}-
+
+      - uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        with:
+          unityVersion: ${{ matrix.unity }}
+          # Minimal host that references the package via file: + testables. TODO: add it.
+          projectPath: ci/unity-host-${{ matrix.unity }}
+          testMode: editmode
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: EditMode ${{ matrix.unity }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: editmode-results-${{ matrix.unity }}
+          path: artifacts

@@ -37,7 +37,7 @@ npx unity-editor-mcp
 
 ## Unity Setup
 
-1. Install the Unity package from: `https://github.com/ozankasikci/unity-mcp.git?path=unity-editor-mcp`
+1. Install the Unity package from: `https://github.com/burakaydinofficial/unity-editor-mcp.git?path=unity-editor-mcp`
 2. Open Unity Package Manager → Add package from git URL
 3. The package will automatically start a TCP server on port 6402
 
@@ -143,7 +143,7 @@ npm install -g unity-editor-mcp
 
 ## Repository
 
-Full source code and documentation: https://github.com/ozankasikci/unity-mcp
+Full source code and documentation: https://github.com/burakaydinofficial/unity-editor-mcp
 
 ## License
 

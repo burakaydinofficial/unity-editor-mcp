@@ -1,7 +1,7 @@
 # Unity Editor MCP
 
-[![CI](https://github.com/ozankasikci/unity-editor-mcp/actions/workflows/test-coverage.yml/badge.svg)](https://github.com/ozankasikci/unity-editor-mcp/actions/workflows/test-coverage.yml)
-[![codecov](https://codecov.io/gh/ozankasikci/unity-editor-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/ozankasikci/unity-mcp)
+[![CI](https://github.com/burakaydinofficial/unity-editor-mcp/actions/workflows/test-coverage.yml/badge.svg)](https://github.com/burakaydinofficial/unity-editor-mcp/actions/workflows/test-coverage.yml)
+[![codecov](https://codecov.io/gh/burakaydinofficial/unity-editor-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/burakaydinofficial/unity-editor-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm version](https://img.shields.io/npm/v/unity-editor-mcp)](https://www.npmjs.com/package/unity-editor-mcp)
 
@@ -42,7 +42,7 @@ In Unity:
 
 1. Open **Window → Package Manager**
 2. Click **"+"** → **"Add package from git URL..."**
-3. Paste: `https://github.com/ozankasikci/unity-editor-mcp.git?path=unity-editor-mcp`
+3. Paste: `https://github.com/burakaydinofficial/unity-editor-mcp.git?path=unity-editor-mcp`
 4. Click **Add**
 
 > ✨ Unity automatically starts the editor-side bridge on a **per-project port**
