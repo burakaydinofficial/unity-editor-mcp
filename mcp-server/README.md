@@ -18,21 +18,21 @@ MCP (Model Context Protocol) server for Unity Editor integration. Enables AI ass
 ### Using npx (Recommended)
 
 ```bash
-npx unity-editor-mcp
+npx @burakaydinofficial/unity-editor-mcp
 ```
 
 ### Global Installation
 
 ```bash
-npm install -g unity-editor-mcp
+npm install -g @burakaydinofficial/unity-editor-mcp
 unity-editor-mcp
 ```
 
 ### Local Installation
 
 ```bash
-npm install unity-editor-mcp
-npx unity-editor-mcp
+npm install @burakaydinofficial/unity-editor-mcp
+npx @burakaydinofficial/unity-editor-mcp
 ```
 
 ## Unity Setup
@@ -52,7 +52,7 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "unity-editor-mcp": {
       "command": "npx",
-      "args": ["unity-editor-mcp"]
+      "args": ["@burakaydinofficial/unity-editor-mcp"]
     }
   }
 }

@@ -62,7 +62,7 @@ Add to your config file:
   "mcpServers": {
     "unity-editor-mcp": {
       "command": "npx",
-      "args": ["unity-editor-mcp@latest"]
+      "args": ["@burakaydinofficial/unity-editor-mcp@latest"]
     }
   }
 }

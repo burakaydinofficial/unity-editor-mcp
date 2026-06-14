@@ -33,13 +33,13 @@ Three major parts (see `docs/adr/0001-protocol-contract-and-three-part-architect
 - `protocol/` — the **communication contract**: the canonical command catalog
   (`catalog/commands.json`), the wire/result/error spec, the protocol version line (`VERSION`), and
   the drift gate. A versioned sub-project both halves must conform to. See `protocol/README.md`.
-- `unity-editor-mcp/` — Unity UPM package (`com.unity.editor-mcp`), the C# editor side, split into
+- `unity-editor-mcp/` — Unity UPM package (`com.burakk.unity-editor-mcp`), the C# editor side, split into
   two assemblies along the Unity-dependency seam (ADR 0002): `Core/` (`UnityEditorMCP.Core`,
   `noEngineReferences` — framing, dispatch, the result/error contract; zero Unity refs, so it's
   `dotnet`-testable) and `Editor/` (`UnityEditorMCP.Editor` — the `[InitializeOnLoad]` bootstrap,
   handlers, and all `#if UNITY_*` guards). Depends on `com.unity.nuget.newtonsoft-json`. Installed
   via git URL with `?path=unity-editor-mcp`.
-- `mcp-server/` — Node.js MCP **adapter + transport client** (npm package `unity-editor-mcp`). Pure
+- `mcp-server/` — Node.js MCP **adapter + transport client** (npm package `@burakaydinofficial/unity-editor-mcp`). Pure
   ES modules (`"type": "module"`), only runtime dependency is `@modelcontextprotocol/sdk`.
 - `dotnet/UnityEditorMCP.Core.Tests/` — xUnit project that compiles the Unity-independent `Core`
   source and runs it via `dotnet test` (no Unity, no license).
