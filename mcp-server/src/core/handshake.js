@@ -79,6 +79,12 @@ export function evaluateHandshake(handshake, options = {}) {
     return { compatible: false, code: 'PROTOCOL_VERSION_MISMATCH', message: 'No handshake payload received.' };
   }
 
+  // A reachable editor that answered but reported no protocol version is a legacy/pre-handshake build,
+  // not a version *mismatch* — give it a clearer, distinct classification (audit #12).
+  if (!handshake.protocolVersion) {
+    return { compatible: false, code: 'NO_PROTOCOL_VERSION', message: 'Editor did not report a protocol version (legacy/pre-handshake build).' };
+  }
+
   const versionResult = checkProtocolCompatibility(localProtocolVersion, handshake.protocolVersion);
   if (!versionResult.compatible) return versionResult;
 
@@ -103,9 +109,12 @@ export function evaluateHandshake(handshake, options = {}) {
  *   code?:string|null, message:string, handshake?:object}>}
  */
 export async function performHandshake(connection, options = {}) {
-  const expectedProjectPath = options.expectedProjectPath
-    ?? (typeof process !== 'undefined' ? process.env.UNITY_PROJECT_PATH : null)
-    ?? null;
+  // An explicit expectedProjectPath (even null) is authoritative: the connection manager passes null
+  // for explicitly-targeted instances so they are not checked against the global UNITY_PROJECT_PATH
+  // (the ACTIVE project), which would wrongly flag every other editor as a mismatch (audit #11).
+  const expectedProjectPath = ('expectedProjectPath' in options)
+    ? options.expectedProjectPath
+    : ((typeof process !== 'undefined' ? process.env.UNITY_PROJECT_PATH : null) ?? null);
   const localProtocolVersion = options.localProtocolVersion || PROTOCOL_VERSION;
 
   let handshake;

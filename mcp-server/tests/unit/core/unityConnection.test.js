@@ -264,6 +264,20 @@ describe('UnityConnection', () => {
       assert.equal(result, false);
     });
 
+    it('rejects a handler-level error (success envelope) carrying its details', async () => {
+      const sendPromise = connection.sendCommand('do-thing');
+      mockSocket.emit('data', frame({
+        id: '1', status: 'success',
+        result: { error: 'bad path', code: 'INVALID_PATH', details: { path: '/x' } },
+      }));
+      await assert.rejects(sendPromise, (e) => {
+        assert.equal(e.message, 'bad path');
+        assert.equal(e.code, 'INVALID_PATH');
+        assert.deepEqual(e.details, { path: '/x' });
+        return true;
+      });
+    });
+
     it('should handle error responses', async () => {
       const sendPromise = connection.sendCommand('bad-command');
 

@@ -56,6 +56,12 @@ describe('handshake', () => {
       assert.equal(r.code, 'PROTOCOL_VERSION_MISMATCH');
     });
 
+    it('classifies a missing protocol version as NO_PROTOCOL_VERSION, not a mismatch', () => {
+      const r = evaluateHandshake(handshake({ protocolVersion: undefined }));
+      assert.equal(r.compatible, false);
+      assert.equal(r.code, 'NO_PROTOCOL_VERSION');
+    });
+
     it('flags a wrong-project connection', () => {
       const r = evaluateHandshake(handshake({ projectPath: 'C:/projects/other' }), {
         expectedProjectPath: 'C:/projects/game',

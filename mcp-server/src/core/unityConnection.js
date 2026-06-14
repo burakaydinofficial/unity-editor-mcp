@@ -304,7 +304,7 @@ export class UnityConnection extends EventEmitter {
           }
         }
         
-        if (recoveryIndex > 0) {
+        if (recoveryIndex >= 0) {
           logger.warn(`[Unity] Discarding ${recoveryIndex} bytes of invalid data`);
           this.messageBuffer = this.messageBuffer.slice(recoveryIndex);
           continue;
@@ -366,6 +366,7 @@ export class UnityConnection extends EventEmitter {
               if (isHandlerLevelError(result)) {
                 const err = new Error(result.error);
                 err.code = result.code || 'EDITOR_ERROR';
+                if (result.details !== undefined) err.details = result.details; // parity with the native error path (audit)
                 logger.warn(`[Unity] Command ${response.id} returned a handler-level error under a success envelope: ${result.error}`);
                 pending.reject(err);
               } else {

@@ -48,8 +48,10 @@ export class UnityConnectionManager {
       // set by the time the caller's `await connect()` returns.
       conn.handshakePromise = (async () => {
         try {
-          const r = await this.performHandshake(conn);
-          conn.editorInfo = r.handshake || null;
+          // The active connection is checked against UNITY_PROJECT_PATH (env default); a pinned
+          // instance was targeted explicitly, so skip the project-path check (audit #11).
+          const r = await this.performHandshake(conn, k === ACTIVE_KEY ? {} : { expectedProjectPath: null });
+          conn.editorInfo = r.handshake ?? null;
           if (r.performed && !r.compatible) logger.warn(`[Manager ${k}] ${r.code}: ${r.message}`);
           return r;
         } catch (e) {
