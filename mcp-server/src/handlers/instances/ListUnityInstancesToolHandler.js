@@ -12,7 +12,7 @@ import * as discovery from '../../core/discovery.js';
  * injection idiom the other handlers use for `unityConnection`.
  */
 export class ListUnityInstancesToolHandler extends BaseToolHandler {
-  constructor(unityConnection, deps = discovery) {
+  constructor(unityConnection, manager, deps = discovery) {
     super(
       'list_unity_instances',
       'List the Unity editor instances currently running and discoverable (project path, Unity version, port, and which one this server targets by default). Use this to see what editors are available before acting; works even when no editor is connected.',
