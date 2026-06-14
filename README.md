@@ -80,12 +80,15 @@ Add the same configuration to Cursor's MCP settings
 
 ## Available Tools
 
-Unity Editor MCP provides **66 comprehensive tools** across 12 categories for complete Unity Editor automation:
+Unity Editor MCP provides **67 comprehensive tools** across 13 categories for complete Unity Editor automation:
 
 ### System & Core Tools (3 tools)
 - **`ping`** - Test connection to Unity Editor and verify server status
 - **`read_logs`** - Read Unity console logs with filtering by type (Log, Warning, Error, etc.)
 - **`refresh_assets`** - Refresh Unity assets and trigger recompilation
+
+### Instance Management (1 tool)
+- **`list_unity_instances`** - List the Unity editors currently running and discoverable (project, version, port, active target); works with no editor connected
 
 ### GameObject Management (5 tools)
 - **`create_gameobject`** - Create GameObjects with primitives, transforms, tags, and layers
