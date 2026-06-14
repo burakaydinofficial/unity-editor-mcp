@@ -101,6 +101,9 @@ export { RunTestsToolHandler } from './test/RunTestsToolHandler.js';
 export { GetTestResultsToolHandler } from './test/GetTestResultsToolHandler.js';
 export { CancelTestsToolHandler } from './test/CancelTestsToolHandler.js';
 
+// Instance handlers
+export { ListUnityInstancesToolHandler } from './instances/ListUnityInstancesToolHandler.js';
+
 // Import all handler classes at once
 import { PingToolHandler } from './system/PingToolHandler.js';
 import { ReadLogsToolHandler } from './system/ReadLogsToolHandler.js';
@@ -168,6 +171,7 @@ import { ListTestsToolHandler } from './test/ListTestsToolHandler.js';
 import { RunTestsToolHandler } from './test/RunTestsToolHandler.js';
 import { GetTestResultsToolHandler } from './test/GetTestResultsToolHandler.js';
 import { CancelTestsToolHandler } from './test/CancelTestsToolHandler.js';
+import { ListUnityInstancesToolHandler } from './instances/ListUnityInstancesToolHandler.js';
 
 // Handler registry - single source of truth
 const HANDLER_CLASSES = [
@@ -265,7 +269,10 @@ const HANDLER_CLASSES = [
   ListTestsToolHandler,
   RunTestsToolHandler,
   GetTestResultsToolHandler,
-  CancelTestsToolHandler
+  CancelTestsToolHandler,
+
+  // Instance handlers
+  ListUnityInstancesToolHandler
 ];
 
 /**
