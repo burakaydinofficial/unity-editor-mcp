@@ -46,7 +46,7 @@ export class ListScenesToolHandler extends BaseToolHandler {
     
     // The unityConnection.sendCommand already extracts the result field
     // Check for Unity-side errors
-    if (result && result.error) {
+    if (result && result.error && result.success !== true) {
       const error = new Error(result.error);
       error.code = 'UNITY_ERROR';
       throw error;

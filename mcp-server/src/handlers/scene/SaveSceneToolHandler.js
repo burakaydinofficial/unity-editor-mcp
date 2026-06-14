@@ -57,7 +57,7 @@ export class SaveSceneToolHandler extends BaseToolHandler {
     const result = await this.unityConnection.sendCommand('save_scene', params);
 
     // Defensive: surface an error that arrived as a payload field rather than a rejection.
-    if (result && result.error) {
+    if (result && result.error && result.success !== true) {
       const error = new Error(result.error);
       error.code = 'UNITY_ERROR';
       throw error;

@@ -34,7 +34,7 @@ export class StopToolHandler extends BaseToolHandler {
     // Defensive: surface an error that arrived as a payload field (handler-level
     // errors normally reject in sendCommand). The old result.status check was dead
     // after the R3 envelope change — the unwrapped payload carries no status key.
-    if (result && result.error) {
+    if (result && result.error && result.success !== true) {
       const error = new Error(result.error);
       error.code = 'UNITY_ERROR';
       throw error;

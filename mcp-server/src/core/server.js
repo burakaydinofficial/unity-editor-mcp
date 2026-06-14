@@ -241,7 +241,13 @@ export async function createServer(customConfig = config) {
       return toMcpResponse({ status: 'error', error: `Tool not found: ${name}`, code: 'TOOL_NOT_FOUND' }, name);
     }
 
-    return toMcpResponse(await handler.handle(args), name);
+    // Mirror the live handler's exception guard so createServer has true parity
+    // (handle() is designed not to throw, but a wrapped transport must never reject).
+    try {
+      return toMcpResponse(await handler.handle(args), name);
+    } catch (error) {
+      return { isError: true, content: [{ type: 'text', text: `Error: ${error.message}` }] };
+    }
   });
   
   return {
