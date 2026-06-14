@@ -83,13 +83,16 @@ describe('ExecuteMenuItemToolHandler', () => {
       );
     });
 
-    it('should allow blacklisted items when safety check is disabled', () => {
-      assert.doesNotThrow(() => {
-        handler.validate({ 
+    it('should still block blacklisted items even when safety check is disabled', () => {
+      // The blacklist is UNCONDITIONAL — safetyCheck:false cannot disable it (security
+      // model; matches the C# MenuHandler). This previously asserted the opposite.
+      assert.throws(
+        () => handler.validate({
           menuPath: 'File/Quit',
           safetyCheck: false
-        });
-      });
+        }),
+        /Menu item is blacklisted for safety/
+      );
     });
 
     it('should validate action enum', () => {
@@ -187,9 +190,12 @@ describe('ExecuteMenuItemToolHandler', () => {
       assert.deepEqual(params.parameters, { clearOnPlay: true });
     });
 
-    it('should disable safety check when requested', async () => {
+    it('should forward safetyCheck:false to Unity (on a non-blacklisted path)', async () => {
+      // Uses a non-blacklisted path: the Node-side blacklist is UNCONDITIONAL (it also
+      // re-checks in execute()), so safetyCheck:false cannot smuggle a blacklisted item
+      // through. safetyCheck is only a hint forwarded to the editor for finer control.
       await handler.execute({
-        menuPath: 'File/Quit',
+        menuPath: 'Assets/Refresh',
         safetyCheck: false
       });
 

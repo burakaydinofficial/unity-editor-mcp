@@ -91,6 +91,19 @@ describe('Menu Security Patch Tests', () => {
     });
   });
 
+  describe('Alias Resolution Security', () => {
+    it('should block an alias that resolves to a blacklisted menu path', async () => {
+      // A benign menuPath passes validate(); the alias (registrable via addMenuAlias)
+      // resolves to a blacklisted target in execute(). The resolved-path re-check must
+      // catch it before anything reaches Unity. (Audit finding.)
+      handler.addMenuAlias('danger', 'File/Quit');
+      const result = await handler.handle({ menuPath: 'Assets/Refresh', alias: 'danger' });
+      assert.equal(result.status, 'error');
+      assert.match(result.error, /blacklisted for safety/);
+      assert.equal(mockUnityConnection.sendCommand.mock.calls.length, 0);
+    });
+  });
+
   describe('Normalization Function Tests', () => {
     it('should normalize case correctly', () => {
       const testCases = [

@@ -148,6 +148,14 @@ export class ExecuteMenuItemToolHandler extends BaseToolHandler {
       resolvedMenuPath = this.menuAliases.get(alias);
     }
 
+    // Re-check the blacklist on the RESOLVED path: validate() only saw the literal
+    // menuPath, but an alias (registrable via addMenuAlias) can resolve to a different,
+    // possibly blacklisted, target. Defense-in-depth, consistent with validate() and the
+    // C# MenuHandler. (Audit finding: alias path bypassed the blacklist.)
+    if (this.isMenuPathBlacklisted(resolvedMenuPath)) {
+      throw new Error(`Menu item is blacklisted for safety and cannot be executed: ${resolvedMenuPath}`);
+    }
+
     // Prepare command parameters
     const commandParams = {
       action,
