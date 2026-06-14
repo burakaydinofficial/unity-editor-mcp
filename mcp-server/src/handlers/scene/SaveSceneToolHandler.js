@@ -51,26 +51,18 @@ export class SaveSceneToolHandler extends BaseToolHandler {
       throw new Error('Unity connection not available');
     }
     
-    // Send command to Unity
+    // sendCommand already unwraps the wire envelope and resolves with the editor
+    // payload directly (a handler-level error rejects via isHandlerLevelError).
+    // Same fix as load_scene/create_scene — save_scene was missed in batch A.
     const result = await this.unityConnection.sendCommand('save_scene', params);
-    
-    // Check for Unity-side errors
-    if (result.status === 'error') {
+
+    // Defensive: surface an error that arrived as a payload field rather than a rejection.
+    if (result && result.error) {
       const error = new Error(result.error);
       error.code = 'UNITY_ERROR';
       throw error;
     }
-    
-    // Handle undefined or null results from Unity
-    if (result.result === undefined || result.result === null) {
-      return {
-        status: 'success',
-        scenePath: params.scenePath || 'Current scene path',
-        saveAs: params.saveAs === true,
-        message: 'Scene save completed but Unity returned no details'
-      };
-    }
-    
-    return result.result;
+
+    return result;
   }
 }

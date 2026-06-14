@@ -267,7 +267,7 @@ export class UnityConnection extends EventEmitter {
         // point — a corrupt prefix can be followed by a large legitimate frame whose
         // header sits well past byte 100; capping the scan would discard it.
         let recoveryIndex = -1;
-        for (let i = 4; i < this.messageBuffer.length - 4; i++) {
+        for (let i = 4; i <= this.messageBuffer.length - 4; i++) {
           const testLength = this.messageBuffer.readInt32BE(i);
           if (testLength > 0 && testLength <= 1024 * 1024) {
             // Check if this could be a valid JSON message

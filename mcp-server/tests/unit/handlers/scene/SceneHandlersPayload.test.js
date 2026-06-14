@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { LoadSceneToolHandler } from '../../../../src/handlers/scene/LoadSceneToolHandler.js';
 import { CreateSceneToolHandler } from '../../../../src/handlers/scene/CreateSceneToolHandler.js';
+import { SaveSceneToolHandler } from '../../../../src/handlers/scene/SaveSceneToolHandler.js';
 
 // Regression guard for the batch-A double-unwrap fix: these handlers used to read
 // `result.result`, but sendCommand already unwraps the wire envelope and resolves
@@ -29,6 +30,17 @@ describe('scene handlers return the editor payload (no double-unwrap stub)', () 
       return full;
     }));
     const response = await handler.handle({ sceneName: 'New' });
+    assert.equal(response.status, 'success');
+    assert.deepEqual(response.result, full);
+  });
+
+  it('save_scene returns the full payload (was missed in batch A)', async () => {
+    const full = { sceneName: 'Main', scenePath: 'Assets/Main.unity', saved: true, isDirty: false, summary: 'Saved Main' };
+    const handler = new SaveSceneToolHandler(mockConn((type) => {
+      assert.equal(type, 'save_scene');
+      return full;
+    }));
+    const response = await handler.handle({});
     assert.equal(response.status, 'success');
     assert.deepEqual(response.result, full);
   });

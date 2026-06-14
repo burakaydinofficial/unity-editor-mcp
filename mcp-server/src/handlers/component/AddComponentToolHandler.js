@@ -70,12 +70,13 @@ export class AddComponentToolHandler extends BaseToolHandler {
       throw new Error(response.error);
     }
 
-    // Return success result
+    // Return success result (success + appliedProperties are catalog-required)
     return {
+      success: response.success !== false,
       componentType: response.componentType,
       gameObjectPath: response.gameObjectPath,
       message: response.message || 'Component added successfully',
-      ...(response.appliedProperties && { appliedProperties: response.appliedProperties })
+      appliedProperties: response.appliedProperties || []
     };
   }
 
