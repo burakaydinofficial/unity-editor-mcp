@@ -2,40 +2,39 @@ using System;
 using UnityEditor;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
     /// <summary>
-    /// Handles play mode control commands (play, pause, stop, get_state)
+    /// Handles play mode control commands (play, pause, stop, get_state). On the Core
+    /// CommandDispatcher rail: each method returns a HandlerOutcome (Ok/Fail), so an error can
+    /// never serialize as a success. Wire shape is unchanged from the legacy switch (success →
+    /// { message, state } or { state }; error → a real error envelope).
     /// </summary>
     public static class PlayModeHandler
     {
-        public static JObject HandleCommand(string command, JObject parameters)
+        public static HandlerOutcome HandleCommand(string command, JObject parameters)
         {
             try
             {
                 switch (command)
                 {
-                    case "play_game":
-                        return HandlePlay();
-                    case "pause_game":
-                        return HandlePause();
-                    case "stop_game":
-                        return HandleStop();
-                    case "get_editor_state":
-                        return HandleGetState();
-                    default:
-                        return CreateErrorResponse($"Unknown play mode command: {command}");
+                    case "play_game": return HandlePlay();
+                    case "pause_game": return HandlePause();
+                    case "stop_game": return HandleStop();
+                    case "get_editor_state": return HandleGetState();
+                    default: return HandlerOutcome.Fail($"Unknown play mode command: {command}", "VALIDATION_ERROR");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[PlayModeHandler] Error handling command {command}: {e.Message}\n{e.StackTrace}");
-                return CreateErrorResponse($"Error handling command: {e.Message}");
+                return HandlerOutcome.Fail($"Error handling command: {e.Message}", "INTERNAL_ERROR");
             }
         }
 
-        private static JObject HandlePlay()
+        private static HandlerOutcome HandlePlay()
         {
             try
             {
@@ -49,35 +48,32 @@ namespace UnityEditorMCP.Handlers
                 {
                     message = "Already in play mode";
                 }
-
-                return CreateSuccessResponse(message, GetEditorState());
+                return Success(message);
             }
             catch (Exception e)
             {
-                return CreateErrorResponse($"Error entering play mode: {e.Message}");
+                return HandlerOutcome.Fail($"Error entering play mode: {e.Message}", "INTERNAL_ERROR");
             }
         }
 
-        private static JObject HandlePause()
+        private static HandlerOutcome HandlePause()
         {
             try
             {
                 if (EditorApplication.isPlaying)
                 {
                     EditorApplication.isPaused = !EditorApplication.isPaused;
-                    string message = EditorApplication.isPaused ? "Game paused" : "Game resumed";
-                    return CreateSuccessResponse(message, GetEditorState());
+                    return Success(EditorApplication.isPaused ? "Game paused" : "Game resumed");
                 }
-                
-                return CreateErrorResponse("Cannot pause/resume: Not in play mode");
+                return HandlerOutcome.Fail("Cannot pause/resume: Not in play mode", "INVALID_STATE");
             }
             catch (Exception e)
             {
-                return CreateErrorResponse($"Error pausing/resuming game: {e.Message}");
+                return HandlerOutcome.Fail($"Error pausing/resuming game: {e.Message}", "INTERNAL_ERROR");
             }
         }
 
-        private static JObject HandleStop()
+        private static HandlerOutcome HandleStop()
         {
             try
             {
@@ -91,34 +87,28 @@ namespace UnityEditorMCP.Handlers
                 {
                     message = "Already stopped (not in play mode)";
                 }
-
-                return CreateSuccessResponse(message, GetEditorState());
+                return Success(message);
             }
             catch (Exception e)
             {
-                return CreateErrorResponse($"Error stopping play mode: {e.Message}");
+                return HandlerOutcome.Fail($"Error stopping play mode: {e.Message}", "INTERNAL_ERROR");
             }
         }
 
-        private static JObject HandleGetState()
+        private static HandlerOutcome HandleGetState()
         {
             try
             {
-                var state = GetEditorState();
-                // Return state as an opaque payload — no protocol envelope keys.
-                // Response.Result/ResponseClassifier add the success envelope on the wire,
-                // so emitting status here would nest { status:"success", state } inside the
-                // result field the client receives.
-                return new JObject
-                {
-                    ["state"] = state
-                };
+                return HandlerOutcome.Ok(new JObject { ["state"] = GetEditorState() });
             }
             catch (Exception e)
             {
-                return CreateErrorResponse($"Error getting editor state: {e.Message}");
+                return HandlerOutcome.Fail($"Error getting editor state: {e.Message}", "INTERNAL_ERROR");
             }
         }
+
+        private static HandlerOutcome Success(string message) =>
+            HandlerOutcome.Ok(new JObject { ["message"] = message, ["state"] = GetEditorState() });
 
         private static JObject GetEditorState()
         {
@@ -131,25 +121,6 @@ namespace UnityEditorMCP.Handlers
                 ["applicationPath"] = EditorApplication.applicationPath,
                 ["applicationContentsPath"] = EditorApplication.applicationContentsPath,
                 ["timeSinceStartup"] = EditorApplication.timeSinceStartup
-            };
-        }
-
-        private static JObject CreateSuccessResponse(string message, JObject state)
-        {
-            return new JObject
-            {
-                ["message"] = message,
-                ["state"] = state
-            };
-        }
-
-        private static JObject CreateErrorResponse(string error)
-        {
-            // Error as an opaque { error } payload — ResponseClassifier classifies it as a
-            // real error envelope; an inline status:"error" would just be duplicated.
-            return new JObject
-            {
-                ["error"] = error
             };
         }
     }

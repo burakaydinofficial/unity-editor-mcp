@@ -57,6 +57,12 @@ namespace UnityEditorMCP.Core
             // First handler written natively to the HandlerOutcome contract — also
             // closes the long-standing get_component_types known gap.
             dispatcher.Register("get_component_types", ComponentHandler.GetComponentTypes);
+            // PlayMode (migration batch 1) — Shape B: one registration per command, thin lambda
+            // into the handler's action switch (now returning HandlerOutcome).
+            dispatcher.Register("play_game", p => PlayModeHandler.HandleCommand("play_game", p));
+            dispatcher.Register("pause_game", p => PlayModeHandler.HandleCommand("pause_game", p));
+            dispatcher.Register("stop_game", p => PlayModeHandler.HandleCommand("stop_game", p));
+            dispatcher.Register("get_editor_state", p => PlayModeHandler.HandleCommand("get_editor_state", p));
             return dispatcher;
         }
 
@@ -533,27 +539,9 @@ namespace UnityEditorMCP.Core
                         var getObjectReferencesResult = SceneAnalysisHandler.GetObjectReferences(command.Parameters);
                         response = Response.Result(command.Id, getObjectReferencesResult);
                         break;
-                        
-                    // Play Mode Control commands
-                    case "play_game":
-                        var playResult = PlayModeHandler.HandleCommand("play_game", command.Parameters);
-                        response = Response.Result(command.Id, playResult);
-                        break;
-                        
-                    case "pause_game":
-                        var pauseResult = PlayModeHandler.HandleCommand("pause_game", command.Parameters);
-                        response = Response.Result(command.Id, pauseResult);
-                        break;
-                        
-                    case "stop_game":
-                        var stopResult = PlayModeHandler.HandleCommand("stop_game", command.Parameters);
-                        response = Response.Result(command.Id, stopResult);
-                        break;
-                        
-                    case "get_editor_state":
-                        var stateResult = PlayModeHandler.HandleCommand("get_editor_state", command.Parameters);
-                        response = Response.Result(command.Id, stateResult);
-                        break;
+
+                    // Play Mode Control commands (play_game, pause_game, stop_game, get_editor_state)
+                    // are migrated to the Core CommandDispatcher rail — see BuildDispatcher.
 
                     // Editor / project introspection (read-only)
                     case "get_editor_info":
