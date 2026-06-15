@@ -132,18 +132,14 @@ namespace UnityEditorMCP.Handlers
                     case "bundleVersion": PlayerSettings.bundleVersion = value.ToString(); break;
                     case "defaultScreenWidth":
                     {
-                        if (value.Type != JTokenType.Integer && value.Type != JTokenType.Float) return Err("defaultScreenWidth must be a number");
-                        var d = value.ToObject<double>();
-                        if (Math.Abs(d % 1.0) > 1e-9) return Err("defaultScreenWidth must be a whole number");
-                        PlayerSettings.defaultScreenWidth = (int)d;
+                        if (!TryGetPositiveInt(value, out var w, out var err)) return Err($"defaultScreenWidth {err}");
+                        PlayerSettings.defaultScreenWidth = w;
                         break;
                     }
                     case "defaultScreenHeight":
                     {
-                        if (value.Type != JTokenType.Integer && value.Type != JTokenType.Float) return Err("defaultScreenHeight must be a number");
-                        var d = value.ToObject<double>();
-                        if (Math.Abs(d % 1.0) > 1e-9) return Err("defaultScreenHeight must be a whole number");
-                        PlayerSettings.defaultScreenHeight = (int)d;
+                        if (!TryGetPositiveInt(value, out var h, out var err)) return Err($"defaultScreenHeight {err}");
+                        PlayerSettings.defaultScreenHeight = h;
                         break;
                     }
                     case "runInBackground":
@@ -217,6 +213,23 @@ namespace UnityEditorMCP.Handlers
                 return new JObject { ["message"] = "Editor quit scheduled (after response flush)." };
             }
             catch (Exception e) { return Err($"Error quitting editor: {e.Message}"); }
+        }
+
+        // Validates a JSON value as a positive whole number within int range (pixel dimensions etc.).
+        // Total over the double domain: rejects non-numbers, NaN/Infinity, fractional values, zero/negative,
+        // and out-of-range values (an unchecked (int) cast of an out-of-range double bit-truncates on Mono
+        // rather than throwing, which would silently corrupt the setting).
+        private static bool TryGetPositiveInt(JToken value, out int result, out string error)
+        {
+            result = 0;
+            error = "must be a positive whole number within int range";
+            if (value == null || (value.Type != JTokenType.Integer && value.Type != JTokenType.Float)) return false;
+            var d = value.ToObject<double>();
+            if (double.IsNaN(d) || double.IsInfinity(d)) return false;
+            if (Math.Abs(d % 1.0) > 1e-9) return false;
+            if (d < 1 || d > int.MaxValue) return false;
+            result = (int)d;
+            return true;
         }
 
         // Error as an opaque { error } payload — ResponseClassifier classifies it as a real error
