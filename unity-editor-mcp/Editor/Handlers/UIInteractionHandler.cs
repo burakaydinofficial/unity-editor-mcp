@@ -302,7 +302,7 @@ namespace UnityEditorMCP.Handlers
 
         // SimulateUIInput aggregates per-action results into one payload, so the inner click/setvalue
         // calls must contribute their flat result shape — not a nested HandlerOutcome. Ok → the original
-        // payload object; Fail → { error, code }.
+        // payload object; Fail → { error } (matching the pre-migration per-action error shape).
         private static object Flatten(HandlerOutcome outcome) =>
             outcome.IsError ? (object)new { error = outcome.Error } : outcome.Payload;
 
