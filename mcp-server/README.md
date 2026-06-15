@@ -4,7 +4,7 @@ MCP (Model Context Protocol) server for Unity Editor integration. Enables AI ass
 
 ## Features
 
-- **Version-agnostic generic surface** - the server learns each connected editor's tools (with schemas, at runtime) and exposes them through four meta-tools, so one server works with **any Unity version** and **several editors at once**
+- **Version-agnostic generic surface** - the server learns each connected editor's tools (with schemas, at runtime) and exposes them through three meta-tools, so one server works with **any Unity version** and **several editors at once**
 - **~78 editor tools** spanning GameObjects, components, scenes, scene analysis, assets (prefabs/materials/import settings), scripts, code intelligence, play mode, UI automation, the Test Runner, and editor operations
 - **Multi-instance routing** - discover every running editor and target any of them by project path or port
 - **Pure ESM, zero native modules** - `npx`-friendly; the only runtime dependency is the MCP SDK
@@ -68,9 +68,9 @@ Add to your `claude_desktop_config.json`:
 
 ## Tool surface
 
-**By default the server advertises a small generic surface (v0.3.0):**
+**The server advertises a small generic surface (v0.5.0 — ADR 0006):**
 
-- **`list_unity_instances`** — list the running, discoverable editors (project, version, port, active target); works even when none is connected
+- **`list_unity_instances`** — list the running, discoverable editors (project, version, port); works even when none is connected
 - **`list_unity_tools`** — list the tools a connected editor supports, with schemas learned at runtime
 - **`call_unity_tool`** — invoke any of those tools by name (params validated against the editor's advertised schema before the call), routed to the named instance (required as of v0.5.0 — no default)
 

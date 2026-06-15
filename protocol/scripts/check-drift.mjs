@@ -129,11 +129,13 @@ for (const c of catalog.commands) {
   }
 }
 
-// KNOWN LIMITATION: param-schema drift is checked JS inputSchema -> catalog ONLY.
-// Editor-side C# handlers are presence-checked above, but their actual params["..."]
-// access is NOT validated against the catalog — a C# handler reading a parameter the
-// catalog doesn't declare (or ignoring one it does) is not caught here. Closing that
-// gap needs a static pass over the C# handler sources (future work).
+// KNOWN LIMITATION: param-schema drift is checked JS inputSchema -> catalog for the 3 server-side
+// meta-tools ONLY. Two editor-side gaps are NOT caught: (a) a C# handler reading a parameter the
+// catalog doesn't declare (or ignoring one it does) — needs a static pass over the C# handler sources;
+// and (b, new in v0.5.0) the 3 Node-logic tools (execute_menu_item / create_script / analyze_screenshot)
+// are cataloged sides:["editor"], so this loop skips them and their Node handler inputSchema is NOT
+// compared to the catalog params — editing one without updating the catalog drifts silently. Both are
+// future work (the b-gap could be closed by importing NODE_LOGIC_TOOLS and comparing handler.getDefinition).
 
 // A baselined gap that no longer occurs is stale: the side was implemented, so
 // the baseline entry should be removed to let the gate enforce it going forward.

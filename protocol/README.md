@@ -129,8 +129,10 @@ gaps are listed under **Remaining**.
 1. **Result schemas are derived, and not validated on the wire.** `result` is populated best-effort
    from handler returns. Rather than enforce them, v0.4.0 added a GraphQL-style `fields` meta-param
    (the agent selects which result fields it wants — see "Result field selection" below); editor-
-   sourced field *advertisement* is planned for 0.5.0. (Catalog *params* are drift-checked against
-   the JS inputSchema.)
+   sourced field *advertisement* shipped in v0.5.0 (the editor advertises each command's result schema
+   in its manifest; `list_unity_tools` surfaces it). (Catalog *params* are drift-checked against the JS
+   inputSchema — for the 3 server-side meta-tools only since v0.5.0; the 76 editor commands are
+   validated editor-side.)
 2. **Handshake warns, does not refuse** — a version/project mismatch logs a warning but the
    connection proceeds; refusing (or capability-gating) is the next step.
 

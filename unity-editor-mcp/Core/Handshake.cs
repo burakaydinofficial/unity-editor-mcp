@@ -22,9 +22,10 @@ namespace UnityEditorMCP.Core
         public IReadOnlyList<string> AvailableCommands { get; set; } = Array.Empty<string>();
 
         /// <summary>
-        /// Per-command {name, description, params} manifest the editor advertises so the server
-        /// learns this instance's tool surface AND its schemas at runtime — the version-agnostic
-        /// generic surface (ADR 0004). Empty from editors that predate it (back-compatible:
+        /// Per-command {name, category, description, params, result} manifest the editor advertises so
+        /// the server learns this instance's tool surface, its param schemas, AND its result-field hints
+        /// at runtime — the version-agnostic generic surface (ADR 0004/0006). Empty from editors that
+        /// predate it (back-compatible:
         /// such peers still advertise <see cref="AvailableCommands"/>).
         /// </summary>
         public JArray Commands { get; set; } = new JArray();

@@ -7628,7 +7628,7 @@
       "sides": ["server"],
       "internal": false,
       "destructive": false,
-      "description": "List the Unity editor instances currently running and discoverable (project path, Unity version, port, and which one this server targets by default). Use this to see what editors are available before acting; works even when no editor is connected.",
+      "description": "List the Unity editor instances currently running and discoverable (project path, Unity version, port). There is no default target — pass an instance from this list as the required \"instance\" to list_unity_tools / call_unity_tool. Works even when no editor is connected.",
       "params": {
         "type": "object",
         "properties": {

@@ -61,7 +61,7 @@ npm run test:coverage       # c8 coverage (lcov + text + html)
 npm run test:ci             # what CI runs (.github/workflows/test-coverage.yml)
 
 # Run a single test file:
-node --test tests/unit/handlers/PingToolHandler.test.js
+node --test tests/unit/handlers/instances/MetaTools.test.js
 
 npm start                   # run the MCP server (node src/core/server.js)
 npm run dev                 # run with --watch
@@ -127,8 +127,10 @@ pending-command map with a 30s timeout and reconnects with exponential backoff.
   `handlers/base/BaseToolHandler.js` (holds `name`, `description`, `inputSchema`; `validate()`
   checks required fields; `execute()` calls `this.unityConnection.sendCommand(type, params)`).
   Handlers return `{status: 'success', result}` or `{status: 'error', error, code, details}`.
-- `handlers/index.js` — the `HANDLER_CLASSES` registry; `createHandlers()` instantiates every
-  handler with the shared `UnityConnection`.
+- `handlers/index.js` — the `HANDLER_CLASSES` registry (just the 3 generic meta-tools — ADR 0006);
+  `createHandlers(manager)` instantiates each with the `UnityConnectionManager` (it resolves a
+  connection per call by explicit instance). The meta-tools call `this.manager.requireConnection(...)`;
+  the few Node-logic handlers (`core/nodeLogicTools.js`) take a resolved connection.
 
 **Unity side** (`unity-editor-mcp/Editor/`):
 - `Core/UnityEditorMCP.cs` — `[InitializeOnLoad]` static class. Starts Core's `TcpTransport` on a
@@ -159,21 +161,27 @@ type yields `UNKNOWN_COMMAND`. The legacy `ProcessCommand` switch has been fully
 dispatcher also applies the reserved `fields` meta-param (GraphQL-style result projection) uniformly
 to every command's success payload.
 
-### Adding a new MCP tool
+### Adding a new editor command
 
-The command surface is governed by the protocol catalog — edit it first, then implement both halves:
+The command surface is governed by the protocol catalog. As of v0.5.0 (ADR 0006) the Node server is a
+3-tool generic surface — an editor command is reached via `call_unity_tool` after on-demand discovery,
+so it needs **no Node handler** and no `HANDLER_CLASSES` entry:
 
-1. Add the command to `protocol/catalog/commands.json` (`name`, `sides`, `params` schema, category).
+1. Add the command to `protocol/catalog/commands.json` (`name`, `sides: ["editor"]`, `params` schema,
+   optional `result` schema, category).
 2. C# handler method in `unity-editor-mcp/Editor/Handlers/` returning `HandlerOutcome` (`Ok(payload)`
    / `Fail(message, code)`), registered on the rail in `BuildDispatcher` (`Editor/Core/UnityEditorMCP.cs`):
    `dispatcher.Register("tool_name", Handler.Method)` (single-method) or a lambda for an
-   action-dispatch handler. (There is no legacy switch — it was retired in v0.4.0.)
-3. A `<Name>ToolHandler.js` in `mcp-server/src/handlers/<category>/` with the JSON Schema and a
-   carefully written tool description (agent success depends on it — see requirement I1).
-4. Import + entry in `HANDLER_CLASSES` in `mcp-server/src/handlers/index.js`.
-5. `node protocol/scripts/check-drift.mjs` must pass; add unit tests in
-   `mcp-server/tests/unit/handlers/`.
+   action-dispatch handler.
+3. Regenerate the editor manifest so the editor advertises the new command's params + result:
+   `node protocol/scripts/generate-csharp-catalog.mjs`; then `node protocol/scripts/check-drift.mjs`
+   must pass. Add an editor (NUnit) test. The Node side needs nothing — the agent discovers and invokes
+   the command via `list_unity_tools` / `call_unity_tool`.
 
-Tool names are `verb_noun` snake_case and must match across the catalog, the JS handler's `name`,
-the C# dispatcher registration, and the `sendCommand` type string. Keep new Unity API usage guarded
-per `COMPATIBILITY.md`.
+**Node-logic exception (rare).** Only when a command needs genuine Node-side logic (a security boundary,
+client-side generation) add a handler under `mcp-server/src/handlers/<category>/` and register it in
+`core/nodeLogicTools.js` (`NODE_LOGIC_TOOLS`) — `call_unity_tool` then dispatches to that handler
+instead of forwarding raw. It is NOT added to `HANDLER_CLASSES` (that is the 3 meta-tools only).
+
+Tool names are `verb_noun` snake_case and must match across the catalog, the C# dispatcher
+registration, and the `sendCommand` type string. Keep new Unity API usage guarded per `COMPATIBILITY.md`.
