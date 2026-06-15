@@ -24,6 +24,8 @@ namespace UnityEditorMCP.Handlers
     public static class CodeIntelligenceHandler
     {
         private const int DefaultMaxResults = 200;
+        private const int MaxResultsCeiling = 1000;
+        private const long MaxFileBytes = 512 * 1024;
 
         // ---- public operations ----
 
@@ -34,7 +36,7 @@ namespace UnityEditorMCP.Handlers
                 var path = p["path"]?.ToString();
                 if (string.IsNullOrEmpty(path)) return Err("Missing required parameter: path");
                 var full = ResolveScript(path);
-                if (full == null) return Err($"Not a .cs path: {path}");
+                if (full == null) return Err($"Path is not a .cs file inside the project: {path}");
                 if (!File.Exists(full)) return Err($"File not found: {path}");
 
                 var src = File.ReadAllText(full);
@@ -53,12 +55,13 @@ namespace UnityEditorMCP.Handlers
                 var name = p["name"]?.ToString();
                 if (string.IsNullOrEmpty(name)) return Err("Missing required parameter: name");
                 var kindFilter = p["kind"]?.ToString();
-                var max = p["maxResults"]?.ToObject<int?>() ?? DefaultMaxResults;
+                var max = Math.Max(1, Math.Min(p["maxResults"]?.ToObject<int?>() ?? DefaultMaxResults, MaxResultsCeiling));
 
                 var matches = new JArray();
                 int total = 0;
                 foreach (var file in EnumerateScripts())
                 {
+                    if (new FileInfo(file).Length > MaxFileBytes) continue;
                     var src = File.ReadAllText(file);
                     foreach (var s in Extract(src))
                     {
@@ -90,13 +93,14 @@ namespace UnityEditorMCP.Handlers
             {
                 var name = p["name"]?.ToString();
                 if (string.IsNullOrEmpty(name)) return Err("Missing required parameter: name");
-                var max = p["maxResults"]?.ToObject<int?>() ?? DefaultMaxResults;
+                var max = Math.Max(1, Math.Min(p["maxResults"]?.ToObject<int?>() ?? DefaultMaxResults, MaxResultsCeiling));
                 var ident = new Regex(@"\b" + Regex.Escape(name) + @"\b");
 
                 var refs = new JArray();
                 int total = 0;
                 foreach (var file in EnumerateScripts())
                 {
+                    if (new FileInfo(file).Length > MaxFileBytes) continue;
                     var src = File.ReadAllText(file);
                     var masked = Mask(src);
                     var lineStarts = BuildLineIndex(src);
@@ -178,7 +182,8 @@ namespace UnityEditorMCP.Handlers
         private static readonly HashSet<string> Keywords = new HashSet<string>
         {
             "if","for","foreach","while","switch","catch","using","lock","fixed","return","new","sizeof",
-            "typeof","nameof","default","do","else","get","set","add","remove","yield","await","throw","when"
+            "typeof","nameof","default","do","else","get","set","add","remove","yield","await","throw","when",
+            "base","this"
         };
 
         private static List<Sym> Extract(string src)
@@ -198,12 +203,22 @@ namespace UnityEditorMCP.Handlers
             {
                 var name = m.Groups[1].Value;
                 if (Keywords.Contains(name)) continue;
-                // skip member-access calls ("obj.Method(")
+                // skip member-access calls ("obj.Method(") and object construction ("new Foo(args) { }")
                 int b = m.Index - 1;
                 while (b >= 0 && char.IsWhiteSpace(masked[b])) b--;
                 if (b >= 0 && masked[b] == '.') continue;
+                if (b >= 0 && (char.IsLetterOrDigit(masked[b]) || masked[b] == '_'))
+                {
+                    int ws = b;
+                    while (ws >= 0 && (char.IsLetterOrDigit(masked[ws]) || masked[ws] == '_')) ws--;
+                    if (masked.Substring(ws + 1, b - ws) == "new") continue;
+                }
                 int line = LineNumberAt(lineStarts, m.Index);
-                int end = m.Groups[2].Value == "{" ? MatchBlockEnd(masked, lineStarts, m.Index, line) : line;
+                var term = m.Groups[2].Value;
+                // 'where' (generic constraint) has its block after the constraint clause — scan past the match.
+                int end = term == "{" ? MatchBlockEnd(masked, lineStarts, m.Index, line)
+                        : term == "where" ? MatchBlockEnd(masked, lineStarts, m.Index + m.Length, line)
+                        : line;
                 result.Add(new Sym { Kind = "method", Name = name, Line = line, EndLine = end, Signature = LineText(src, lineStarts, line).Trim() });
             }
 
@@ -342,22 +357,27 @@ namespace UnityEditorMCP.Handlers
         private static string ResolveScript(string path)
         {
             if (!path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) return null;
-            string full;
-            if (Path.IsPathRooted(path)) full = path;
-            else
-            {
-                var root = Directory.GetParent(Application.dataPath)?.FullName;
-                if (root == null) return null;
-                full = Path.GetFullPath(Path.Combine(root, path));
-            }
-            return full.Replace("\\", "/");
+            var root = Directory.GetParent(Application.dataPath)?.FullName;
+            if (root == null) return null;
+            var projectRoot = Path.GetFullPath(root).Replace("\\", "/").TrimEnd('/');
+            var full = (Path.IsPathRooted(path)
+                ? Path.GetFullPath(path)
+                : Path.GetFullPath(Path.Combine(root, path))).Replace("\\", "/");
+            // Containment guard: only files inside the project root may be read — blocks absolute paths
+            // outside the project and ".." traversal. Returning null routes callers to an error envelope.
+            if (!(full.Equals(projectRoot, StringComparison.OrdinalIgnoreCase) ||
+                  full.StartsWith(projectRoot + "/", StringComparison.OrdinalIgnoreCase)))
+                return null;
+            return full;
         }
 
         private static string Rel(string full)
         {
             var root = Directory.GetParent(Application.dataPath)?.FullName?.Replace("\\", "/");
             full = full.Replace("\\", "/");
-            return (root != null && full.StartsWith(root)) ? full.Substring(root.Length).TrimStart('/') : full;
+            return (root != null && full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                ? full.Substring(root.Length).TrimStart('/')
+                : full;
         }
 
         private static JObject Err(string error) => new JObject { ["error"] = error };

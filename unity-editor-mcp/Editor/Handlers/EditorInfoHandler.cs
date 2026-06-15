@@ -130,9 +130,15 @@ namespace UnityEditorMCP.Handlers
                     case "productName": PlayerSettings.productName = value.ToString(); break;
                     case "companyName": PlayerSettings.companyName = value.ToString(); break;
                     case "bundleVersion": PlayerSettings.bundleVersion = value.ToString(); break;
-                    case "defaultScreenWidth": PlayerSettings.defaultScreenWidth = value.ToObject<int>(); break;
-                    case "defaultScreenHeight": PlayerSettings.defaultScreenHeight = value.ToObject<int>(); break;
-                    case "runInBackground": PlayerSettings.runInBackground = value.ToObject<bool>(); break;
+                    case "defaultScreenWidth":
+                        if (value.Type != JTokenType.Integer) return Err("defaultScreenWidth must be an integer");
+                        PlayerSettings.defaultScreenWidth = value.ToObject<int>(); break;
+                    case "defaultScreenHeight":
+                        if (value.Type != JTokenType.Integer) return Err("defaultScreenHeight must be an integer");
+                        PlayerSettings.defaultScreenHeight = value.ToObject<int>(); break;
+                    case "runInBackground":
+                        if (value.Type != JTokenType.Boolean) return Err("runInBackground must be a boolean");
+                        PlayerSettings.runInBackground = value.ToObject<bool>(); break;
                     case "colorSpace": PlayerSettings.colorSpace = (ColorSpace)Enum.Parse(typeof(ColorSpace), value.ToString(), true); break;
                     case "scriptingDefineSymbols": PlayerSettings.SetScriptingDefineSymbolsForGroup(group, value.ToString()); break;
                     default:
@@ -149,6 +155,7 @@ namespace UnityEditorMCP.Handlers
             try
             {
                 var action = parameters["action"]?.ToString()?.ToLowerInvariant();
+                if (string.IsNullOrEmpty(action)) return Err("Missing required parameter: action");
                 var packageId = parameters["packageId"]?.ToString();
                 if (string.IsNullOrEmpty(packageId)) return Err("Missing required parameter: packageId");
 
@@ -183,10 +190,21 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
-                // Defer the exit one tick so the success response flushes to the client before the
-                // process dies (an immediate Exit would drop the reply and look like a crash).
-                EditorApplication.delayCall += () => EditorApplication.Exit(0);
-                return new JObject { ["message"] = "Editor quit scheduled." };
+                // Defer the exit several editor ticks so the success response is actually flushed over the
+                // socket before the process dies. One tick is not enough for the async writer; an immediate
+                // Exit drops the reply and looks like a crash to the client.
+                int frames = 0;
+                EditorApplication.CallbackFunction cb = null;
+                cb = () =>
+                {
+                    if (++frames >= 10)
+                    {
+                        EditorApplication.update -= cb;
+                        EditorApplication.Exit(0);
+                    }
+                };
+                EditorApplication.update += cb;
+                return new JObject { ["message"] = "Editor quit scheduled (after response flush)." };
             }
             catch (Exception e) { return Err($"Error quitting editor: {e.Message}"); }
         }
