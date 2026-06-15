@@ -83,18 +83,19 @@ live in `mcp-server/src/core/config.js`.
 ## The tool surface
 
 By default the server exposes a small **generic surface**: `list_unity_instances`,
-`list_unity_tools`, `call_unity_tool`, and `set_active_unity_instance`. The agent
-discovers each editor's real tools (with schemas, learned at runtime) and invokes
-them by name — so one server works with any Unity version and several editors at
-once. Set `UNITY_MCP_TYPED_TOOLS=true` to list the ~66 typed tools individually.
+`list_unity_tools`, and `call_unity_tool`. The agent discovers each editor's real
+tools (with schemas, learned at runtime) and invokes them by name — so one server
+works with any Unity version and several editors at once. Every call names its
+target instance explicitly (required as of v0.5.0 — there is no default). Set
+`UNITY_MCP_TYPED_TOOLS=true` to list the typed tools individually.
 
 ## Verifying the connection
 
 1. Start Unity (the bridge starts automatically) and the MCP server.
 2. From your client, call **`list_unity_instances`** — every running editor shows
-   up with its project, version, port, and which one is the active target.
-3. Call **`call_unity_tool`** with `{ "tool": "ping" }` (or set
-   `UNITY_MCP_TYPED_TOOLS=true` and call `ping` directly) — you should get a `pong`.
+   up with its project, version, and port.
+3. Call **`call_unity_tool`** with `{ "instance": "<project path or port from step 2>", "tool": "ping" }`
+   (every call names its instance — there is no default) — you should get a `pong`.
 
 ## Testing
 

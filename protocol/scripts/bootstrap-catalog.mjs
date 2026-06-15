@@ -64,7 +64,7 @@ const CATEGORY = {
   manage_windows: 'editor', manage_tools: 'editor',
   list_tests: 'test', run_tests: 'test', get_test_results: 'test', cancel_tests: 'test',
   list_unity_instances: 'instances', list_unity_tools: 'instances',
-  call_unity_tool: 'instances', set_active_unity_instance: 'instances',
+  call_unity_tool: 'instances',
 };
 
 // Coarse destructive flags for v1 (per-action granularity is a later refinement).

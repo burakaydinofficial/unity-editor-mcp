@@ -55,6 +55,33 @@ describe('UnityConnectionManager', () => {
     assert.equal(created.length, 1);
   });
 
+  // ADR 0006: no default instance — requireConnection resolves an EXPLICIT ref or throws.
+  it('requireConnection throws a clear error on a missing/empty/whitespace ref', () => {
+    const { mgr } = makeManager();
+    for (const ref of [null, undefined, '', '   ']) {
+      assert.throws(() => mgr.requireConnection(ref), /instance is required/);
+    }
+  });
+
+  it('requireConnection throws "No Unity instance found" on an unresolved project-path ref', () => {
+    const { mgr } = makeManager({ instances: [] });
+    assert.throws(() => mgr.requireConnection('C:/missing'), /No Unity instance found/);
+  });
+
+  it('requireConnection returns the PINNED connection for a port ref (never the active default)', () => {
+    const { mgr } = makeManager();
+    const active = mgr.getActiveConnection();
+    const conn = mgr.requireConnection('7200');
+    assert.equal(conn.opts.port, 7200);
+    assert.notEqual(conn, active);
+  });
+
+  it('requireConnection resolves a project-path ref via the registry to the pinned connection', () => {
+    const { mgr } = makeManager({ instances: [{ projectPath: 'C:/proj/A', port: 7300 }] });
+    const conn = mgr.requireConnection('C:/proj/A');
+    assert.equal(conn.opts.port, 7300);
+  });
+
   it('ensureReady connects, handshakes, and caches the manifest on editorInfo', async () => {
     const { mgr } = makeManager();
     const conn = mgr.getConnection('localhost', 7000);

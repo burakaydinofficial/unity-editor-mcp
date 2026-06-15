@@ -72,8 +72,7 @@ Add to your `claude_desktop_config.json`:
 
 - **`list_unity_instances`** — list the running, discoverable editors (project, version, port, active target); works even when none is connected
 - **`list_unity_tools`** — list the tools a connected editor supports, with schemas learned at runtime
-- **`call_unity_tool`** — invoke any of those tools by name (params validated against the editor's advertised schema before the call), routed to any instance
-- **`set_active_unity_instance`** — choose the default editor for calls that don't name one
+- **`call_unity_tool`** — invoke any of those tools by name (params validated against the editor's advertised schema before the call), routed to the named instance (required as of v0.5.0 — no default)
 
 This is what lets one server drive **any Unity version** and **several editors at once**. To re-advertise the full typed catalog as individual MCP tools instead, set `UNITY_MCP_TYPED_TOOLS=true`.
 

@@ -51,4 +51,7 @@ through `call_unity_tool` (Node-side interception) so the advertised surface sta
 - Keep the floor green each stage (dotnet, clean 2020.3 compile where C# changes).
 
 ## Resume marker
-Not started (ADR 0006 + this plan written, pending user review).
+- [x] **Stage 1 — safety** (commit 1bf6908): `instance` required on call_unity_tool + list_unity_tools (new `manager.requireConnection`, hard error on missing/unresolved); `set_active_unity_instance` deleted; META_TOOL_NAMES→3. Active-connection machinery KEPT (passthroughs still use it; removed in Stage 2). 2-agent review → 1 HIGH (requireConnection had no unit tests — added 4 to unityConnectionManager.test.js) + doc-staleness (set_active removed from README/mcp-server-README/setup-guide; counts + the call_unity_tool example fixed; bootstrap CATEGORY map). test:ci 214, drift 81/79/78. Node-side change → verified by unit tests (the live MCP bridge runs a fixed server, can't reload mid-session).
+- [ ] **Stage 2** — delete the 76 passthroughs + the active connection; route the 3 Node-logic tools (execute_menu_item/create_script/analyze_screenshot) through call_unity_tool; remove UNITY_MCP_TYPED_TOOLS; list_unity_tools returns editor manifest + the 3. **Re-point the drift gate in this stage** (deleting JS handlers breaks catalog↔JS).
+- [ ] **Stage 3** — manifest enrichment (editor advertises result-field hints; list_unity_tools surfaces them).
+- [ ] **Stage 4** — finalize the drift re-point + docs.

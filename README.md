@@ -80,10 +80,11 @@ Add the same configuration to Cursor's MCP settings
 
 ## Available Tools
 
-Unity Editor MCP provides **80 comprehensive tools** across 14 categories for complete Unity Editor automation:
+Unity Editor MCP provides **79 comprehensive tools** across 14 categories for complete Unity Editor automation:
 
 > **Default surface (v0.3.0):** the server advertises a small **generic surface** — `list_unity_instances`,
-> `list_unity_tools`, `call_unity_tool`, and `set_active_unity_instance`. The agent discovers each connected
+> `list_unity_tools`, and `call_unity_tool`. As of v0.5.0 every call names its target editor explicitly (there
+> is no default instance). The agent discovers each connected
 > editor's real tools (with schemas, learned at runtime) via `list_unity_tools`, then invokes them via
 > `call_unity_tool` — so **one server works with any Unity version and several editors at once**, without
 > paying the context cost of ~80 tool definitions up front. To advertise the full typed catalog below as
@@ -97,11 +98,10 @@ Unity Editor MCP provides **80 comprehensive tools** across 14 categories for co
 - **`read_logs`** - Read Unity console logs with filtering by type (Log, Warning, Error, etc.)
 - **`refresh_assets`** - Refresh Unity assets and trigger recompilation
 
-### Instance Management (4 tools)
+### Instance Management (3 tools)
 - **`list_unity_instances`** - List the Unity editors currently running and discoverable (project, version, port, active target); works with no editor connected
 - **`list_unity_tools`** - List the tools a connected editor actually supports, with schemas learned at runtime (the version-agnostic surface)
-- **`call_unity_tool`** - Invoke any tool a connected editor supports by name, validated against its advertised schema; routes to any instance
-- **`set_active_unity_instance`** - Choose the default editor for calls that don't name an instance
+- **`call_unity_tool`** - Invoke any tool a connected editor supports by name, validated against its advertised schema; routes to the named instance (required — no default)
 
 ### GameObject Management (5 tools)
 - **`create_gameobject`** - Create GameObjects with primitives, transforms, tags, and layers
