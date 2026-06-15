@@ -6,6 +6,7 @@ using System.Reflection;
 using UnityEngine;
 using UnityEditor;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -17,7 +18,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Gets detailed information about a specific GameObject
         /// </summary>
-        public static object GetGameObjectDetails(JObject parameters)
+        public static HandlerOutcome GetGameObjectDetails(JObject parameters)
         {
             try
             {
@@ -32,7 +33,7 @@ namespace UnityEditorMCP.Handlers
                 // Validate input
                 if (string.IsNullOrEmpty(gameObjectName) && string.IsNullOrEmpty(path))
                 {
-                    return new { error = "Either gameObjectName or path must be provided" };
+                    return HandlerOutcome.Fail("Either gameObjectName or path must be provided", "VALIDATION_ERROR");
                 }
 
                 // Find the GameObject
@@ -58,7 +59,7 @@ namespace UnityEditorMCP.Handlers
                 if (targetObject == null)
                 {
                     var identifier = !string.IsNullOrEmpty(path) ? path : gameObjectName;
-                    return new { error = $"GameObject not found: {identifier}" };
+                    return HandlerOutcome.Fail($"GameObject not found: {identifier}", "NOT_FOUND");
                 }
 
                 // Build the result
@@ -146,11 +147,11 @@ namespace UnityEditorMCP.Handlers
                 summary += $" at {result["path"]}";
                 result["summary"] = summary;
 
-                return result;
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to get GameObject details: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to get GameObject details: {ex.Message}");
             }
         }
 
@@ -413,7 +414,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Analyzes the current scene and returns statistics
         /// </summary>
-        public static object AnalyzeSceneContents(JObject parameters)
+        public static HandlerOutcome AnalyzeSceneContents(JObject parameters)
         {
             try
             {
@@ -427,7 +428,7 @@ namespace UnityEditorMCP.Handlers
                 var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
                 if (!scene.IsValid())
                 {
-                    return new { error = "No active scene loaded" };
+                    return HandlerOutcome.Fail("No active scene loaded", "INVALID_STATE");
                 }
 
                 var result = new Dictionary<string, object>();
@@ -609,18 +610,18 @@ namespace UnityEditorMCP.Handlers
 
                 result["summary"] = summary;
 
-                return result;
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to analyze scene: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to analyze scene: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Gets all property values of a specific component
         /// </summary>
-        public static object GetComponentValues(JObject parameters)
+        public static HandlerOutcome GetComponentValues(JObject parameters)
         {
             try
             {
@@ -634,17 +635,17 @@ namespace UnityEditorMCP.Handlers
                 // Validate input
                 if (string.IsNullOrEmpty(gameObjectName))
                 {
-                    return new { error = "gameObjectName is required" };
+                    return HandlerOutcome.Fail("gameObjectName is required", "VALIDATION_ERROR");
                 }
 
                 if (string.IsNullOrEmpty(componentType))
                 {
-                    return new { error = "componentType is required" };
+                    return HandlerOutcome.Fail("componentType is required", "VALIDATION_ERROR");
                 }
 
                 if (componentIndex < 0)
                 {
-                    return new { error = "componentIndex must be non-negative" };
+                    return HandlerOutcome.Fail("componentIndex must be non-negative", "VALIDATION_ERROR");
                 }
 
                 // Find the GameObject
@@ -658,7 +659,7 @@ namespace UnityEditorMCP.Handlers
 
                 if (targetObject == null)
                 {
-                    return new { error = $"GameObject not found: {gameObjectName}" };
+                    return HandlerOutcome.Fail($"GameObject not found: {gameObjectName}", "NOT_FOUND");
                 }
 
                 // Find the component
@@ -677,12 +678,12 @@ namespace UnityEditorMCP.Handlers
 
                 if (matchingComponents.Count == 0)
                 {
-                    return new { error = $"Component not found: {componentType} on GameObject \"{gameObjectName}\"" };
+                    return HandlerOutcome.Fail($"Component not found: {componentType} on GameObject \"{gameObjectName}\"", "NOT_FOUND");
                 }
 
                 if (componentIndex >= matchingComponents.Count)
                 {
-                    return new { error = $"Component index {componentIndex} out of range. GameObject has {matchingComponents.Count} {componentType} component(s)" };
+                    return HandlerOutcome.Fail($"Component index {componentIndex} out of range. GameObject has {matchingComponents.Count} {componentType} component(s)", "VALIDATION_ERROR");
                 }
 
                 targetComponent = matchingComponents[componentIndex];
@@ -793,11 +794,11 @@ namespace UnityEditorMCP.Handlers
                 summary += $" - {propertyCount} propert{(propertyCount != 1 ? "ies" : "y")}";
                 result["summary"] = summary;
 
-                return result;
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to get component values: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to get component values: {ex.Message}");
             }
         }
 
@@ -909,7 +910,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Finds all GameObjects that have a specific component type
         /// </summary>
-        public static object FindByComponent(JObject parameters)
+        public static HandlerOutcome FindByComponent(JObject parameters)
         {
             try
             {
@@ -922,25 +923,25 @@ namespace UnityEditorMCP.Handlers
                 // Validate input
                 if (string.IsNullOrEmpty(componentType))
                 {
-                    return new { error = "componentType is required" };
+                    return HandlerOutcome.Fail("componentType is required", "VALIDATION_ERROR");
                 }
 
                 // Validate searchScope
                 if (searchScope != "scene" && searchScope != "prefabs" && searchScope != "all")
                 {
-                    return new { error = "Invalid searchScope. Must be one of: scene, prefabs, all" };
+                    return HandlerOutcome.Fail("Invalid searchScope. Must be one of: scene, prefabs, all", "VALIDATION_ERROR");
                 }
 
                 // Get the component type
                 var targetType = GetTypeByName(componentType);
                 if (targetType == null)
                 {
-                    return new { error = $"Invalid component type: {componentType}" };
+                    return HandlerOutcome.Fail($"Invalid component type: {componentType}", "NOT_FOUND");
                 }
 
                 if (!typeof(Component).IsAssignableFrom(targetType))
                 {
-                    return new { error = $"{componentType} is not a Component type" };
+                    return HandlerOutcome.Fail($"{componentType} is not a Component type", "VALIDATION_ERROR");
                 }
 
                 var results = new List<Dictionary<string, object>>();
@@ -1086,11 +1087,11 @@ namespace UnityEditorMCP.Handlers
 
                 finalResult["summary"] = summary;
 
-                return finalResult;
+                return HandlerOutcome.Ok(finalResult);
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to find GameObjects by component: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to find GameObjects by component: {ex.Message}");
             }
         }
 
@@ -1124,7 +1125,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Finds all references to and from a GameObject
         /// </summary>
-        public static object GetObjectReferences(JObject parameters)
+        public static HandlerOutcome GetObjectReferences(JObject parameters)
         {
             try
             {
@@ -1137,7 +1138,7 @@ namespace UnityEditorMCP.Handlers
                 // Validate input
                 if (string.IsNullOrEmpty(gameObjectName))
                 {
-                    return new { error = "gameObjectName is required" };
+                    return HandlerOutcome.Fail("gameObjectName is required", "VALIDATION_ERROR");
                 }
 
                 // Find the target GameObject
@@ -1172,7 +1173,7 @@ namespace UnityEditorMCP.Handlers
 
                 if (targetObject == null)
                 {
-                    return new { error = $"GameObject not found: {gameObjectName}" };
+                    return HandlerOutcome.Fail($"GameObject not found: {gameObjectName}", "NOT_FOUND");
                 }
 
                 if (!isPrefab)
@@ -1464,11 +1465,11 @@ namespace UnityEditorMCP.Handlers
                 
                 result["summary"] = summary;
 
-                return result;
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to get object references: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to get object references: {ex.Message}");
             }
         }
 

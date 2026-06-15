@@ -17,7 +17,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Adds a component to a GameObject
         /// </summary>
-        public static object AddComponent(JObject parameters)
+        public static HandlerOutcome AddComponent(JObject parameters)
         {
             try
             {
@@ -29,39 +29,39 @@ namespace UnityEditorMCP.Handlers
                 // Validate parameters
                 if (string.IsNullOrEmpty(gameObjectPath))
                 {
-                    return new { error = "gameObjectPath is required" };
+                    return HandlerOutcome.Fail("gameObjectPath is required", "VALIDATION_ERROR");
                 }
 
                 if (string.IsNullOrEmpty(componentType))
                 {
-                    return new { error = "componentType is required" };
+                    return HandlerOutcome.Fail("componentType is required", "VALIDATION_ERROR");
                 }
 
                 // Find GameObject
                 GameObject targetObject = GameObject.Find(gameObjectPath);
                 if (targetObject == null)
                 {
-                    return new { error = $"GameObject not found: {gameObjectPath}" };
+                    return HandlerOutcome.Fail($"GameObject not found: {gameObjectPath}", "NOT_FOUND");
                 }
 
                 // Resolve component type
                 Type type = ResolveComponentType(componentType);
                 if (type == null)
                 {
-                    return new { error = $"Component type not found: {componentType}" };
+                    return HandlerOutcome.Fail($"Component type not found: {componentType}", "NOT_FOUND");
                 }
 
                 // Check if component already exists (for unique components)
                 if (targetObject.GetComponent(type) != null && IsUniqueComponent(type))
                 {
-                    return new { error = $"GameObject already has component: {componentType}" };
+                    return HandlerOutcome.Fail($"GameObject already has component: {componentType}", "INVALID_STATE");
                 }
 
                 // Add the component
                 Component newComponent = targetObject.AddComponent(type);
                 if (newComponent == null)
                 {
-                    return new { error = $"Failed to add component: {componentType}" };
+                    return HandlerOutcome.Fail($"Failed to add component: {componentType}", "INVALID_STATE");
                 }
 
                 // Register the creation undo immediately after creating the component (idiomatic order),
@@ -82,26 +82,26 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     componentType = type.Name,
                     gameObjectPath = gameObjectPath,
                     message = $"Component {type.Name} added successfully",
                     appliedProperties = appliedProperties.ToArray()
-                };
+                });
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[ComponentHandler] Error in AddComponent: {ex.Message}");
-                return new { error = $"Failed to add component: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to add component: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Removes a component from a GameObject
         /// </summary>
-        public static object RemoveComponent(JObject parameters)
+        public static HandlerOutcome RemoveComponent(JObject parameters)
         {
             try
             {
@@ -113,77 +113,77 @@ namespace UnityEditorMCP.Handlers
                 // Validate parameters
                 if (string.IsNullOrEmpty(gameObjectPath))
                 {
-                    return new { error = "gameObjectPath is required" };
+                    return HandlerOutcome.Fail("gameObjectPath is required", "VALIDATION_ERROR");
                 }
 
                 if (string.IsNullOrEmpty(componentType))
                 {
-                    return new { error = "componentType is required" };
+                    return HandlerOutcome.Fail("componentType is required", "VALIDATION_ERROR");
                 }
 
                 // Find GameObject
                 GameObject targetObject = GameObject.Find(gameObjectPath);
                 if (targetObject == null)
                 {
-                    return new { error = $"GameObject not found: {gameObjectPath}" };
+                    return HandlerOutcome.Fail($"GameObject not found: {gameObjectPath}", "NOT_FOUND");
                 }
 
                 // Resolve component type
                 Type type = ResolveComponentType(componentType);
                 if (type == null)
                 {
-                    return new { error = $"Component type not found: {componentType}" };
+                    return HandlerOutcome.Fail($"Component type not found: {componentType}", "NOT_FOUND");
                 }
 
                 // Special handling for Transform
                 if (type == typeof(Transform))
                 {
-                    return new { error = "Cannot remove Transform component" };
+                    return HandlerOutcome.Fail("Cannot remove Transform component", "INVALID_STATE");
                 }
 
                 // Get all components of the type
                 Component[] components = targetObject.GetComponents(type);
                 if (components.Length == 0)
                 {
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         success = true,
                         removed = false,
                         componentType = type.Name,
                         message = $"Component {type.Name} not found on GameObject"
-                    };
+                    });
                 }
 
                 // Check component index
                 if (componentIndex >= components.Length)
                 {
-                    return new { error = $"Component index {componentIndex} out of range (found {components.Length} components)" };
+                    return HandlerOutcome.Fail($"Component index {componentIndex} out of range (found {components.Length} components)", "VALIDATION_ERROR");
                 }
 
                 // Remove the component
                 Component componentToRemove = components[componentIndex];
                 Undo.DestroyObjectImmediate(componentToRemove);
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     removed = true,
                     componentType = type.Name,
                     componentIndex = componentIndex,
                     message = $"Component {type.Name}[{componentIndex}] removed successfully"
-                };
+                });
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[ComponentHandler] Error in RemoveComponent: {ex.Message}");
-                return new { error = $"Failed to remove component: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to remove component: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Modifies properties of an existing component
         /// </summary>
-        public static object ModifyComponent(JObject parameters)
+        public static HandlerOutcome ModifyComponent(JObject parameters)
         {
             try
             {
@@ -196,43 +196,43 @@ namespace UnityEditorMCP.Handlers
                 // Validate parameters
                 if (string.IsNullOrEmpty(gameObjectPath))
                 {
-                    return new { error = "gameObjectPath is required" };
+                    return HandlerOutcome.Fail("gameObjectPath is required", "VALIDATION_ERROR");
                 }
 
                 if (string.IsNullOrEmpty(componentType))
                 {
-                    return new { error = "componentType is required" };
+                    return HandlerOutcome.Fail("componentType is required", "VALIDATION_ERROR");
                 }
 
                 if (properties == null || !properties.HasValues)
                 {
-                    return new { error = "properties is required and cannot be empty" };
+                    return HandlerOutcome.Fail("properties is required and cannot be empty", "VALIDATION_ERROR");
                 }
 
                 // Find GameObject
                 GameObject targetObject = GameObject.Find(gameObjectPath);
                 if (targetObject == null)
                 {
-                    return new { error = $"GameObject not found: {gameObjectPath}" };
+                    return HandlerOutcome.Fail($"GameObject not found: {gameObjectPath}", "NOT_FOUND");
                 }
 
                 // Resolve component type
                 Type type = ResolveComponentType(componentType);
                 if (type == null)
                 {
-                    return new { error = $"Component type not found: {componentType}" };
+                    return HandlerOutcome.Fail($"Component type not found: {componentType}", "NOT_FOUND");
                 }
 
                 // Get component
                 Component[] components = targetObject.GetComponents(type);
                 if (components.Length == 0)
                 {
-                    return new { error = $"Component {type.Name} not found on GameObject" };
+                    return HandlerOutcome.Fail($"Component {type.Name} not found on GameObject", "NOT_FOUND");
                 }
 
                 if (componentIndex >= components.Length)
                 {
-                    return new { error = $"Component index {componentIndex} out of range" };
+                    return HandlerOutcome.Fail($"Component index {componentIndex} out of range", "VALIDATION_ERROR");
                 }
 
                 Component component = components[componentIndex];
@@ -253,7 +253,7 @@ namespace UnityEditorMCP.Handlers
                         // Try to provide helpful error for first failed property
                         if (modifiedProperties.Count == 0)
                         {
-                            return new { error = $"Property not found or invalid: {prop.Name}" };
+                            return HandlerOutcome.Fail($"Property not found or invalid: {prop.Name}", "VALIDATION_ERROR");
                         }
                     }
                 }
@@ -261,26 +261,26 @@ namespace UnityEditorMCP.Handlers
                 // Mark as dirty for saving
                 EditorUtility.SetDirty(component);
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     componentType = type.Name,
                     componentIndex = componentIndex,
                     modifiedProperties = modifiedProperties.ToArray(),
                     message = $"Component {type.Name} properties updated"
-                };
+                });
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[ComponentHandler] Error in ModifyComponent: {ex.Message}");
-                return new { error = $"Failed to modify component: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to modify component: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Lists all components on a GameObject
         /// </summary>
-        public static object ListComponents(JObject parameters)
+        public static HandlerOutcome ListComponents(JObject parameters)
         {
             try
             {
@@ -291,14 +291,14 @@ namespace UnityEditorMCP.Handlers
                 // Validate parameters
                 if (string.IsNullOrEmpty(gameObjectPath))
                 {
-                    return new { error = "gameObjectPath is required" };
+                    return HandlerOutcome.Fail("gameObjectPath is required", "VALIDATION_ERROR");
                 }
 
                 // Find GameObject
                 GameObject targetObject = GameObject.Find(gameObjectPath);
                 if (targetObject == null)
                 {
-                    return new { error = $"GameObject not found: {gameObjectPath}" };
+                    return HandlerOutcome.Fail($"GameObject not found: {gameObjectPath}", "NOT_FOUND");
                 }
 
                 // Get all components
@@ -328,19 +328,19 @@ namespace UnityEditorMCP.Handlers
                     componentList.Add(componentInfo);
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     gameObjectPath = gameObjectPath,
                     components = componentList,
                     componentCount = componentList.Count,
                     message = $"Found {componentList.Count} components"
-                };
+                });
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[ComponentHandler] Error in ListComponents: {ex.Message}");
-                return new { error = $"Failed to list components: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to list components: {ex.Message}");
             }
         }
 

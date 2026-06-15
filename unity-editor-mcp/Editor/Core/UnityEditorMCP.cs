@@ -70,6 +70,44 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("set_project_setting", EditorInfoHandler.SetProjectSetting);
             dispatcher.Register("manage_packages", EditorInfoHandler.ManagePackages);
             dispatcher.Register("quit_editor", EditorInfoHandler.QuitEditor);
+            // Batch A (single-method handlers). Their now-dead legacy switch cases are removed wholesale
+            // at the capstone (the rail wins via IsRegistered, so the cases are unreachable meanwhile).
+            dispatcher.Register("create_gameobject", GameObjectHandler.CreateGameObject);
+            dispatcher.Register("find_gameobject", GameObjectHandler.FindGameObjects);
+            dispatcher.Register("modify_gameobject", GameObjectHandler.ModifyGameObject);
+            dispatcher.Register("delete_gameobject", GameObjectHandler.DeleteGameObject);
+            dispatcher.Register("get_hierarchy", GameObjectHandler.GetHierarchy);
+            dispatcher.Register("create_scene", SceneHandler.CreateScene);
+            dispatcher.Register("load_scene", SceneHandler.LoadScene);
+            dispatcher.Register("save_scene", SceneHandler.SaveScene);
+            dispatcher.Register("list_scenes", SceneHandler.ListScenes);
+            dispatcher.Register("get_scene_info", SceneHandler.GetSceneInfo);
+            dispatcher.Register("get_gameobject_details", SceneAnalysisHandler.GetGameObjectDetails);
+            dispatcher.Register("analyze_scene_contents", SceneAnalysisHandler.AnalyzeSceneContents);
+            dispatcher.Register("get_component_values", SceneAnalysisHandler.GetComponentValues);
+            dispatcher.Register("find_by_component", SceneAnalysisHandler.FindByComponent);
+            dispatcher.Register("get_object_references", SceneAnalysisHandler.GetObjectReferences);
+            dispatcher.Register("get_symbols", CodeIntelligenceHandler.GetSymbols);
+            dispatcher.Register("find_symbol", CodeIntelligenceHandler.FindSymbol);
+            dispatcher.Register("find_references", CodeIntelligenceHandler.FindReferences);
+            dispatcher.Register("get_symbol_body", CodeIntelligenceHandler.GetSymbolBody);
+            dispatcher.Register("find_ui_elements", UIInteractionHandler.FindUIElements);
+            dispatcher.Register("click_ui_element", UIInteractionHandler.ClickUIElement);
+            dispatcher.Register("get_ui_element_state", UIInteractionHandler.GetUIElementState);
+            dispatcher.Register("set_ui_element_value", UIInteractionHandler.SetUIElementValue);
+            dispatcher.Register("simulate_ui_input", UIInteractionHandler.SimulateUIInput);
+            dispatcher.Register("add_component", ComponentHandler.AddComponent);
+            dispatcher.Register("remove_component", ComponentHandler.RemoveComponent);
+            dispatcher.Register("modify_component", ComponentHandler.ModifyComponent);
+            dispatcher.Register("list_components", ComponentHandler.ListComponents);
+            dispatcher.Register("start_compilation_monitoring", CompilationHandler.StartCompilationMonitoring);
+            dispatcher.Register("stop_compilation_monitoring", CompilationHandler.StopCompilationMonitoring);
+            dispatcher.Register("get_compilation_state", CompilationHandler.GetCompilationState);
+            dispatcher.Register("capture_screenshot", ScreenshotHandler.CaptureScreenshot);
+            dispatcher.Register("analyze_screenshot", ScreenshotHandler.AnalyzeScreenshot);
+            dispatcher.Register("execute_menu_item", MenuHandler.ExecuteMenuItem);
+            dispatcher.Register("clear_console", ConsoleHandler.ClearConsole);
+            dispatcher.Register("enhanced_read_logs", ConsoleHandler.EnhancedReadLogs);
             return dispatcher;
         }
 

@@ -3,6 +3,7 @@ using System.IO;
 using UnityEngine;
 using UnityEditor;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -14,7 +15,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Captures a screenshot from the Unity Editor
         /// </summary>
-        public static object CaptureScreenshot(JObject parameters)
+        public static HandlerOutcome CaptureScreenshot(JObject parameters)
         {
             try
             {
@@ -30,7 +31,7 @@ namespace UnityEditorMCP.Handlers
                 // Validate capture mode
                 if (!IsValidCaptureMode(captureMode))
                 {
-                    return new { error = "Invalid capture mode. Must be 'game', 'scene', or 'window'" };
+                    return HandlerOutcome.Fail("Invalid capture mode. Must be 'game', 'scene', or 'window'", "VALIDATION_ERROR");
                 }
                 
                 // Generate output path if not provided
@@ -49,7 +50,7 @@ namespace UnityEditorMCP.Handlers
                 }
                 
                 // Capture based on mode
-                object result = null;
+                HandlerOutcome result = null;
                 switch (captureMode)
                 {
                     case "game":
@@ -62,20 +63,20 @@ namespace UnityEditorMCP.Handlers
                         result = CaptureEditorWindow(outputPath, windowName, encodeAsBase64);
                         break;
                 }
-                
+
                 return result;
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[ScreenshotHandler] Error capturing screenshot: {ex.Message}");
-                return new { error = $"Failed to capture screenshot: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to capture screenshot: {ex.Message}");
             }
         }
         
         /// <summary>
         /// Captures the Game View
         /// </summary>
-        private static object CaptureGameView(string outputPath, int width, int height, bool includeUI, bool encodeAsBase64)
+        private static HandlerOutcome CaptureGameView(string outputPath, int width, int height, bool includeUI, bool encodeAsBase64)
         {
             try
             {
@@ -85,7 +86,7 @@ namespace UnityEditorMCP.Handlers
                 
                 if (gameView == null)
                 {
-                    return new { error = "Game View not found. Please open the Game View window." };
+                    return HandlerOutcome.Fail("Game View not found. Please open the Game View window.", "NOT_FOUND");
                 }
                 
                 // Focus the Game View
@@ -128,7 +129,7 @@ namespace UnityEditorMCP.Handlers
                     // Add base64 if requested
                     if (encodeAsBase64)
                     {
-                        return new
+                        return HandlerOutcome.Ok(new
                         {
                             result.success,
                             result.path,
@@ -139,10 +140,10 @@ namespace UnityEditorMCP.Handlers
                             result.fileSize,
                             result.message,
                             base64Data = Convert.ToBase64String(imageBytes)
-                        };
+                        });
                     }
 
-                    return result;
+                    return HandlerOutcome.Ok(result);
                 }
                 finally
                 {
@@ -151,14 +152,14 @@ namespace UnityEditorMCP.Handlers
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to capture Game View: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to capture Game View: {ex.Message}");
             }
         }
         
         /// <summary>
         /// Captures the Scene View
         /// </summary>
-        private static object CaptureSceneView(string outputPath, int width, int height, bool encodeAsBase64)
+        private static HandlerOutcome CaptureSceneView(string outputPath, int width, int height, bool encodeAsBase64)
         {
             try
             {
@@ -166,7 +167,7 @@ namespace UnityEditorMCP.Handlers
                 SceneView sceneView = SceneView.lastActiveSceneView;
                 if (sceneView == null)
                 {
-                    return new { error = "Scene View not found. Please open a Scene View window." };
+                    return HandlerOutcome.Fail("Scene View not found. Please open a Scene View window.", "NOT_FOUND");
                 }
                 
                 // Focus the Scene View
@@ -176,7 +177,7 @@ namespace UnityEditorMCP.Handlers
                 Camera sceneCamera = sceneView.camera;
                 if (sceneCamera == null)
                 {
-                    return new { error = "Scene View camera not available" };
+                    return HandlerOutcome.Fail("Scene View camera not available", "NOT_FOUND");
                 }
                 
                 // Determine capture resolution
@@ -225,7 +226,7 @@ namespace UnityEditorMCP.Handlers
                 // Add base64 if requested
                 if (encodeAsBase64)
                 {
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         result.success,
                         result.path,
@@ -237,27 +238,27 @@ namespace UnityEditorMCP.Handlers
                         result.cameraRotation,
                         result.message,
                         base64Data = Convert.ToBase64String(imageBytes)
-                    };
+                    });
                 }
-                
-                return result;
+
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to capture Scene View: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to capture Scene View: {ex.Message}");
             }
         }
         
         /// <summary>
         /// Captures a specific Editor Window
         /// </summary>
-        private static object CaptureEditorWindow(string outputPath, string windowName, bool encodeAsBase64)
+        private static HandlerOutcome CaptureEditorWindow(string outputPath, string windowName, bool encodeAsBase64)
         {
             try
             {
                 if (string.IsNullOrEmpty(windowName))
                 {
-                    return new { error = "windowName is required for window capture mode" };
+                    return HandlerOutcome.Fail("windowName is required for window capture mode", "VALIDATION_ERROR");
                 }
                 
                 // Find the window
@@ -276,7 +277,7 @@ namespace UnityEditorMCP.Handlers
                 
                 if (targetWindow == null)
                 {
-                    return new { error = $"Window '{windowName}' not found" };
+                    return HandlerOutcome.Fail($"Window '{windowName}' not found", "NOT_FOUND");
                 }
                 
                 // Focus the window
@@ -288,23 +289,19 @@ namespace UnityEditorMCP.Handlers
                 
                 // Note: Direct window capture is limited in Unity Editor
                 // This is a placeholder for the approach
-                return new
-                {
-                    success = false,
-                    error = "Direct window capture is not fully supported. Use 'game' or 'scene' mode instead.",
-                    note = "Window capture requires platform-specific implementation"
-                };
+                return HandlerOutcome.Fail("Direct window capture is not fully supported. Use 'game' or 'scene' mode instead.", "INVALID_STATE",
+                    details: new { note = "Window capture requires platform-specific implementation" });
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to capture window: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to capture window: {ex.Message}");
             }
         }
         
         /// <summary>
         /// Analyzes a screenshot for content
         /// </summary>
-        public static object AnalyzeScreenshot(JObject parameters)
+        public static HandlerOutcome AnalyzeScreenshot(JObject parameters)
         {
             try
             {
@@ -313,12 +310,12 @@ namespace UnityEditorMCP.Handlers
                 
                 if (string.IsNullOrEmpty(imagePath))
                 {
-                    return new { error = "imagePath is required" };
+                    return HandlerOutcome.Fail("imagePath is required", "VALIDATION_ERROR");
                 }
-                
+
                 if (!File.Exists(imagePath))
                 {
-                    return new { error = $"Image file not found: {imagePath}" };
+                    return HandlerOutcome.Fail($"Image file not found: {imagePath}", "NOT_FOUND");
                 }
                 
                 // Load the image
@@ -347,8 +344,8 @@ namespace UnityEditorMCP.Handlers
                     var uiAnalysis = AnalyzeUIElements(texture);
                     
                     UnityEngine.Object.DestroyImmediate(texture);
-                    
-                    return new
+
+                    return HandlerOutcome.Ok(new
                     {
                         analysis.success,
                         analysis.imagePath,
@@ -360,15 +357,15 @@ namespace UnityEditorMCP.Handlers
                         dominantColors = dominantColors,
                         uiElements = uiAnalysis,
                         message = "Screenshot analyzed successfully"
-                    };
+                    });
                 }
-                
+
                 UnityEngine.Object.DestroyImmediate(texture);
-                return analysis;
+                return HandlerOutcome.Ok(analysis);
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to analyze screenshot: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to analyze screenshot: {ex.Message}");
             }
         }
         

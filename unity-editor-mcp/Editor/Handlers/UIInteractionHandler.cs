@@ -7,6 +7,7 @@ using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using UnityEditor;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -18,7 +19,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Finds UI elements based on various filters
         /// </summary>
-        public static object FindUIElements(JObject parameters)
+        public static HandlerOutcome FindUIElements(JObject parameters)
         {
             try
             {
@@ -30,8 +31,8 @@ namespace UnityEditorMCP.Handlers
                 string canvasFilter = parameters["canvasFilter"]?.ToString();
 
                 // Find all canvases in the scene
-                Canvas[] allCanvases = includeInactive 
-                    ? Resources.FindObjectsOfTypeAll<Canvas>() 
+                Canvas[] allCanvases = includeInactive
+                    ? Resources.FindObjectsOfTypeAll<Canvas>()
                     : UnityEngine.Object.FindObjectsOfType<Canvas>();
 
                 List<object> elements = new List<object>();
@@ -77,54 +78,54 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     elements = elements,
                     count = elements.Count
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[UIInteractionHandler] Error in FindUIElements: {e.Message}");
-                return new { error = $"Failed to find UI elements: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to find UI elements: {e.Message}");
             }
         }
 
         /// <summary>
         /// Clicks on a UI element
         /// </summary>
-        public static object ClickUIElement(JObject parameters)
+        public static HandlerOutcome ClickUIElement(JObject parameters)
         {
             try
             {
                 string elementPath = parameters["elementPath"]?.ToString();
                 string clickType = parameters["clickType"]?.ToString() ?? "left";
                 float holdDuration = parameters["holdDuration"]?.ToObject<float>() ?? 0f;
-                
+
                 if (string.IsNullOrEmpty(elementPath))
                 {
-                    return new { error = "elementPath is required" };
+                    return HandlerOutcome.Fail("elementPath is required", "VALIDATION_ERROR");
                 }
 
                 // Find the GameObject
                 GameObject targetObject = GameObject.Find(elementPath);
                 if (targetObject == null)
                 {
-                    return new { error = $"UI element not found at path: {elementPath}" };
+                    return HandlerOutcome.Fail($"UI element not found at path: {elementPath}", "NOT_FOUND");
                 }
 
                 // Check if it's a UI element
                 var uiComponent = targetObject.GetComponent<Graphic>();
                 if (uiComponent == null)
                 {
-                    return new { error = $"GameObject at {elementPath} is not a UI element" };
+                    return HandlerOutcome.Fail($"GameObject at {elementPath} is not a UI element", "INVALID_STATE");
                 }
 
                 // Check if interactable
                 var selectable = targetObject.GetComponent<Selectable>();
                 if (selectable != null && !selectable.interactable)
                 {
-                    return new { error = $"UI element at {elementPath} is not interactable" };
+                    return HandlerOutcome.Fail($"UI element at {elementPath} is not interactable", "INVALID_STATE");
                 }
 
                 // Simulate click based on component type
@@ -132,28 +133,28 @@ namespace UnityEditorMCP.Handlers
 
                 if (!success)
                 {
-                    return new { error = "Failed to simulate click on UI element" };
+                    return HandlerOutcome.Fail("Failed to simulate click on UI element");
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     elementPath = elementPath,
                     clickType = clickType,
                     message = $"Successfully clicked {targetObject.name}"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[UIInteractionHandler] Error in ClickUIElement: {e.Message}");
-                return new { error = $"Failed to click UI element: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to click UI element: {e.Message}");
             }
         }
 
         /// <summary>
         /// Gets the state of a UI element
         /// </summary>
-        public static object GetUIElementState(JObject parameters)
+        public static HandlerOutcome GetUIElementState(JObject parameters)
         {
             try
             {
@@ -163,29 +164,29 @@ namespace UnityEditorMCP.Handlers
 
                 if (string.IsNullOrEmpty(elementPath))
                 {
-                    return new { error = "elementPath is required" };
+                    return HandlerOutcome.Fail("elementPath is required", "VALIDATION_ERROR");
                 }
 
                 GameObject targetObject = GameObject.Find(elementPath);
                 if (targetObject == null)
                 {
-                    return new { error = $"UI element not found at path: {elementPath}" };
+                    return HandlerOutcome.Fail($"UI element not found at path: {elementPath}", "NOT_FOUND");
                 }
 
                 var state = GetElementState(targetObject, includeChildren, includeInteractableInfo);
-                return state;
+                return HandlerOutcome.Ok(state);
             }
             catch (Exception e)
             {
                 Debug.LogError($"[UIInteractionHandler] Error in GetUIElementState: {e.Message}");
-                return new { error = $"Failed to get UI element state: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get UI element state: {e.Message}");
             }
         }
 
         /// <summary>
         /// Sets the value of a UI element
         /// </summary>
-        public static object SetUIElementValue(JObject parameters)
+        public static HandlerOutcome SetUIElementValue(JObject parameters)
         {
             try
             {
@@ -195,45 +196,45 @@ namespace UnityEditorMCP.Handlers
 
                 if (string.IsNullOrEmpty(elementPath))
                 {
-                    return new { error = "elementPath is required" };
+                    return HandlerOutcome.Fail("elementPath is required", "VALIDATION_ERROR");
                 }
 
                 if (value == null)
                 {
-                    return new { error = "value is required" };
+                    return HandlerOutcome.Fail("value is required", "VALIDATION_ERROR");
                 }
 
                 GameObject targetObject = GameObject.Find(elementPath);
                 if (targetObject == null)
                 {
-                    return new { error = $"UI element not found at path: {elementPath}" };
+                    return HandlerOutcome.Fail($"UI element not found at path: {elementPath}", "NOT_FOUND");
                 }
 
                 bool success = SetElementValue(targetObject, value, triggerEvents);
                 if (!success)
                 {
-                    return new { error = "Failed to set UI element value - unsupported element type" };
+                    return HandlerOutcome.Fail("Failed to set UI element value - unsupported element type", "INVALID_STATE");
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     elementPath = elementPath,
                     newValue = value.ToString(),
                     message = $"Successfully set value for {targetObject.name}"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[UIInteractionHandler] Error in SetUIElementValue: {e.Message}");
-                return new { error = $"Failed to set UI element value: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to set UI element value: {e.Message}");
             }
         }
 
         /// <summary>
         /// Simulates a complex UI input sequence
         /// </summary>
-        public static object SimulateUIInput(JObject parameters)
+        public static HandlerOutcome SimulateUIInput(JObject parameters)
         {
             try
             {
@@ -243,11 +244,11 @@ namespace UnityEditorMCP.Handlers
 
                 if (inputSequence == null || inputSequence.Count == 0)
                 {
-                    return new { error = "inputSequence is required and must not be empty" };
+                    return HandlerOutcome.Fail("inputSequence is required and must not be empty", "VALIDATION_ERROR");
                 }
 
                 List<object> results = new List<object>();
-                
+
                 foreach (JObject action in inputSequence)
                 {
                     string actionType = action["type"]?.ToString();
@@ -264,10 +265,10 @@ namespace UnityEditorMCP.Handlers
                     switch (actionType.ToLower())
                     {
                         case "click":
-                            result = ClickUIElement(actionParams);
+                            result = Flatten(ClickUIElement(actionParams));
                             break;
                         case "setvalue":
-                            result = SetUIElementValue(actionParams);
+                            result = Flatten(SetUIElementValue(actionParams));
                             break;
                         default:
                             result = new { error = $"Unknown action type: {actionType}" };
@@ -285,19 +286,25 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     results = results,
                     totalActions = inputSequence.Count
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[UIInteractionHandler] Error in SimulateUIInput: {e.Message}");
-                return new { error = $"Failed to simulate UI input: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to simulate UI input: {e.Message}");
             }
         }
+
+        // SimulateUIInput aggregates per-action results into one payload, so the inner click/setvalue
+        // calls must contribute their flat result shape — not a nested HandlerOutcome. Ok → the original
+        // payload object; Fail → { error, code }.
+        private static object Flatten(HandlerOutcome outcome) =>
+            outcome.IsError ? (object)new { error = outcome.Error } : outcome.Payload;
 
         #region Helper Methods
 

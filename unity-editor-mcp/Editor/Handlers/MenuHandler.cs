@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -49,7 +50,7 @@ namespace UnityEditorMCP.Handlers
         /// </summary>
         /// <param name="parameters">Command parameters</param>
         /// <returns>Execution result</returns>
-        public static object ExecuteMenuItem(JObject parameters)
+        public static HandlerOutcome ExecuteMenuItem(JObject parameters)
         {
             try
             {
@@ -63,11 +64,7 @@ namespace UnityEditorMCP.Handlers
                 // Validate menu path
                 if (string.IsNullOrWhiteSpace(menuPath))
                 {
-                    return new
-                    {
-                        success = false,
-                        error = "menuPath is required"
-                    };
+                    return HandlerOutcome.Fail("menuPath is required", "VALIDATION_ERROR");
                 }
 
                 // Handle different actions
@@ -75,44 +72,32 @@ namespace UnityEditorMCP.Handlers
                 {
                     case "execute":
                         return ExecuteMenuAction(menuPath, alias, safetyCheck, menuParameters);
-                    
+
                     case "get_available_menus":
                         return GetAvailableMenus(menuParameters);
-                    
+
                     default:
-                        return new
-                        {
-                            success = false,
-                            error = $"Unknown action: {action}. Valid actions are 'execute', 'get_available_menus'"
-                        };
+                        return HandlerOutcome.Fail($"Unknown action: {action}. Valid actions are 'execute', 'get_available_menus'", "VALIDATION_ERROR");
                 }
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[MenuHandler] Error executing menu operation: {ex}");
-                return new
-                {
-                    success = false,
-                    error = $"Menu operation failed: {ex.Message}"
-                };
+                return HandlerOutcome.Fail($"Menu operation failed: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Executes a specific menu item
         /// </summary>
-        private static object ExecuteMenuAction(string menuPath, string alias, bool safetyCheck, JObject parameters)
+        private static HandlerOutcome ExecuteMenuAction(string menuPath, string alias, bool safetyCheck, JObject parameters)
         {
             try
             {
                 // Validate menu path format
                 if (!menuPath.Contains("/") || menuPath.StartsWith("/") || menuPath.EndsWith("/"))
                 {
-                    return new
-                    {
-                        success = false,
-                        error = "menuPath must be in format \"Category/MenuItem\" (e.g., \"Assets/Refresh\")"
-                    };
+                    return HandlerOutcome.Fail("menuPath must be in format \"Category/MenuItem\" (e.g., \"Assets/Refresh\")", "VALIDATION_ERROR");
                 }
 
                 // Blacklisted menus (editor shutdown, build, dialogs that hang MCP) are
@@ -121,11 +106,7 @@ namespace UnityEditorMCP.Handlers
                 // but no longer disables this check.)
                 if (BlacklistedMenus.Contains(menuPath))
                 {
-                    return new
-                    {
-                        success = false,
-                        error = $"Menu item is blacklisted for safety and cannot be executed: {menuPath}"
-                    };
+                    return HandlerOutcome.Fail($"Menu item is blacklisted for safety and cannot be executed: {menuPath}", "INVALID_STATE");
                 }
 
                 // Record execution start time
@@ -139,7 +120,7 @@ namespace UnityEditorMCP.Handlers
                 {
                     // Try to execute the menu item
                     executed = EditorApplication.ExecuteMenuItem(menuPath);
-                    
+
                     if (!executed)
                     {
                         // Menu item exists but couldn't be executed (might be disabled or context-dependent)
@@ -165,9 +146,9 @@ namespace UnityEditorMCP.Handlers
                     executed = executed,
                     menuExists = menuExists,
                     executionTime = executionTime,
-                    message = executed 
-                        ? "Menu item executed successfully" 
-                        : menuExists 
+                    message = executed
+                        ? "Menu item executed successfully"
+                        : menuExists
                             ? "Menu item found but could not be executed (may be disabled or context-dependent)"
                             : "Menu item not found or execution failed"
                 };
@@ -175,7 +156,7 @@ namespace UnityEditorMCP.Handlers
                 // Add alias if provided
                 if (!string.IsNullOrEmpty(alias))
                 {
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         result.success,
                         result.menuPath,
@@ -184,19 +165,15 @@ namespace UnityEditorMCP.Handlers
                         result.executionTime,
                         result.message,
                         alias = alias
-                    };
+                    });
                 }
 
-                return result;
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[MenuHandler] Error executing menu item '{menuPath}': {ex}");
-                return new
-                {
-                    success = false,
-                    error = $"Menu item execution failed: {ex.Message}"
-                };
+                return HandlerOutcome.Fail($"Menu item execution failed: {ex.Message}");
             }
         }
 
@@ -206,7 +183,7 @@ namespace UnityEditorMCP.Handlers
         /// to enumerate all menu items. A full implementation would require reflection
         /// or maintaining a predefined list of known menu items.
         /// </summary>
-        private static object GetAvailableMenus(JObject parameters)
+        private static HandlerOutcome GetAvailableMenus(JObject parameters)
         {
             // Common Unity menu items (partial list for demonstration)
             var commonMenus = new List<string>
@@ -275,17 +252,17 @@ namespace UnityEditorMCP.Handlers
                 }
             }
 
-            return new
+            return HandlerOutcome.Ok(new
             {
                 success = true,
                 availableMenus = filteredMenus,
                 totalMenus = commonMenus.Count,
                 filteredCount = filteredMenus.Count,
-                message = filter != null 
-                    ? $"Filtered menus retrieved successfully (filter: {filter})" 
+                message = filter != null
+                    ? $"Filtered menus retrieved successfully (filter: {filter})"
                     : "Available menus retrieved successfully",
                 note = "This is a partial list of common Unity menu items. Unity doesn't provide a direct API to enumerate all menu items."
-            };
+            });
         }
 
         /// <summary>

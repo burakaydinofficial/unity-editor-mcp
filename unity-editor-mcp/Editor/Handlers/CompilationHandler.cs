@@ -7,6 +7,7 @@ using UnityEditor;
 using UnityEditor.Compilation;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -35,7 +36,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Start monitoring compilation events
         /// </summary>
-        public static object StartCompilationMonitoring(JObject parameters)
+        public static HandlerOutcome StartCompilationMonitoring(JObject parameters)
         {
             try
             {
@@ -57,24 +58,24 @@ namespace UnityEditorMCP.Handlers
                     Debug.Log("[CompilationHandler] Compilation monitoring started");
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     isMonitoring = isMonitoring,
                     message = "Compilation monitoring activated"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[CompilationHandler] Error starting compilation monitoring: {e.Message}");
-                return new { error = $"Failed to start compilation monitoring: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to start compilation monitoring: {e.Message}");
             }
         }
 
         /// <summary>
         /// Stop monitoring compilation events
         /// </summary>
-        public static object StopCompilationMonitoring(JObject parameters)
+        public static HandlerOutcome StopCompilationMonitoring(JObject parameters)
         {
             try
             {
@@ -84,29 +85,29 @@ namespace UnityEditorMCP.Handlers
                     CompilationPipeline.compilationStarted -= OnCompilationStarted;
                     CompilationPipeline.compilationFinished -= OnCompilationFinished;
                     CompilationPipeline.assemblyCompilationFinished -= OnAssemblyCompilationFinished;
-                    
+
                     isMonitoring = false;
                     Debug.Log("[CompilationHandler] Compilation monitoring stopped");
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     isMonitoring = isMonitoring,
                     message = "Compilation monitoring deactivated"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[CompilationHandler] Error stopping compilation monitoring: {e.Message}");
-                return new { error = $"Failed to stop compilation monitoring: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to stop compilation monitoring: {e.Message}");
             }
         }
 
         /// <summary>
         /// Get current compilation state and recent errors
         /// </summary>
-        public static object GetCompilationState(JObject parameters)
+        public static HandlerOutcome GetCompilationState(JObject parameters)
         {
             try
             {
@@ -117,15 +118,15 @@ namespace UnityEditorMCP.Handlers
                 // Get current compilation state
                 bool isCompiling = EditorApplication.isCompiling;
                 bool isUpdating = EditorApplication.isUpdating;
-                
+
                 // Read compilation log file for recent errors
                 var compilationLogMessages = ReadCompilationLogFile();
-                
+
                 // Combine with monitored messages
                 var allMessages = new List<CompilationMessage>();
                 allMessages.AddRange(lastCompilationMessages);
                 allMessages.AddRange(compilationLogMessages);
-                
+
                 // Remove duplicates and sort by timestamp
                 var uniqueMessages = allMessages
                     .GroupBy(m => $"{m.file}:{m.line}:{m.message}")
@@ -148,7 +149,7 @@ namespace UnityEditorMCP.Handlers
 
                 if (includeMessages)
                 {
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         success = result.success,
                         isCompiling = result.isCompiling,
@@ -159,15 +160,15 @@ namespace UnityEditorMCP.Handlers
                         errorCount = result.errorCount,
                         warningCount = result.warningCount,
                         messages = uniqueMessages
-                    };
+                    });
                 }
 
-                return result;
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception e)
             {
                 Debug.LogError($"[CompilationHandler] Error getting compilation state: {e.Message}");
-                return new { error = $"Failed to get compilation state: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get compilation state: {e.Message}");
             }
         }
 

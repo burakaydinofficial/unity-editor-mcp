@@ -5,6 +5,7 @@ using System.Reflection;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -89,17 +90,13 @@ namespace UnityEditorMCP.Handlers
         /// </summary>
         /// <param name="parameters">Command parameters</param>
         /// <returns>Clear result</returns>
-        public static object ClearConsole(JObject parameters)
+        public static HandlerOutcome ClearConsole(JObject parameters)
         {
             try
             {
                 if (_clearMethod == null)
                 {
-                    return new
-                    {
-                        success = false,
-                        error = "Console reflection not initialized properly"
-                    };
+                    return HandlerOutcome.Fail("Console reflection not initialized properly", "INVALID_STATE");
                 }
 
                 // Extract parameters
@@ -133,7 +130,7 @@ namespace UnityEditorMCP.Handlers
                     settingsUpdated = true;
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     message = "Console cleared successfully",
@@ -144,16 +141,12 @@ namespace UnityEditorMCP.Handlers
                     clearOnRecompile = clearOnRecompile,
                     clearOnBuild = clearOnBuild,
                     timestamp = DateTime.UtcNow.ToString("o")
-                };
+                });
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[ConsoleHandler] Error clearing console: {ex}");
-                return new
-                {
-                    success = false,
-                    error = $"Failed to clear console: {ex.Message}"
-                };
+                return HandlerOutcome.Fail($"Failed to clear console: {ex.Message}");
             }
         }
 
@@ -162,17 +155,13 @@ namespace UnityEditorMCP.Handlers
         /// </summary>
         /// <param name="parameters">Command parameters</param>
         /// <returns>Filtered logs</returns>
-        public static object EnhancedReadLogs(JObject parameters)
+        public static HandlerOutcome EnhancedReadLogs(JObject parameters)
         {
             try
             {
                 if (!IsReflectionInitialized())
                 {
-                    return new
-                    {
-                        success = false,
-                        error = "Console reflection not initialized properly"
-                    };
+                    return HandlerOutcome.Fail("Console reflection not initialized properly", "INVALID_STATE");
                 }
 
                 // Extract parameters
@@ -313,16 +302,12 @@ namespace UnityEditorMCP.Handlers
                     };
                 }
 
-                return result;
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[ConsoleHandler] Error reading logs: {ex}");
-                return new
-                {
-                    success = false,
-                    error = $"Failed to read logs: {ex.Message}"
-                };
+                return HandlerOutcome.Fail($"Failed to read logs: {ex.Message}");
             }
         }
 

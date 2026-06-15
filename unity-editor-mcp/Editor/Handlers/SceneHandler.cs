@@ -6,6 +6,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine.SceneManagement;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -17,7 +18,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Creates a new scene based on parameters
         /// </summary>
-        public static object CreateScene(JObject parameters)
+        public static HandlerOutcome CreateScene(JObject parameters)
         {
             try
             {
@@ -25,14 +26,14 @@ namespace UnityEditorMCP.Handlers
                 var sceneName = parameters["sceneName"]?.ToString();
                 if (string.IsNullOrEmpty(sceneName))
                 {
-                    return new { error = "Scene name cannot be empty" };
+                    return HandlerOutcome.Fail("Scene name cannot be empty", "VALIDATION_ERROR");
                 }
 
                 // Validate scene name
-                if (sceneName.Contains("/") || sceneName.Contains("\\") || 
+                if (sceneName.Contains("/") || sceneName.Contains("\\") ||
                     sceneName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
                 {
-                    return new { error = "Scene name contains invalid characters" };
+                    return HandlerOutcome.Fail("Scene name contains invalid characters", "VALIDATION_ERROR");
                 }
 
                 // Get optional parameters
@@ -49,7 +50,7 @@ namespace UnityEditorMCP.Handlers
                 // Validate path
                 if (!path.StartsWith("Assets/"))
                 {
-                    return new { error = "Invalid path: Path must be within Assets folder" };
+                    return HandlerOutcome.Fail("Invalid path: Path must be within Assets folder", "VALIDATION_ERROR");
                 }
 
                 // Create full scene path
@@ -58,7 +59,7 @@ namespace UnityEditorMCP.Handlers
                 // Check if scene already exists
                 if (File.Exists(scenePath))
                 {
-                    return new { error = $"Scene with name \"{sceneName}\" already exists at path \"{scenePath}\"" };
+                    return HandlerOutcome.Fail($"Scene with name \"{sceneName}\" already exists at path \"{scenePath}\"", "INVALID_STATE");
                 }
 
                 // Ensure directory exists
@@ -88,7 +89,7 @@ namespace UnityEditorMCP.Handlers
                 bool saved = EditorSceneManager.SaveScene(newScene, scenePath);
                 if (!saved)
                 {
-                    return new { error = "Failed to save scene" };
+                    return HandlerOutcome.Fail("Failed to save scene", "INTERNAL_ERROR");
                 }
 
                 // Add to build settings if requested
@@ -117,11 +118,11 @@ namespace UnityEditorMCP.Handlers
                     summary = GenerateSummary(sceneName, scenePath, loadScene, sceneIndex)
                 };
 
-                return result;
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to create scene: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to create scene: {ex.Message}");
             }
         }
 
@@ -145,7 +146,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Loads an existing scene based on parameters
         /// </summary>
-        public static object LoadScene(JObject parameters)
+        public static HandlerOutcome LoadScene(JObject parameters)
         {
             try
             {
@@ -156,22 +157,22 @@ namespace UnityEditorMCP.Handlers
                 // Validate that either scenePath or sceneName is provided
                 if (string.IsNullOrEmpty(scenePath) && string.IsNullOrEmpty(sceneName))
                 {
-                    return new { error = "Either scenePath or sceneName must be provided" };
+                    return HandlerOutcome.Fail("Either scenePath or sceneName must be provided", "VALIDATION_ERROR");
                 }
-                
+
                 // Validate that only one is provided
                 if (!string.IsNullOrEmpty(scenePath) && !string.IsNullOrEmpty(sceneName))
                 {
-                    return new { error = "Provide either scenePath or sceneName, not both" };
+                    return HandlerOutcome.Fail("Provide either scenePath or sceneName, not both", "VALIDATION_ERROR");
                 }
-                
+
                 // Get load mode
                 var loadModeStr = parameters["loadMode"]?.ToString() ?? "Single";
-                
+
                 // Validate load mode
                 if (loadModeStr != "Single" && loadModeStr != "Additive")
                 {
-                    return new { error = "Invalid load mode. Must be 'Single' or 'Additive'" };
+                    return HandlerOutcome.Fail("Invalid load mode. Must be 'Single' or 'Additive'", "VALIDATION_ERROR");
                 }
                 
                 LoadSceneMode loadMode = loadModeStr == "Single" ? LoadSceneMode.Single : LoadSceneMode.Additive;
@@ -188,7 +189,7 @@ namespace UnityEditorMCP.Handlers
                     // Check if file exists
                     if (!File.Exists(scenePath))
                     {
-                        return new { error = $"Scene file not found: {scenePath}" };
+                        return HandlerOutcome.Fail($"Scene file not found: {scenePath}", "NOT_FOUND");
                     }
                     
                     // Load the scene
@@ -204,7 +205,7 @@ namespace UnityEditorMCP.Handlers
                     
                     if (sceneInBuild == null)
                     {
-                        return new { error = $"Scene \"{sceneName}\" is not in build settings. Add it to build settings or load by path." };
+                        return HandlerOutcome.Fail($"Scene \"{sceneName}\" is not in build settings. Add it to build settings or load by path.", "NOT_FOUND");
                     }
                     
                     actualScenePath = sceneInBuild.path;
@@ -217,7 +218,7 @@ namespace UnityEditorMCP.Handlers
                 // Verify scene was loaded
                 if (!loadedScene.IsValid())
                 {
-                    return new { error = "Failed to load scene" };
+                    return HandlerOutcome.Fail("Failed to load scene", "INTERNAL_ERROR");
                 }
                 
                 // Get active scene count (for additive mode)
@@ -235,11 +236,11 @@ namespace UnityEditorMCP.Handlers
                     summary = GenerateLoadSummary(loadedScene.name, loadModeStr, activeSceneCount)
                 };
                 
-                return result;
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to load scene: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to load scene: {ex.Message}");
             }
         }
         
@@ -258,7 +259,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Saves the current scene
         /// </summary>
-        public static object SaveScene(JObject parameters)
+        public static HandlerOutcome SaveScene(JObject parameters)
         {
             try
             {
@@ -268,7 +269,7 @@ namespace UnityEditorMCP.Handlers
                 // Check if a scene is loaded
                 if (!currentScene.IsValid())
                 {
-                    return new { error = "No scene is currently loaded" };
+                    return HandlerOutcome.Fail("No scene is currently loaded", "INVALID_STATE");
                 }
                 
                 // Get parameters
@@ -278,7 +279,7 @@ namespace UnityEditorMCP.Handlers
                 // Validate saveAs requires scenePath
                 if (saveAs && string.IsNullOrEmpty(scenePath))
                 {
-                    return new { error = "scenePath is required when saveAs is true" };
+                    return HandlerOutcome.Fail("scenePath is required when saveAs is true", "VALIDATION_ERROR");
                 }
                 
                 // Determine the save path
@@ -293,7 +294,7 @@ namespace UnityEditorMCP.Handlers
                     // If scene has never been saved, require a path
                     if (string.IsNullOrEmpty(savePath))
                     {
-                        return new { error = "Scene has never been saved. Please provide a scenePath." };
+                        return HandlerOutcome.Fail("Scene has never been saved. Please provide a scenePath.", "VALIDATION_ERROR");
                     }
                 }
                 else
@@ -301,12 +302,12 @@ namespace UnityEditorMCP.Handlers
                     // Validate the provided path
                     if (!savePath.StartsWith("Assets/"))
                     {
-                        return new { error = "Invalid path: Path must be within Assets folder" };
+                        return HandlerOutcome.Fail("Invalid path: Path must be within Assets folder", "VALIDATION_ERROR");
                     }
-                    
+
                     if (!savePath.EndsWith(".unity"))
                     {
-                        return new { error = "Invalid path: Path must end with .unity" };
+                        return HandlerOutcome.Fail("Invalid path: Path must end with .unity", "VALIDATION_ERROR");
                     }
                     
                     // Ensure directory exists
@@ -347,9 +348,9 @@ namespace UnityEditorMCP.Handlers
                 
                 if (!saved)
                 {
-                    return new { error = "Failed to save scene" };
+                    return HandlerOutcome.Fail("Failed to save scene", "INTERNAL_ERROR");
                 }
-                
+
                 // Prepare result
                 var result = new
                 {
@@ -361,11 +362,11 @@ namespace UnityEditorMCP.Handlers
                     summary = GenerateSaveSummary(currentScene.name, savePath, saveAs, wasDirty)
                 };
                 
-                return result;
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to save scene: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to save scene: {ex.Message}");
             }
         }
         
@@ -394,7 +395,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Lists all scenes in the project
         /// </summary>
-        public static object ListScenes(JObject parameters)
+        public static HandlerOutcome ListScenes(JObject parameters)
         {
             try
             {
@@ -496,11 +497,11 @@ namespace UnityEditorMCP.Handlers
                         includeLoadedOnly, includeBuildScenesOnly, includePath)
                 };
                 
-                return result;
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to list scenes: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to list scenes: {ex.Message}");
             }
         }
         
@@ -538,7 +539,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Gets detailed information about a scene
         /// </summary>
-        public static object GetSceneInfo(JObject parameters)
+        public static HandlerOutcome GetSceneInfo(JObject parameters)
         {
             try
             {
@@ -550,7 +551,7 @@ namespace UnityEditorMCP.Handlers
                 // Validate that only one identifier is provided if any
                 if (!string.IsNullOrEmpty(scenePath) && !string.IsNullOrEmpty(sceneName))
                 {
-                    return new { error = "Provide either scenePath or sceneName, not both" };
+                    return HandlerOutcome.Fail("Provide either scenePath or sceneName, not both", "VALIDATION_ERROR");
                 }
                 
                 Scene targetScene;
@@ -598,7 +599,7 @@ namespace UnityEditorMCP.Handlers
                         
                         if (string.IsNullOrEmpty(targetScenePath))
                         {
-                            return new { error = $"Scene not found: {sceneName}" };
+                            return HandlerOutcome.Fail($"Scene not found: {sceneName}", "NOT_FOUND");
                         }
                     }
                     else
@@ -612,7 +613,7 @@ namespace UnityEditorMCP.Handlers
                 {
                     if (!File.Exists(targetScenePath))
                     {
-                        return new { error = $"Scene not found: {targetScenePath}" };
+                        return HandlerOutcome.Fail($"Scene not found: {targetScenePath}", "NOT_FOUND");
                     }
                 }
                 
@@ -680,11 +681,11 @@ namespace UnityEditorMCP.Handlers
                 // Generate summary
                 sceneInfo["summary"] = GenerateSceneInfoSummary(sceneInfo);
                 
-                return sceneInfo;
+                return HandlerOutcome.Ok(sceneInfo);
             }
             catch (Exception ex)
             {
-                return new { error = $"Failed to get scene info: {ex.Message}" };
+                return HandlerOutcome.Fail($"Failed to get scene info: {ex.Message}");
             }
         }
         

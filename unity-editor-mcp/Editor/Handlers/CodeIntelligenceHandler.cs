@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -29,31 +30,31 @@ namespace UnityEditorMCP.Handlers
 
         // ---- public operations ----
 
-        public static JObject GetSymbols(JObject p)
+        public static HandlerOutcome GetSymbols(JObject p)
         {
             try
             {
                 var path = p["path"]?.ToString();
-                if (string.IsNullOrEmpty(path)) return Err("Missing required parameter: path");
+                if (string.IsNullOrEmpty(path)) return Err("Missing required parameter: path", "VALIDATION_ERROR");
                 var full = ResolveScript(path);
-                if (full == null) return Err($"Path is not a .cs file inside the project: {path}");
-                if (!File.Exists(full)) return Err($"File not found: {path}");
+                if (full == null) return Err($"Path is not a .cs file inside the project: {path}", "VALIDATION_ERROR");
+                if (!File.Exists(full)) return Err($"File not found: {path}", "NOT_FOUND");
 
                 var src = File.ReadAllText(full);
                 var symbols = Extract(src);
                 var arr = new JArray();
                 foreach (var s in symbols) arr.Add(s.ToJson());
-                return new JObject { ["path"] = Rel(full), ["count"] = symbols.Count, ["symbols"] = arr };
+                return HandlerOutcome.Ok(new JObject { ["path"] = Rel(full), ["count"] = symbols.Count, ["symbols"] = arr });
             }
             catch (Exception e) { return Err($"Error reading symbols: {e.Message}"); }
         }
 
-        public static JObject FindSymbol(JObject p)
+        public static HandlerOutcome FindSymbol(JObject p)
         {
             try
             {
                 var name = p["name"]?.ToString();
-                if (string.IsNullOrEmpty(name)) return Err("Missing required parameter: name");
+                if (string.IsNullOrEmpty(name)) return Err("Missing required parameter: name", "VALIDATION_ERROR");
                 var kindFilter = p["kind"]?.ToString();
                 var max = Math.Max(1, Math.Min(p["maxResults"]?.ToObject<int?>() ?? DefaultMaxResults, MaxResultsCeiling));
 
@@ -76,23 +77,23 @@ namespace UnityEditorMCP.Handlers
                         }
                     }
                 }
-                return new JObject
+                return HandlerOutcome.Ok(new JObject
                 {
                     ["name"] = name,
                     ["count"] = total,
                     ["truncated"] = total > matches.Count,
                     ["matches"] = matches
-                };
+                });
             }
             catch (Exception e) { return Err($"Error finding symbol: {e.Message}"); }
         }
 
-        public static JObject FindReferences(JObject p)
+        public static HandlerOutcome FindReferences(JObject p)
         {
             try
             {
                 var name = p["name"]?.ToString();
-                if (string.IsNullOrEmpty(name)) return Err("Missing required parameter: name");
+                if (string.IsNullOrEmpty(name)) return Err("Missing required parameter: name", "VALIDATION_ERROR");
                 var max = Math.Max(1, Math.Min(p["maxResults"]?.ToObject<int?>() ?? DefaultMaxResults, MaxResultsCeiling));
                 var ident = new Regex(@"\b" + Regex.Escape(name) + @"\b");
 
@@ -119,39 +120,39 @@ namespace UnityEditorMCP.Handlers
                         }
                     }
                 }
-                return new JObject
+                return HandlerOutcome.Ok(new JObject
                 {
                     ["name"] = name,
                     ["count"] = total,
                     ["truncated"] = total > refs.Count,
                     ["references"] = refs,
                     ["note"] = "Textual (syntactic) identifier matches in code; comments and string literals are excluded, but there is no semantic resolution (same-named members across types/overloads are not disambiguated)."
-                };
+                });
             }
             catch (Exception e) { return Err($"Error finding references: {e.Message}"); }
         }
 
-        public static JObject GetSymbolBody(JObject p)
+        public static HandlerOutcome GetSymbolBody(JObject p)
         {
             try
             {
                 var path = p["path"]?.ToString();
                 var name = p["name"]?.ToString();
-                if (string.IsNullOrEmpty(path)) return Err("Missing required parameter: path");
-                if (string.IsNullOrEmpty(name)) return Err("Missing required parameter: name");
+                if (string.IsNullOrEmpty(path)) return Err("Missing required parameter: path", "VALIDATION_ERROR");
+                if (string.IsNullOrEmpty(name)) return Err("Missing required parameter: name", "VALIDATION_ERROR");
                 var full = ResolveScript(path);
-                if (full == null) return Err($"Path is not a .cs file inside the project: {path}");
-                if (!File.Exists(full)) return Err($"File not found: {path}");
+                if (full == null) return Err($"Path is not a .cs file inside the project: {path}", "VALIDATION_ERROR");
+                if (!File.Exists(full)) return Err($"File not found: {path}", "NOT_FOUND");
 
                 var src = File.ReadAllText(full);
                 var sym = Extract(src).FirstOrDefault(s => s.Name == name);
-                if (sym == null) return Err($"Symbol '{name}' not found in {path}");
+                if (sym == null) return Err($"Symbol '{name}' not found in {path}", "NOT_FOUND");
 
                 var lines = src.Replace("\r\n", "\n").Split('\n');
                 int start = Math.Max(0, sym.Line - 1);
                 int end = Math.Min(sym.EndLine, lines.Length) - 1;
                 var body = string.Join("\n", lines.Skip(start).Take(end - start + 1));
-                return new JObject
+                return HandlerOutcome.Ok(new JObject
                 {
                     ["path"] = Rel(full),
                     ["name"] = name,
@@ -159,7 +160,7 @@ namespace UnityEditorMCP.Handlers
                     ["startLine"] = sym.Line,
                     ["endLine"] = sym.EndLine,
                     ["source"] = body
-                };
+                });
             }
             catch (Exception e) { return Err($"Error getting symbol body: {e.Message}"); }
         }
@@ -398,6 +399,6 @@ namespace UnityEditorMCP.Handlers
                 : full;
         }
 
-        private static JObject Err(string error) => new JObject { ["error"] = error };
+        private static HandlerOutcome Err(string error, string code = "INTERNAL_ERROR") => HandlerOutcome.Fail(error, code);
     }
 }
