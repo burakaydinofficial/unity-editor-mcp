@@ -80,18 +80,23 @@ Add the same configuration to Cursor's MCP settings
 
 ## Available Tools
 
-Unity Editor MCP provides **79 comprehensive tools** across 14 categories for complete Unity Editor automation:
+The MCP server advertises a **3-tool generic surface** — `list_unity_instances`, `list_unity_tools`, and
+`call_unity_tool`. Everything below is the **editor capability catalog** (~76 commands across 13
+categories): the agent discovers each connected editor's real tools — with schemas, learned at runtime —
+via `list_unity_tools`, then invokes them by name via `call_unity_tool`.
 
-> **Default surface (v0.3.0):** the server advertises a small **generic surface** — `list_unity_instances`,
-> `list_unity_tools`, and `call_unity_tool`. As of v0.5.0 every call names its target editor explicitly (there
-> is no default instance). The agent discovers each connected
-> editor's real tools (with schemas, learned at runtime) via `list_unity_tools`, then invokes them via
-> `call_unity_tool` — so **one server works with any Unity version and several editors at once**, without
-> paying the context cost of ~80 tool definitions up front. To advertise the full typed catalog below as
-> individual MCP tools instead, set `UNITY_MCP_TYPED_TOOLS=true`. The catalog below documents what each
-> editor exposes either way.
+> **Why a generic surface (v0.5.0 — [ADR 0006](docs/adr/0006-no-default-instance-on-demand-discovery.md)):**
+> one server works with **any Unity version and several editors at once**, the client carries 3 tool
+> definitions instead of ~80, and **every call names its target editor explicitly** (a project path or
+> port — there is no default instance, so an agent can never act on the wrong project). The catalog below
+> documents what each editor exposes; those commands are reached through `call_unity_tool`, not advertised
+> as individual MCP tools.
 >
-> **Result field selection (v0.4.0):** Every tool call accepts an optional `fields` parameter — an array of dot-paths (e.g., `["count","objects.name","state.isPlaying"]`) — that trims the response to just those fields (GraphQL-style). Array elements are transparent to path traversal — the path applies to each array item. Omit `fields` for the full result. Discover a tool's response shape by calling it once without field projection.
+> **Discover the shape, then trim it.** `list_unity_tools(instance, name: "<tool>")` returns a tool's full
+> parameter schema **and** its result-field hints (the response shape — v0.5.0). Every call also accepts an
+> optional `fields` parameter — an array of dot-paths (e.g. `["count","objects.name","state.isPlaying"]`) —
+> that trims the response to just those fields, GraphQL-style (array elements are transparent; omit for the
+> full result).
 
 ### System & Core Tools (3 tools)
 - **`ping`** - Test connection to Unity Editor and verify server status
@@ -99,8 +104,8 @@ Unity Editor MCP provides **79 comprehensive tools** across 14 categories for co
 - **`refresh_assets`** - Refresh Unity assets and trigger recompilation
 
 ### Instance Management (3 tools)
-- **`list_unity_instances`** - List the Unity editors currently running and discoverable (project, version, port, active target); works with no editor connected
-- **`list_unity_tools`** - List the tools a connected editor actually supports, with schemas learned at runtime (the version-agnostic surface)
+- **`list_unity_instances`** - List the Unity editors currently running and discoverable (project, version, port); works with no editor connected
+- **`list_unity_tools`** - List the tools a connected editor actually supports, with schemas learned at runtime; pass `name` for one tool's full param schema **and result-field hints** (the version-agnostic surface)
 - **`call_unity_tool`** - Invoke any tool a connected editor supports by name, validated against its advertised schema; routes to the named instance (required — no default)
 
 ### GameObject Management (5 tools)

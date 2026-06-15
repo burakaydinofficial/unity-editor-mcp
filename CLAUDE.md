@@ -72,9 +72,9 @@ connect (so unit/integration tests never need a live editor); `DISABLE_AUTO_RECO
 disables the reconnect loop. Server config env vars: `UNITY_HOST`, `UNITY_PORT` (explicit port,
 wins over discovery), `UNITY_PROJECT_PATH` (resolve the target editor via the discovery registry
 or the derived per-project port — ADR 0003), `UNITY_MCP_REGISTRY_DIR` (registry dir override),
-`LOG_LEVEL` (`info`/`debug`), `UNITY_MCP_TYPED_TOOLS` (`true` re-advertises the full typed catalog as
-individual MCP tools; default off — only the generic meta-tools are listed, ADR 0004). Editor-side env:
-`UNITY_MCP_PORT` overrides the derived port.
+`LOG_LEVEL` (`info`/`debug`). The advertised MCP surface is always the three generic meta-tools
+(ADR 0004/0006); editor commands are reached via `call_unity_tool` after on-demand discovery. Editor-side
+env: `UNITY_MCP_PORT` overrides the derived port.
 
 Unity-side tests are NUnit EditMode tests (`unity-editor-mcp/Tests/Editor/`) and run through the
 Unity Test Runner inside an editor — they cannot be run from the command line in this repo alone.

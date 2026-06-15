@@ -5,6 +5,41 @@ All notable changes to this project are documented here. The format follows
 versioning. This fork is **the deep, floor-true MCP bridge for older Unity projects** (Unity 2019 →
 latest; initial focus 2020.3–2022.3 LTS).
 
+## [0.5.0] — Unreleased
+
+Theme: **the lean Adaptive-Node client** ([ADR 0006](docs/adr/0006-no-default-instance-on-demand-discovery.md)).
+The Node server stops hand-mirroring the editor's command surface: it advertises three generic
+meta-tools and learns each connected editor's real tools — names, param schemas, and result-field
+hints — from the handshake manifest at runtime. ~76 fewer Node files; one server drives any Unity
+version and several editors at once.
+
+### Changed (BREAKING — pre-1.0)
+- **No default/active instance.** `call_unity_tool` and `list_unity_tools` now **require** an explicit
+  `instance` (a project path or port), even when a single editor is running; a missing or unresolved
+  instance is a hard, clearly-worded error, never a silent default. This closes a real safety hole: an
+  agent revived after context compaction can no longer issue a destructive call against the wrong live
+  project.
+- **The MCP surface is three meta-tools** — `list_unity_instances`, `list_unity_tools`,
+  `call_unity_tool`. Every editor command is reached via `call_unity_tool` after on-demand discovery
+  with `list_unity_tools`; the 73 hand-written passthrough handlers were deleted. Three tools that carry
+  genuine Node-side logic (`execute_menu_item`, `create_script`, `analyze_screenshot`) are dispatched
+  inside `call_unity_tool` rather than advertised.
+
+### Added
+- **Editor-advertised result-field hints.** The handshake manifest now carries each command's result
+  schema alongside its params; `list_unity_tools(instance, name: "<tool>")` returns it, so an agent
+  learns a tool's response shape on demand and drives `fields` projection without a discovery
+  round-trip. Editor-sourced — no Node→catalog dependency.
+
+### Removed
+- `set_active_unity_instance` (there is no default instance to set) and the `UNITY_MCP_TYPED_TOOLS`
+  env var / typed-tool advertisement (the surface is always the three meta-tools).
+
+### Internal
+- The drift gate is re-pointed: with the JS passthroughs gone, only the three meta-tools are
+  server-side in the catalog; the 76 editor commands are validated editor-side. The catalog↔JS
+  param-drift class is eliminated.
+
 ## [0.4.0] — Unreleased
 
 Theme: **master the existing structure.** Hardens the editor side onto a single tested dispatch

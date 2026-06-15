@@ -74,7 +74,6 @@ The server resolves the editor automatically, but you can override:
 | `UNITY_PORT` | Connect to an explicit port (wins over discovery) |
 | `UNITY_HOST` | Host to connect to (default `localhost`) |
 | `UNITY_MCP_REGISTRY_DIR` | Override the discovery registry directory |
-| `UNITY_MCP_TYPED_TOOLS` | `true` re-advertises the full typed catalog as individual MCP tools (default off — only the generic meta-tools are listed) |
 | `LOG_LEVEL` | `info` (default) or `debug` |
 
 Editor side: `UNITY_MCP_PORT` overrides the derived port. Server config defaults
@@ -86,8 +85,8 @@ By default the server exposes a small **generic surface**: `list_unity_instances
 `list_unity_tools`, and `call_unity_tool`. The agent discovers each editor's real
 tools (with schemas, learned at runtime) and invokes them by name — so one server
 works with any Unity version and several editors at once. Every call names its
-target instance explicitly (required as of v0.5.0 — there is no default). Set
-`UNITY_MCP_TYPED_TOOLS=true` to list the typed tools individually.
+target instance explicitly (required as of v0.5.0 — there is no default); pass `name`
+to `list_unity_tools` for one tool's full param schema and result-field hints.
 
 ## Verifying the connection
 
