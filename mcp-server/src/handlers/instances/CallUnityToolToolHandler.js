@@ -38,6 +38,12 @@ export class CallUnityToolToolHandler extends BaseToolHandler {
     const conn = this.manager.requireConnection(params.instance);
     await this.manager.ensureReady(conn);
     const callParams = params.params || {};
+    // Guard the input boundary: a truthy non-object `params` (e.g. a string or array) would otherwise
+    // spread into a char-indexed object that passes schema validation, then reach the editor as a
+    // non-object payload. (Audit finding — the MCP SDK does not enforce the inputSchema.)
+    if (typeof callParams !== 'object' || Array.isArray(callParams)) {
+      throw new Error('params must be an object (a map of the tool\'s parameters)');
+    }
 
     // Node-logic tools (security normalization / template generation / base64 analysis — ADR 0006) are
     // dispatched to a Node handler BOUND TO THE RESOLVED CONNECTION rather than forwarded raw to the

@@ -81,4 +81,12 @@ describe('ListUnityInstancesToolHandler', () => {
     assert.equal(res.status, 'success');
     assert.equal(res.result.count, 1);
   });
+
+  it('prunes dead pooled connections via the manager on execute (audit cleanup)', async () => {
+    let pruned = 0;
+    const mgr = { prune: () => { pruned += 1; } };
+    const h = new ListUnityInstancesToolHandler(mgr, fakeDeps([inst()]));
+    await h.execute({});
+    assert.equal(pruned, 1);
+  });
 });

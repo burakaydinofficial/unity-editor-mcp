@@ -100,6 +100,16 @@ describe('call_unity_tool', () => {
     assert.match(res.error, /not available/);
   });
 
+  it('rejects a non-object params (string/array) before sending', async () => {
+    let called = false;
+    const conn = fakeConn(async () => { called = true; return {}; });
+    const h = new CallUnityToolToolHandler(fakeManager({ conn }));
+    const res = await h.handle({ instance: '7000', tool: 'ping', params: 'oops' });
+    assert.equal(res.status, 'error');
+    assert.match(res.error, /params must be an object/);
+    assert.equal(called, false);
+  });
+
   it('requires the instance param (no default — ADR 0006)', async () => {
     const h = new CallUnityToolToolHandler(fakeManager());
     const res = await h.handle({ tool: 'ping' });

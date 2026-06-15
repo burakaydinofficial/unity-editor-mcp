@@ -26,11 +26,16 @@ export class ListUnityInstancesToolHandler extends BaseToolHandler {
         required: [],
       },
     );
+    this.manager = manager;
     this.deps = deps;
   }
 
   async execute(params = {}) {
     const env = process.env;
+    // Opportunistic cleanup: drop pooled connections whose editor is no longer live (their reconnect
+    // timers would otherwise linger for the server's lifetime). This read-only listing is the natural
+    // call-site since it already inspects the live registry. (Audit finding — prune() was never called.)
+    if (this.manager && typeof this.manager.prune === 'function') this.manager.prune();
     const registryDir = this.deps.defaultRegistryDirectory(env);
     const all = this.deps.readInstances(registryDir);
 

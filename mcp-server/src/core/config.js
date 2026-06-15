@@ -16,8 +16,9 @@ export const config = {
   // Unity connection settings
   unity: {
     host: process.env.UNITY_HOST || 'localhost',
-    // UNITY_PORT wins; else UNITY_PROJECT_PATH resolves via the discovery
-    // registry (actual bound port) or the project-derived default; else 6400.
+    // NOTE: vestigial in v0.5.0 (ADR 0006) — UnityConnectionManager never reads config.unity.port;
+    // every connection is resolved from an EXPLICIT `instance`. Kept for diagnostics / standalone use.
+    // (UNITY_PORT wins; else UNITY_PROJECT_PATH via the discovery registry or the derived default; else 6400.)
     port: resolveUnityPort(process.env),
     reconnectDelay: 1000, // Initial reconnect delay in ms
     maxReconnectDelay: 30000, // Maximum reconnect delay
