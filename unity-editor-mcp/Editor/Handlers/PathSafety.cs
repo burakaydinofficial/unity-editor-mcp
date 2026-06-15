@@ -23,7 +23,15 @@ namespace UnityEditorMCP.Handlers
                 ? projectRoot
                 : projectRoot + Path.DirectorySeparatorChar;
             string full;
-            try { full = Path.GetFullPath(candidatePath); }
+            try
+            {
+                // Resolve a relative path against the PROJECT ROOT explicitly (an absolute path is taken
+                // as-is). Don't rely on the process CWD — Unity sets it to the project root, but making
+                // the base explicit keeps the guard correct regardless.
+                full = Path.GetFullPath(Path.IsPathRooted(candidatePath)
+                    ? candidatePath
+                    : Path.Combine(projectRoot, candidatePath));
+            }
             catch { return false; }
             // Strictly under the root (the trailing separator blocks a sibling-prefix collision like
             // "C:/proj" vs "C:/proj-evil"), or the root itself.

@@ -18,7 +18,8 @@ export class AnalyzeScreenshotToolHandler extends BaseToolHandler {
           },
           base64Data: {
             type: 'string',
-            description: 'Base64 encoded image data (alternative to imagePath)'
+            maxLength: 10485760,
+            description: 'Base64 encoded image data (alternative to imagePath). Max 10 MB (base64-encoded).'
           },
           analysisType: {
             type: 'string',
@@ -54,6 +55,12 @@ export class AnalyzeScreenshotToolHandler extends BaseToolHandler {
     // Cannot provide both
     if (imagePath && base64Data) {
       throw new Error('Provide either imagePath or base64Data, not both');
+    }
+
+    // Bound base64Data — Buffer.from() decodes it synchronously on the event loop; an unbounded string
+    // would stall every other in-flight command. 10 MB base64 (~7.5 MB decoded) is generous. (Audit.)
+    if (base64Data && base64Data.length > 10485760) {
+      throw new Error('base64Data must not exceed 10 MB (base64-encoded)');
     }
 
     // Validate image path if provided

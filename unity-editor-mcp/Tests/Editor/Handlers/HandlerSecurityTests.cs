@@ -22,7 +22,7 @@ namespace UnityEditorMCP.Tests
             });
             Assert.IsTrue(outcome.IsError, "a traversal path must be rejected");
             Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
-            StringAssert.Contains("traversal", outcome.Error);
+            StringAssert.Contains("project root", outcome.Error);
         }
 
         [Test]
@@ -35,6 +35,21 @@ namespace UnityEditorMCP.Tests
             });
             Assert.IsTrue(outcome.IsError);
             Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
+        }
+
+        [Test]
+        public void CreateScript_WithAbsolutePathBypass_IsRejected()
+        {
+            // "Assets/C:/..." passes a StartsWith("Assets/") check, but Path.Combine discards dataPath for
+            // the rooted segment — the resolved-path PathSafety gate is what blocks it. (Round-4 audit.)
+            var outcome = ScriptHandler.CreateScript(new JObject
+            {
+                ["scriptName"] = "Probe",
+                ["path"] = "Assets/C:/Windows/System32/"
+            });
+            Assert.IsTrue(outcome.IsError, "an absolute-path bypass must be rejected");
+            Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
+            StringAssert.Contains("project root", outcome.Error);
         }
 
         [Test]

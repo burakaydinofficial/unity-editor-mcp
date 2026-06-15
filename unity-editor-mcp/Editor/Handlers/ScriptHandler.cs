@@ -44,17 +44,18 @@ namespace UnityEditorMCP.Handlers
 
                 // Normalize path
                 path = NormalizePath(path);
-                // Reject `..` traversal — NormalizePath does not strip it, and Path.Combine below would
-                // resolve it OUTSIDE the project root (arbitrary file write). Defense-in-depth for a
-                // direct (non-Node) caller; the Node handler also rejects it at the input edge.
-                if (System.Array.IndexOf(path.Split('/'), "..") >= 0)
-                {
-                    return HandlerOutcome.Fail("path must not contain '..' traversal segments", "VALIDATION_ERROR");
-                }
                 string fullDirectory = Path.Combine(Application.dataPath,
                     path.StartsWith("Assets/") ? path.Substring(7) : path);
                 string fileName = $"{scriptName}.cs";
                 string fullPath = Path.Combine(fullDirectory, fileName);
+                // Containment on the RESOLVED path — blocks `..` traversal AND an absolute-path bypass
+                // (Path.Combine discards dataPath when handed a rooted segment like "Assets/C:/..."). Uses
+                // the same PathSafety gate as the read/update/delete/validate siblings; the editor is the
+                // sole guard since create_script is reached via call_unity_tool with no Node passthrough.
+                if (!PathSafety.IsWithinProject(fullPath))
+                {
+                    return HandlerOutcome.Fail("path must stay within the project root", "VALIDATION_ERROR");
+                }
                 string relativePath = Path.Combine(path, fileName).Replace('\\', '/');
 
                 // Check if script already exists
