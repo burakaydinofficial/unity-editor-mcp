@@ -135,7 +135,7 @@ describe('Server', () => {
       const handlers = createHandlers(unityConnection);
       
       assert.ok(handlers instanceof Map);
-      assert.equal(handlers.size, 80);
+      assert.equal(handlers.size, 79);
 
       // Check for some key handlers
       assert.ok(handlers.has('ping'));
@@ -164,7 +164,6 @@ describe('Server', () => {
       assert.ok(handlers.has('list_unity_instances'));
       assert.ok(handlers.has('list_unity_tools'));
       assert.ok(handlers.has('call_unity_tool'));
-      assert.ok(handlers.has('set_active_unity_instance'));
       // Check for UI handlers
       assert.ok(handlers.has('find_ui_elements'));
       assert.ok(handlers.has('click_ui_element'));

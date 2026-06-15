@@ -2,7 +2,6 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { ListUnityToolsToolHandler } from '../../../../src/handlers/instances/ListUnityToolsToolHandler.js';
 import { CallUnityToolToolHandler } from '../../../../src/handlers/instances/CallUnityToolToolHandler.js';
-import { SetActiveUnityInstanceToolHandler } from '../../../../src/handlers/instances/SetActiveUnityInstanceToolHandler.js';
 
 const manifest = [
   { name: 'ping', category: 'system', description: 'Test connection', params: { type: 'object', properties: { message: { type: 'string' } }, required: [] } },
@@ -15,16 +14,22 @@ const fakeConn = (sendImpl) => ({
   sendCommand: sendImpl || (async (type, p) => ({ ok: true, type, p })),
 });
 
+// ADR 0006: no default instance — requireConnection resolves an EXPLICIT instance or throws.
 const fakeManager = (over = {}) => ({
-  getConnectionForInstance: over.getConnectionForInstance || (() => over.conn || fakeConn()),
+  requireConnection: over.requireConnection || (() => over.conn || fakeConn()),
   ensureReady: over.ensureReady || (async (c) => c),
-  setActiveInstance: over.setActiveInstance || (() => ({ host: 'localhost', port: 7000 })),
+});
+
+// A manager whose requireConnection throws the no-instance / unresolved errors, like the real one.
+const throwingManager = (msg) => ({
+  requireConnection: () => { throw new Error(msg); },
+  ensureReady: async (c) => c,
 });
 
 describe('list_unity_tools', () => {
-  it('returns name/category/description by default (no params — lazy)', async () => {
+  it('returns name/category/description by default (no extra params — lazy)', async () => {
     const h = new ListUnityToolsToolHandler({}, fakeManager());
-    const r = await h.execute({});
+    const r = await h.execute({ instance: '7000' });
     assert.equal(r.count, 2);
     assert.deepEqual(r.tools.map((t) => t.name).sort(), ['create_gameobject', 'ping']);
     assert.equal(r.tools.find((t) => t.name === 'ping').category, 'system');
@@ -33,20 +38,27 @@ describe('list_unity_tools', () => {
 
   it('filters by category', async () => {
     const h = new ListUnityToolsToolHandler({}, fakeManager());
-    const r = await h.execute({ category: 'gameobject' });
+    const r = await h.execute({ instance: '7000', category: 'gameobject' });
     assert.equal(r.count, 1);
     assert.equal(r.tools[0].name, 'create_gameobject');
   });
 
   it('returns one tool full schema when name is given', async () => {
     const h = new ListUnityToolsToolHandler({}, fakeManager());
-    const r = await h.execute({ name: 'create_gameobject' });
+    const r = await h.execute({ instance: '7000', name: 'create_gameobject' });
     assert.equal(r.tool.name, 'create_gameobject');
     assert.deepEqual(r.tool.params.required, ['name']);
   });
 
+  it('requires an instance (no default — ADR 0006)', async () => {
+    const h = new ListUnityToolsToolHandler({}, fakeManager());
+    const res = await h.handle({});
+    assert.equal(res.status, 'error');
+    assert.match(res.error, /instance/i);
+  });
+
   it('errors on an unresolved instance', async () => {
-    const h = new ListUnityToolsToolHandler({}, fakeManager({ getConnectionForInstance: () => null }));
+    const h = new ListUnityToolsToolHandler({}, throwingManager('No Unity instance found for "C:/missing".'));
     const res = await h.handle({ instance: 'C:/missing' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /No Unity instance/);
@@ -54,7 +66,7 @@ describe('list_unity_tools', () => {
 
   it('errors on an unknown tool name', async () => {
     const h = new ListUnityToolsToolHandler({}, fakeManager());
-    const res = await h.handle({ name: 'nope' });
+    const res = await h.handle({ instance: '7000', name: 'nope' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /not available/);
   });
@@ -65,7 +77,7 @@ describe('call_unity_tool', () => {
     let sent;
     const conn = fakeConn(async (type, p) => { sent = { type, p }; return { created: true }; });
     const h = new CallUnityToolToolHandler({}, fakeManager({ conn }));
-    const r = await h.execute({ tool: 'create_gameobject', params: { name: 'Cube' } });
+    const r = await h.execute({ instance: '7000', tool: 'create_gameobject', params: { name: 'Cube' } });
     assert.deepEqual(sent, { type: 'create_gameobject', p: { name: 'Cube' } });
     assert.deepEqual(r, { created: true });
   });
@@ -74,7 +86,7 @@ describe('call_unity_tool', () => {
     let called = false;
     const conn = fakeConn(async () => { called = true; return {}; });
     const h = new CallUnityToolToolHandler({}, fakeManager({ conn }));
-    const res = await h.handle({ tool: 'create_gameobject', params: {} }); // missing required "name"
+    const res = await h.handle({ instance: '7000', tool: 'create_gameobject', params: {} }); // missing required "name"
     assert.equal(res.status, 'error');
     assert.match(res.error, /params.*required.*name/i);
     assert.equal(called, false);
@@ -82,26 +94,33 @@ describe('call_unity_tool', () => {
 
   it('errors on an unknown tool', async () => {
     const h = new CallUnityToolToolHandler({}, fakeManager());
-    const res = await h.handle({ tool: 'nope' });
+    const res = await h.handle({ instance: '7000', tool: 'nope' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /not available/);
   });
 
-  it('requires the tool param (BaseToolHandler validation)', async () => {
+  it('requires the instance param (no default — ADR 0006)', async () => {
     const h = new CallUnityToolToolHandler({}, fakeManager());
-    const res = await h.handle({});
+    const res = await h.handle({ tool: 'ping' });
+    assert.equal(res.status, 'error');
+    assert.match(res.error, /instance/i);
+  });
+
+  it('requires the tool param', async () => {
+    const h = new CallUnityToolToolHandler({}, fakeManager());
+    const res = await h.handle({ instance: '7000' });
     assert.equal(res.status, 'error');
   });
 
   it('rejects an empty/whitespace tool name', async () => {
     const h = new CallUnityToolToolHandler({}, fakeManager());
-    const res = await h.handle({ tool: '   ' });
+    const res = await h.handle({ instance: '7000', tool: '   ' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /non-empty/);
   });
 
   it('errors on an unresolved instance', async () => {
-    const h = new CallUnityToolToolHandler({}, fakeManager({ getConnectionForInstance: () => null }));
+    const h = new CallUnityToolToolHandler({}, throwingManager('No Unity instance found for "C:/missing".'));
     const res = await h.handle({ tool: 'ping', instance: 'C:/missing' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /No Unity instance/);
@@ -118,7 +137,7 @@ describe('graceful degradation (editor without a rich manifest)', () => {
 
   it('list_unity_tools falls back to names with schemasAvailable:false', async () => {
     const h = new ListUnityToolsToolHandler({}, fakeManager({ conn: degradedConn() }));
-    const r = await h.execute({});
+    const r = await h.execute({ instance: '7000' });
     assert.equal(r.schemasAvailable, false);
     assert.deepEqual(r.tools.map((t) => t.name).sort(), ['get_editor_state', 'ping']);
     assert.equal(r.tools[0].category, null);
@@ -128,38 +147,15 @@ describe('graceful degradation (editor without a rich manifest)', () => {
     let sent;
     const conn = degradedConn(async (type, p) => { sent = { type, p }; return { state: {} }; });
     const h = new CallUnityToolToolHandler({}, fakeManager({ conn }));
-    const r = await h.execute({ tool: 'get_editor_state', params: { anything: 123 } }); // would fail a schema; no schema here
+    const r = await h.execute({ instance: '7000', tool: 'get_editor_state', params: { anything: 123 } }); // would fail a schema; no schema here
     assert.deepEqual(sent, { type: 'get_editor_state', p: { anything: 123 } });
     assert.deepEqual(r, { state: {} });
   });
 
   it('call_unity_tool still rejects a tool the editor does not advertise', async () => {
     const h = new CallUnityToolToolHandler({}, fakeManager({ conn: degradedConn() }));
-    const res = await h.handle({ tool: 'not_a_real_tool' });
+    const res = await h.handle({ instance: '7000', tool: 'not_a_real_tool' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /not available/);
-  });
-});
-
-describe('set_active_unity_instance', () => {
-  it('sets the active instance', async () => {
-    const h = new SetActiveUnityInstanceToolHandler({}, fakeManager({ setActiveInstance: (ref) => ({ host: 'localhost', port: Number(ref) }) }));
-    const r = await h.execute({ instance: '7200' });
-    assert.deepEqual(r.active, { host: 'localhost', port: 7200 });
-  });
-
-  it('resets to the default when instance is omitted', async () => {
-    let arg = 'unset';
-    const h = new SetActiveUnityInstanceToolHandler({}, fakeManager({ setActiveInstance: (ref) => { arg = ref; return null; } }));
-    const r = await h.execute({});
-    assert.equal(arg, null);
-    assert.equal(r.active, null);
-  });
-
-  it('errors when a named instance is not found', async () => {
-    const h = new SetActiveUnityInstanceToolHandler({}, fakeManager({ setActiveInstance: () => null }));
-    const res = await h.handle({ instance: 'C:/missing' });
-    assert.equal(res.status, 'error');
-    assert.match(res.error, /No Unity instance/);
   });
 });

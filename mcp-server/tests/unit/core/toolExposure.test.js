@@ -3,15 +3,16 @@ import assert from 'node:assert/strict';
 import { isMetaTool, typedToolsExposed, filterListedTools, META_TOOL_NAMES } from '../../../src/core/toolExposure.js';
 
 const defs = [
-  { name: 'list_unity_instances' }, { name: 'list_unity_tools' }, { name: 'call_unity_tool' }, { name: 'set_active_unity_instance' },
+  { name: 'list_unity_instances' }, { name: 'list_unity_tools' }, { name: 'call_unity_tool' },
   { name: 'ping' }, { name: 'create_gameobject' },
 ];
 
 describe('toolExposure', () => {
-  it('isMetaTool identifies the four instance meta-tools', () => {
+  it('isMetaTool identifies the three instance meta-tools', () => {
     assert.equal(isMetaTool('call_unity_tool'), true);
     assert.equal(isMetaTool('ping'), false);
-    assert.equal(META_TOOL_NAMES.size, 4);
+    assert.equal(isMetaTool('set_active_unity_instance'), false); // removed in v0.5.0 (ADR 0006)
+    assert.equal(META_TOOL_NAMES.size, 3);
   });
 
   it('typedToolsExposed honors the flag, and the default when unset', () => {
@@ -22,19 +23,19 @@ describe('toolExposure', () => {
   });
 
   it('filterListedTools keeps everything when typed are exposed', () => {
-    assert.equal(filterListedTools(defs, { UNITY_MCP_TYPED_TOOLS: 'true' }, false).length, 6);
+    assert.equal(filterListedTools(defs, { UNITY_MCP_TYPED_TOOLS: 'true' }, false).length, 5);
   });
 
   it('filterListedTools keeps only the meta-tools when typed are not exposed', () => {
     const r = filterListedTools(defs, { UNITY_MCP_TYPED_TOOLS: 'false' }, true);
     assert.deepEqual(
       r.map((d) => d.name).sort(),
-      ['call_unity_tool', 'list_unity_instances', 'list_unity_tools', 'set_active_unity_instance'],
+      ['call_unity_tool', 'list_unity_instances', 'list_unity_tools'],
     );
   });
 
   it('respects the default when the env var is unset', () => {
-    assert.equal(filterListedTools(defs, {}, true).length, 6); // default expose-all
-    assert.equal(filterListedTools(defs, {}, false).length, 4); // default meta-only
+    assert.equal(filterListedTools(defs, {}, true).length, 5); // default expose-all
+    assert.equal(filterListedTools(defs, {}, false).length, 3); // default meta-only
   });
 });

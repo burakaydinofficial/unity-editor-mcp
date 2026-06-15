@@ -15,11 +15,11 @@ export class ListUnityToolsToolHandler extends BaseToolHandler {
       {
         type: 'object',
         properties: {
-          instance: { type: 'string', description: 'Target editor: a project path or port. Omit for the active/default instance.' },
+          instance: { type: 'string', description: 'REQUIRED — the target editor (a project path or port). There is no default instance: every call must name its editor. Use list_unity_instances to see what is running.' },
           category: { type: 'string', description: 'Only return tools in this category (e.g. "gameobject", "scene").' },
           name: { type: 'string', description: 'Return the full {name, category, description, params} schema for just this one tool.' },
         },
-        required: [],
+        required: ['instance'],
       },
     );
     this.unityConnection = unityConnection;
@@ -27,10 +27,7 @@ export class ListUnityToolsToolHandler extends BaseToolHandler {
   }
 
   async execute(params = {}) {
-    const conn = this.manager.getConnectionForInstance(params.instance);
-    if (!conn) {
-      throw new Error(`No Unity instance found for "${params.instance}". Use list_unity_instances to see what's running.`);
-    }
+    const conn = this.manager.requireConnection(params.instance);
     await this.manager.ensureReady(conn);
     const { tools: surface, hasSchemas } = editorToolSurface(conn.editorInfo);
 

@@ -12,15 +12,15 @@ export class CallUnityToolToolHandler extends BaseToolHandler {
   constructor(unityConnection, manager) {
     super(
       'call_unity_tool',
-      'Invoke any tool a connected Unity editor supports, by name (discover names + schemas with list_unity_tools). Params are validated against the editor-advertised schema before the call, so a validation error tells you exactly what to fix. Use "instance" to target a specific editor (project path or port); omit it for the active/default one. To trim the response, pass params.fields — an array of dot-paths (GraphQL-style); omit for the full result.',
+      'Invoke any tool a connected Unity editor supports, by name (discover names + schemas with list_unity_tools). Params are validated against the editor-advertised schema before the call, so a validation error tells you exactly what to fix. The "instance" (a project path or port) is required — there is no default editor, so every call names its target. To trim the response, pass params.fields — an array of dot-paths (GraphQL-style); omit for the full result.',
       {
         type: 'object',
         properties: {
-          instance: { type: 'string', description: 'Target editor: a project path or port. Omit for the active/default instance.' },
+          instance: { type: 'string', description: 'REQUIRED — the target editor (a project path or port). There is no default instance: every call must name its editor. Use list_unity_instances to see what is running.' },
           tool: { type: 'string', description: 'The tool name to invoke (see list_unity_tools).' },
           params: { type: 'object', description: 'Parameters for the tool, matching its advertised schema. Also accepts an optional reserved "fields": a string[] of dot-paths that projects the result to just those fields (e.g. ["count","objects.name","state.isPlaying"]); arrays are transparent (the path applies to each element). Omit for all fields. Discover the shape by calling once without "fields".' },
         },
-        required: ['tool'],
+        required: ['instance', 'tool'],
       },
     );
     this.unityConnection = unityConnection;
@@ -35,10 +35,7 @@ export class CallUnityToolToolHandler extends BaseToolHandler {
   }
 
   async execute(params = {}) {
-    const conn = this.manager.getConnectionForInstance(params.instance);
-    if (!conn) {
-      throw new Error(`No Unity instance found for "${params.instance}". Use list_unity_instances to see what's running.`);
-    }
+    const conn = this.manager.requireConnection(params.instance);
     await this.manager.ensureReady(conn);
     const { tools, hasSchemas } = editorToolSurface(conn.editorInfo);
     const entry = tools.find((t) => t.name === params.tool);

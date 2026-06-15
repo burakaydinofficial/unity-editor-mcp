@@ -134,6 +134,22 @@ export class UnityConnectionManager {
     return t ? this.getConnection(t.host, t.port) : null;
   }
 
+  /**
+   * Resolves the connection for an EXPLICIT instance ref, throwing a clear error if the ref is missing
+   * or unresolved. There is NO default instance (ADR 0006): every instance-bound call must name its
+   * editor, so a forgotten/wrong target fails loudly instead of silently acting on the wrong project.
+   */
+  requireConnection(ref) {
+    if (ref == null || (typeof ref === 'string' && ref.trim() === '')) {
+      throw new Error('instance is required: name the target editor (a project path or port). There is no default instance — every call must name its editor so an agent never acts on the wrong project. Use list_unity_instances to see what is running.');
+    }
+    const t = this.resolveInstance(ref);
+    if (!t) {
+      throw new Error(`No Unity instance found for "${ref}". Use list_unity_instances to see what is running.`);
+    }
+    return this.getConnection(t.host, t.port);
+  }
+
   /** Sets the default target. null/empty clears the override (back to env-resolving). Returns {host,port}|null. */
   setActiveInstance(ref) {
     if (ref == null || ref === '') { this.activeOverride = null; return null; }

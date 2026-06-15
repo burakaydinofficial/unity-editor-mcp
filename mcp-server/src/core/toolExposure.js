@@ -15,7 +15,6 @@ export const META_TOOL_NAMES = new Set([
   'list_unity_instances',
   'list_unity_tools',
   'call_unity_tool',
-  'set_active_unity_instance',
 ]);
 
 export function isMetaTool(name) {

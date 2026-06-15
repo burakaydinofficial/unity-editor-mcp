@@ -117,7 +117,6 @@ export { CancelTestsToolHandler } from './test/CancelTestsToolHandler.js';
 export { ListUnityInstancesToolHandler } from './instances/ListUnityInstancesToolHandler.js';
 export { ListUnityToolsToolHandler } from './instances/ListUnityToolsToolHandler.js';
 export { CallUnityToolToolHandler } from './instances/CallUnityToolToolHandler.js';
-export { SetActiveUnityInstanceToolHandler } from './instances/SetActiveUnityInstanceToolHandler.js';
 
 // Import all handler classes at once
 import { PingToolHandler } from './system/PingToolHandler.js';
@@ -199,7 +198,6 @@ import { CancelTestsToolHandler } from './test/CancelTestsToolHandler.js';
 import { ListUnityInstancesToolHandler } from './instances/ListUnityInstancesToolHandler.js';
 import { ListUnityToolsToolHandler } from './instances/ListUnityToolsToolHandler.js';
 import { CallUnityToolToolHandler } from './instances/CallUnityToolToolHandler.js';
-import { SetActiveUnityInstanceToolHandler } from './instances/SetActiveUnityInstanceToolHandler.js';
 
 // Handler registry - single source of truth
 const HANDLER_CLASSES = [
@@ -314,8 +312,7 @@ const HANDLER_CLASSES = [
   // Instance handlers
   ListUnityInstancesToolHandler,
   ListUnityToolsToolHandler,
-  CallUnityToolToolHandler,
-  SetActiveUnityInstanceToolHandler
+  CallUnityToolToolHandler
 ];
 
 /**
