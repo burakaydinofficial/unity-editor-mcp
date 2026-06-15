@@ -22,7 +22,7 @@ namespace UnityEditorMCP.Tests
         // assert against a JObject view rather than `dynamic`: a missing key reads
         // as null instead of throwing, and it works across the assembly boundary.
         private static JObject Create(JObject parameters)
-            => JObject.FromObject(SceneHandler.CreateScene(parameters));
+            => TestHelpers.Result(SceneHandler.CreateScene(parameters));
 
         [SetUp]
         public void Setup()

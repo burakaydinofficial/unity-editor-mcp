@@ -55,7 +55,7 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var dict = JObject.FromObject(ComponentHandler.AddComponent(parameters));
+            var dict = TestHelpers.Result(ComponentHandler.AddComponent(parameters));
 
             // Assert
             Assert.IsFalse(dict.ContainsKey("error"));
@@ -80,7 +80,7 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var dict = JObject.FromObject(ComponentHandler.AddComponent(parameters));
+            var dict = TestHelpers.Result(ComponentHandler.AddComponent(parameters));
 
             // Assert
             Assert.IsTrue(dict.ContainsKey("error"));
@@ -98,7 +98,7 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var dict = JObject.FromObject(ComponentHandler.AddComponent(parameters));
+            var dict = TestHelpers.Result(ComponentHandler.AddComponent(parameters));
 
             // Assert
             Assert.IsTrue(dict.ContainsKey("error"));
@@ -118,7 +118,7 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var dict = JObject.FromObject(ComponentHandler.AddComponent(parameters));
+            var dict = TestHelpers.Result(ComponentHandler.AddComponent(parameters));
 
             // Assert
             Assert.IsTrue(dict.ContainsKey("error"));
@@ -141,7 +141,7 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var dict = JObject.FromObject(ComponentHandler.RemoveComponent(parameters));
+            var dict = TestHelpers.Result(ComponentHandler.RemoveComponent(parameters));
 
             // Assert
             Assert.IsFalse(dict.ContainsKey("error"));
@@ -160,7 +160,7 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var dict = JObject.FromObject(ComponentHandler.RemoveComponent(parameters));
+            var dict = TestHelpers.Result(ComponentHandler.RemoveComponent(parameters));
 
             // Assert
             Assert.IsFalse(dict.ContainsKey("error"));
@@ -178,7 +178,7 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var dict = JObject.FromObject(ComponentHandler.RemoveComponent(parameters));
+            var dict = TestHelpers.Result(ComponentHandler.RemoveComponent(parameters));
 
             // Assert
             Assert.IsTrue(dict.ContainsKey("error"));
@@ -200,7 +200,7 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var dict = JObject.FromObject(ComponentHandler.RemoveComponent(parameters));
+            var dict = TestHelpers.Result(ComponentHandler.RemoveComponent(parameters));
 
             // Assert
             Assert.IsTrue((bool)dict["removed"]);
@@ -231,7 +231,7 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var dict = JObject.FromObject(ComponentHandler.ModifyComponent(parameters));
+            var dict = TestHelpers.Result(ComponentHandler.ModifyComponent(parameters));
 
             // Assert
             Assert.IsFalse(dict.ContainsKey("error"));
@@ -265,7 +265,7 @@ namespace UnityEditorMCP.Tests
 
             // Act — the handler logs a WARNING for the failed conversion (not an
             // error), so it doesn't trip the Test Runner log-check; no LogAssert needed.
-            var dict = JObject.FromObject(ComponentHandler.ModifyComponent(parameters));
+            var dict = TestHelpers.Result(ComponentHandler.ModifyComponent(parameters));
 
             // Assert
             Assert.IsTrue(dict.ContainsKey("error"));
@@ -289,7 +289,7 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var dict = JObject.FromObject(ComponentHandler.ModifyComponent(parameters));
+            var dict = TestHelpers.Result(ComponentHandler.ModifyComponent(parameters));
 
             // Assert
             Assert.IsTrue(dict.ContainsKey("error"));
@@ -313,7 +313,7 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var dict = JObject.FromObject(ComponentHandler.ListComponents(parameters));
+            var dict = TestHelpers.Result(ComponentHandler.ListComponents(parameters));
 
             // Assert
             Assert.IsFalse(dict.ContainsKey("error"));
@@ -338,7 +338,7 @@ namespace UnityEditorMCP.Tests
             };
 
             // Act
-            var dict = JObject.FromObject(ComponentHandler.ListComponents(parameters));
+            var dict = TestHelpers.Result(ComponentHandler.ListComponents(parameters));
 
             // Assert
             var components = (JArray)dict["components"];

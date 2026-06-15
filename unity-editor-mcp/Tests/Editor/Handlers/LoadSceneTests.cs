@@ -22,7 +22,7 @@ namespace UnityEditorMCP.Tests
         // as null instead of throwing RuntimeBinderException, and it works across
         // the assembly boundary without relying on InternalsVisibleTo.
         private static JObject Load(JObject parameters)
-            => JObject.FromObject(SceneHandler.LoadScene(parameters));
+            => TestHelpers.Result(SceneHandler.LoadScene(parameters));
 
         [SetUp]
         public void Setup()
