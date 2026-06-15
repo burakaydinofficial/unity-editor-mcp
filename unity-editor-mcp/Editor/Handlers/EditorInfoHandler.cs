@@ -3,14 +3,16 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
     /// <summary>
-    /// Read-only editor / project introspection: environment info, project settings, and the
-    /// installed UPM package set. Every API used here is floor-safe (Unity 2020.3+) and synchronous —
-    /// packages are read from the manifest/lock files rather than the async PackageManager.Client API,
-    /// so the call never blocks the main thread or depends on a newer API surface.
+    /// Editor / project operations: environment info, project settings (read + write), the installed
+    /// UPM package set, package add/remove, and editor lifecycle. On the Core CommandDispatcher rail —
+    /// every method returns a HandlerOutcome (Ok/Fail), so an error can never serialize as a success.
+    /// Every API used here is floor-safe (Unity 2020.3+); packages are read from the manifest/lock files
+    /// (synchronous, version-independent) rather than the async PackageManager.Client API.
     /// </summary>
     public static class EditorInfoHandler
     {
@@ -20,11 +22,11 @@ namespace UnityEditorMCP.Handlers
             return Directory.GetParent(Application.dataPath)?.FullName?.Replace("\\", "/");
         }
 
-        public static JObject GetEditorInfo(JObject parameters)
+        public static HandlerOutcome GetEditorInfo(JObject parameters)
         {
             try
             {
-                return new JObject
+                return HandlerOutcome.Ok(new JObject
                 {
                     ["unityVersion"] = Application.unityVersion,
                     ["platform"] = Application.platform.ToString(),
@@ -38,17 +40,17 @@ namespace UnityEditorMCP.Handlers
                     ["isPlaying"] = EditorApplication.isPlaying,
                     ["isCompiling"] = EditorApplication.isCompiling,
                     ["applicationPath"] = EditorApplication.applicationPath
-                };
+                });
             }
             catch (Exception e) { return Err($"Error getting editor info: {e.Message}"); }
         }
 
-        public static JObject GetProjectSettings(JObject parameters)
+        public static HandlerOutcome GetProjectSettings(JObject parameters)
         {
             try
             {
                 var group = EditorUserBuildSettings.selectedBuildTargetGroup;
-                return new JObject
+                return HandlerOutcome.Ok(new JObject
                 {
                     ["productName"] = PlayerSettings.productName,
                     ["companyName"] = PlayerSettings.companyName,
@@ -64,12 +66,12 @@ namespace UnityEditorMCP.Handlers
                     ["scriptingBackend"] = PlayerSettings.GetScriptingBackend(group).ToString(),
                     ["apiCompatibilityLevel"] = PlayerSettings.GetApiCompatibilityLevel(group).ToString(),
                     ["scriptingDefineSymbols"] = PlayerSettings.GetScriptingDefineSymbolsForGroup(group)
-                };
+                });
             }
             catch (Exception e) { return Err($"Error getting project settings: {e.Message}"); }
         }
 
-        public static JObject ListPackages(JObject parameters)
+        public static HandlerOutcome ListPackages(JObject parameters)
         {
             try
             {
@@ -105,24 +107,24 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
-                return new JObject
+                return HandlerOutcome.Ok(new JObject
                 {
                     ["dependencies"] = dependencies,
                     ["resolved"] = resolved,
                     ["count"] = resolved.Count
-                };
+                });
             }
             catch (Exception e) { return Err($"Error listing packages: {e.Message}"); }
         }
 
-        public static JObject SetProjectSetting(JObject parameters)
+        public static HandlerOutcome SetProjectSetting(JObject parameters)
         {
             try
             {
                 var key = parameters["key"]?.ToString();
-                if (string.IsNullOrEmpty(key)) return Err("Missing required parameter: key");
+                if (string.IsNullOrEmpty(key)) return Err("Missing required parameter: key", "VALIDATION_ERROR");
                 var value = parameters["value"];
-                if (value == null || value.Type == JTokenType.Null) return Err("Missing required parameter: value");
+                if (value == null || value.Type == JTokenType.Null) return Err("Missing required parameter: value", "VALIDATION_ERROR");
 
                 var group = EditorUserBuildSettings.selectedBuildTargetGroup;
                 switch (key)
@@ -132,38 +134,38 @@ namespace UnityEditorMCP.Handlers
                     case "bundleVersion": PlayerSettings.bundleVersion = value.ToString(); break;
                     case "defaultScreenWidth":
                     {
-                        if (!TryGetPositiveInt(value, out var w, out var err)) return Err($"defaultScreenWidth {err}");
+                        if (!TryGetPositiveInt(value, out var w, out var err)) return Err($"defaultScreenWidth {err}", "VALIDATION_ERROR");
                         PlayerSettings.defaultScreenWidth = w;
                         break;
                     }
                     case "defaultScreenHeight":
                     {
-                        if (!TryGetPositiveInt(value, out var h, out var err)) return Err($"defaultScreenHeight {err}");
+                        if (!TryGetPositiveInt(value, out var h, out var err)) return Err($"defaultScreenHeight {err}", "VALIDATION_ERROR");
                         PlayerSettings.defaultScreenHeight = h;
                         break;
                     }
                     case "runInBackground":
-                        if (value.Type != JTokenType.Boolean) return Err("runInBackground must be a boolean");
+                        if (value.Type != JTokenType.Boolean) return Err("runInBackground must be a boolean", "VALIDATION_ERROR");
                         PlayerSettings.runInBackground = value.ToObject<bool>(); break;
                     case "colorSpace": PlayerSettings.colorSpace = (ColorSpace)Enum.Parse(typeof(ColorSpace), value.ToString(), true); break;
                     case "scriptingDefineSymbols": PlayerSettings.SetScriptingDefineSymbolsForGroup(group, value.ToString()); break;
                     default:
-                        return Err($"Unsupported setting key: {key}. Supported: productName, companyName, bundleVersion, defaultScreenWidth, defaultScreenHeight, runInBackground, colorSpace, scriptingDefineSymbols.");
+                        return Err($"Unsupported setting key: {key}. Supported: productName, companyName, bundleVersion, defaultScreenWidth, defaultScreenHeight, runInBackground, colorSpace, scriptingDefineSymbols.", "VALIDATION_ERROR");
                 }
                 AssetDatabase.SaveAssets();
-                return new JObject { ["message"] = $"Set project setting '{key}'.", ["key"] = key };
+                return HandlerOutcome.Ok(new JObject { ["message"] = $"Set project setting '{key}'.", ["key"] = key });
             }
             catch (Exception e) { return Err($"Error setting project setting: {e.Message}"); }
         }
 
-        public static JObject ManagePackages(JObject parameters)
+        public static HandlerOutcome ManagePackages(JObject parameters)
         {
             try
             {
                 var action = parameters["action"]?.ToString()?.ToLowerInvariant();
-                if (string.IsNullOrEmpty(action)) return Err("Missing required parameter: action");
+                if (string.IsNullOrEmpty(action)) return Err("Missing required parameter: action", "VALIDATION_ERROR");
                 var packageId = parameters["packageId"]?.ToString();
-                if (string.IsNullOrEmpty(packageId)) return Err("Missing required parameter: packageId");
+                if (string.IsNullOrEmpty(packageId)) return Err("Missing required parameter: packageId", "VALIDATION_ERROR");
 
                 switch (action)
                 {
@@ -171,28 +173,28 @@ namespace UnityEditorMCP.Handlers
                         // Fire-and-forget: the PackageManager resolves asynchronously and triggers a domain
                         // reload; the bridge reconnects on its own. Verify the outcome with list_packages.
                         UnityEditor.PackageManager.Client.Add(packageId);
-                        return new JObject
+                        return HandlerOutcome.Ok(new JObject
                         {
                             ["message"] = $"Requested add of '{packageId}'. Resolution is asynchronous (the editor will recompile/reload); verify with list_packages.",
                             ["action"] = "add",
                             ["packageId"] = packageId
-                        };
+                        });
                     case "remove":
                         UnityEditor.PackageManager.Client.Remove(packageId);
-                        return new JObject
+                        return HandlerOutcome.Ok(new JObject
                         {
                             ["message"] = $"Requested removal of '{packageId}'. Resolution is asynchronous; verify with list_packages.",
                             ["action"] = "remove",
                             ["packageId"] = packageId
-                        };
+                        });
                     default:
-                        return Err($"Unknown action: {action}. Supported: add, remove.");
+                        return Err($"Unknown action: {action}. Supported: add, remove.", "VALIDATION_ERROR");
                 }
             }
             catch (Exception e) { return Err($"Error managing packages: {e.Message}"); }
         }
 
-        public static JObject QuitEditor(JObject parameters)
+        public static HandlerOutcome QuitEditor(JObject parameters)
         {
             try
             {
@@ -210,7 +212,7 @@ namespace UnityEditorMCP.Handlers
                     }
                 };
                 EditorApplication.update += cb;
-                return new JObject { ["message"] = "Editor quit scheduled (after response flush)." };
+                return HandlerOutcome.Ok(new JObject { ["message"] = "Editor quit scheduled (after response flush)." });
             }
             catch (Exception e) { return Err($"Error quitting editor: {e.Message}"); }
         }
@@ -232,8 +234,6 @@ namespace UnityEditorMCP.Handlers
             return true;
         }
 
-        // Error as an opaque { error } payload — ResponseClassifier classifies it as a real error
-        // envelope on the wire (no inline status key needed).
-        private static JObject Err(string error) => new JObject { ["error"] = error };
+        private static HandlerOutcome Err(string error, string code = "INTERNAL_ERROR") => HandlerOutcome.Fail(error, code);
     }
 }

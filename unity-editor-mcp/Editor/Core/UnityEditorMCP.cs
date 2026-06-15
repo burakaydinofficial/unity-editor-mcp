@@ -63,6 +63,13 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("pause_game", p => PlayModeHandler.HandleCommand("pause_game", p));
             dispatcher.Register("stop_game", p => PlayModeHandler.HandleCommand("stop_game", p));
             dispatcher.Register("get_editor_state", p => PlayModeHandler.HandleCommand("get_editor_state", p));
+            // Editor & project ops (migration batch 2) — Shape A: single-method handlers, registered directly.
+            dispatcher.Register("get_editor_info", EditorInfoHandler.GetEditorInfo);
+            dispatcher.Register("get_project_settings", EditorInfoHandler.GetProjectSettings);
+            dispatcher.Register("list_packages", EditorInfoHandler.ListPackages);
+            dispatcher.Register("set_project_setting", EditorInfoHandler.SetProjectSetting);
+            dispatcher.Register("manage_packages", EditorInfoHandler.ManagePackages);
+            dispatcher.Register("quit_editor", EditorInfoHandler.QuitEditor);
             return dispatcher;
         }
 
@@ -543,36 +550,8 @@ namespace UnityEditorMCP.Core
                     // Play Mode Control commands (play_game, pause_game, stop_game, get_editor_state)
                     // are migrated to the Core CommandDispatcher rail — see BuildDispatcher.
 
-                    // Editor / project introspection (read-only)
-                    case "get_editor_info":
-                        var editorInfoResult = EditorInfoHandler.GetEditorInfo(command.Parameters);
-                        response = Response.Result(command.Id, editorInfoResult);
-                        break;
-
-                    case "get_project_settings":
-                        var projectSettingsResult = EditorInfoHandler.GetProjectSettings(command.Parameters);
-                        response = Response.Result(command.Id, projectSettingsResult);
-                        break;
-
-                    case "list_packages":
-                        var listPackagesResult = EditorInfoHandler.ListPackages(command.Parameters);
-                        response = Response.Result(command.Id, listPackagesResult);
-                        break;
-
-                    case "set_project_setting":
-                        var setProjectSettingResult = EditorInfoHandler.SetProjectSetting(command.Parameters);
-                        response = Response.Result(command.Id, setProjectSettingResult);
-                        break;
-
-                    case "manage_packages":
-                        var managePackagesResult = EditorInfoHandler.ManagePackages(command.Parameters);
-                        response = Response.Result(command.Id, managePackagesResult);
-                        break;
-
-                    case "quit_editor":
-                        var quitEditorResult = EditorInfoHandler.QuitEditor(command.Parameters);
-                        response = Response.Result(command.Id, quitEditorResult);
-                        break;
+                    // Editor & project ops (get_editor_info, get_project_settings, list_packages,
+                    // set_project_setting, manage_packages, quit_editor) are migrated to the rail.
 
                     // Code intelligence (syntactic, in-editor)
                     case "get_symbols":

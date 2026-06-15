@@ -79,5 +79,6 @@ Each command keeps identical wire behavior (the catalog + manifest are unchanged
 
 ## Resume marker
 Progress tracked in memory `v030-execution-progress.md`. Batches completed:
-- [x] **1. PlayMode** (play_game/pause_game/stop_game/get_editor_state) — Shape B proven; get_editor_state dogfooded live through the rail on 2020.3. Rail now has 6 commands.
-- [ ] 2. System / console · 3. Editor & project ops · 4. GameObject · 5. Scene + analysis · 6. Component · 7. Asset · 8. Scripting + compilation · 9. UI · 10. Test/screenshot/code-intel
+- [x] **1. PlayMode** (play_game/pause_game/stop_game/get_editor_state) — Shape B proven; get_editor_state dogfooded live. Rail 2→6.
+- [x] **2. Editor & project ops** (EditorInfoHandler: get_editor_info/get_project_settings/list_packages/set_project_setting/manage_packages/quit_editor) — Shape A; get_editor_info + list_packages dogfooded live through the rail. Rail 6→12. (Done ahead of the system/console batch — these were the cleanest handlers, written this session.)
+- [ ] 3. System/console (ping, read_logs, clear_logs, refresh_assets inline + ConsoleHandler clear_console/enhanced_read_logs) · 4. CodeIntelligenceHandler (get_symbols/find_symbol/find_references/get_symbol_body) · 5. GameObject · 6. Scene + analysis · 7. Component · 8. Asset (+ the manage_* action-dispatch handlers) · 9. Scripting + compilation · 10. UI · 11. Test/screenshot
