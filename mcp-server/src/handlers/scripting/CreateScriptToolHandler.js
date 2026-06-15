@@ -71,7 +71,7 @@ export class CreateScriptToolHandler extends BaseToolHandler {
     if (path && !path.startsWith('Assets/')) {
       throw new Error('path must start with Assets/');
     }
-    if (path && path.split(/[\\/]+/).includes('..')) {
+    if (path && path.split(String.fromCharCode(92)).join('/').split('/').includes('..')) {
       throw new Error('path must not contain ".." traversal segments');
     }
 

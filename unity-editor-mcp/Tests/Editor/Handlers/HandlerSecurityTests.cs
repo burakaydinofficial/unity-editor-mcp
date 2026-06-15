@@ -49,5 +49,36 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
             StringAssert.Contains("project root", outcome.Error);
         }
+
+        // The sibling script handlers + capture_screenshot were unguarded until the confirmation audit;
+        // these are reachable with NO Node-side handler (pure passthrough via call_unity_tool), so the
+        // C# guard is the sole defense.
+
+        [Test]
+        public void ReadScript_WithTraversalPath_IsRejected()
+        {
+            var outcome = ScriptHandler.ReadScript(new JObject { ["scriptPath"] = "Assets/../../secret.txt" });
+            Assert.IsTrue(outcome.IsError, "a traversal scriptPath must be rejected (arbitrary file READ)");
+            Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
+            StringAssert.Contains("project root", outcome.Error);
+        }
+
+        [Test]
+        public void UpdateScript_WithTraversalPath_IsRejected()
+        {
+            var outcome = ScriptHandler.UpdateScript(new JObject { ["scriptPath"] = "Assets/../../evil.cs", ["scriptContent"] = "x" });
+            Assert.IsTrue(outcome.IsError, "a traversal scriptPath must be rejected (arbitrary file WRITE)");
+            Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
+            StringAssert.Contains("project root", outcome.Error);
+        }
+
+        [Test]
+        public void CaptureScreenshot_WithTraversalOutputPath_IsRejected()
+        {
+            var outcome = ScreenshotHandler.CaptureScreenshot(new JObject { ["outputPath"] = "../../evil.png" });
+            Assert.IsTrue(outcome.IsError, "a traversal outputPath must be rejected (write outside project)");
+            Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
+            StringAssert.Contains("project root", outcome.Error);
+        }
     }
 }

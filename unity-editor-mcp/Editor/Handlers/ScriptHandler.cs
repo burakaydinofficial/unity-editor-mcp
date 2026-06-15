@@ -109,6 +109,10 @@ namespace UnityEditorMCP.Handlers
                     // Read by path
                     relativePath = scriptPath;
                     fullPath = Path.Combine(Application.dataPath, "../", scriptPath);
+                    if (!PathSafety.IsWithinProject(fullPath))
+                    {
+                        return HandlerOutcome.Fail("scriptPath must stay within the project root", "VALIDATION_ERROR");
+                    }
                 }
                 else if (!string.IsNullOrEmpty(scriptName))
                 {
@@ -188,6 +192,10 @@ namespace UnityEditorMCP.Handlers
                 {
                     relativePath = scriptPath;
                     fullPath = Path.Combine(Application.dataPath, "../", scriptPath);
+                    if (!PathSafety.IsWithinProject(fullPath))
+                    {
+                        return HandlerOutcome.Fail("scriptPath must stay within the project root", "VALIDATION_ERROR");
+                    }
                 }
                 else if (!string.IsNullOrEmpty(scriptName))
                 {
@@ -286,6 +294,10 @@ namespace UnityEditorMCP.Handlers
                 {
                     relativePath = scriptPath;
                     fullPath = Path.Combine(Application.dataPath, "../", scriptPath);
+                    if (!PathSafety.IsWithinProject(fullPath))
+                    {
+                        return HandlerOutcome.Fail("scriptPath must stay within the project root", "VALIDATION_ERROR");
+                    }
                 }
                 else if (!string.IsNullOrEmpty(scriptName))
                 {
@@ -502,6 +514,10 @@ namespace UnityEditorMCP.Handlers
                 {
                     actualPath = scriptPath;
                     string fullPath = Path.Combine(Application.dataPath, "../", scriptPath);
+                    if (!PathSafety.IsWithinProject(fullPath))
+                    {
+                        return HandlerOutcome.Fail("scriptPath must stay within the project root", "VALIDATION_ERROR");
+                    }
                     if (!File.Exists(fullPath))
                     {
                         return HandlerOutcome.Fail($"Script not found at {scriptPath}", "NOT_FOUND");

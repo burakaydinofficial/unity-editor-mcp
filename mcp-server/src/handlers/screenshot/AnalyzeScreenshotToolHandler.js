@@ -63,7 +63,7 @@ export class AnalyzeScreenshotToolHandler extends BaseToolHandler {
       }
       // No `..` traversal — the editor reads the path relative to the project root, so a `..` would
       // escape it and read a file outside the project (defense-in-depth with the C# side).
-      if (imagePath.split(/[\\/]+/).includes('..')) {
+      if (imagePath.split(String.fromCharCode(92)).join('/').split('/').includes('..')) {
         throw new Error('imagePath must not contain ".." traversal segments');
       }
 
