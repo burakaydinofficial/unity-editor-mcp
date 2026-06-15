@@ -6,6 +6,7 @@ using UnityEditor;
 using UnityEditor.TestTools.TestRunner.Api;
 using UnityEngine;
 using ApiTestMode = UnityEditor.TestTools.TestRunner.Api.TestMode;
+using UnityEditorMCP.Core;
 using UnityEditorMCP.Helpers;
 using Newtonsoft.Json.Linq;
 
@@ -29,7 +30,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Lists all available tests in the project
         /// </summary>
-        public static object ListTests(JObject parameters)
+        public static HandlerOutcome ListTests(JObject parameters)
         {
             try
             {
@@ -52,30 +53,30 @@ namespace UnityEditorMCP.Handlers
                     .Cast<object>()
                     .ToList();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     tests = tests.ToArray(),
                     totalCount = tests.Count,
                     testMode = testMode.ToString(),
                     message = $"Found {tests.Count} tests"
-                };
+                });
             }
             catch (Exception ex)
             {
-                return Response.Error($"Failed to list tests: {ex.Message}");
+                return HandlerOutcome.Fail($"Failed to list tests: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Runs specified tests or all tests
         /// </summary>
-        public static object RunTests(JObject parameters)
+        public static HandlerOutcome RunTests(JObject parameters)
         {
             try
             {
                 if (isRunningTests)
                 {
-                    return Response.Error("Tests are already running. Please wait for them to complete or cancel.");
+                    return HandlerOutcome.Fail("Tests are already running. Please wait for them to complete or cancel.", "INVALID_STATE");
                 }
 
                 var testMode = ParseTestMode(parameters["testMode"]?.ToString());
@@ -101,13 +102,13 @@ namespace UnityEditorMCP.Handlers
 
                     if (filterTestNames.Length == 0)
                     {
-                        return new
+                        return HandlerOutcome.Ok(new
                         {
                             message = "No tests matched the requested filters",
                             testMode = testMode.ToString(),
                             testCount = 0,
                             runAll = runAll
-                        };
+                        });
                     }
                 }
 
@@ -135,26 +136,26 @@ namespace UnityEditorMCP.Handlers
                 var executionSettings = new ExecutionSettings(filter);
                 testRunnerApi.Execute(executionSettings);
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     message = "Test execution started",
                     testMode = testMode.ToString(),
                     testCount = testNames?.Length ?? 0,
                     runAll = runAll,
                     timestamp = DateTime.UtcNow.ToString("o")
-                };
+                });
             }
             catch (Exception ex)
             {
                 isRunningTests = false;
-                return Response.Error($"Failed to run tests: {ex.Message}");
+                return HandlerOutcome.Fail($"Failed to run tests: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Gets the results of the last test run
         /// </summary>
-        public static object GetTestResults(JObject parameters)
+        public static HandlerOutcome GetTestResults(JObject parameters)
         {
             try
             {
@@ -163,12 +164,12 @@ namespace UnityEditorMCP.Handlers
 
                 if (lastTestResults.Count == 0)
                 {
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         message = "No test results available. Run tests first.",
                         hasResults = false,
                         isRunning = isRunningTests
-                    };
+                    });
                 }
 
                 var results = new List<object>();
@@ -216,35 +217,35 @@ namespace UnityEditorMCP.Handlers
 
                 var summary = CalculateTestSummary();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     results = results.ToArray(),
                     summary = summary,
                     isRunning = isRunningTests,
                     totalTests = lastTestResults.Count,
                     message = "Test results retrieved successfully"
-                };
+                });
             }
             catch (Exception ex)
             {
-                return Response.Error($"Failed to get test results: {ex.Message}");
+                return HandlerOutcome.Fail($"Failed to get test results: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Cancels currently running tests
         /// </summary>
-        public static object CancelTests(JObject parameters)
+        public static HandlerOutcome CancelTests(JObject parameters)
         {
             try
             {
                 if (!isRunningTests)
                 {
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         message = "No tests are currently running",
                         wasCancelled = false
-                    };
+                    });
                 }
 
                 // Unity doesn't provide a direct way to cancel tests, but we can try to stop the test runner
@@ -260,16 +261,16 @@ namespace UnityEditorMCP.Handlers
                     currentCallback = null;
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     message = "Test cancellation requested",
                     wasCancelled = true,
                     timestamp = DateTime.UtcNow.ToString("o")
-                };
+                });
             }
             catch (Exception ex)
             {
-                return Response.Error($"Failed to cancel tests: {ex.Message}");
+                return HandlerOutcome.Fail($"Failed to cancel tests: {ex.Message}");
             }
         }
 

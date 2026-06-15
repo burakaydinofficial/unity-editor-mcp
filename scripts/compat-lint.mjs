@@ -33,7 +33,7 @@ const RULES = [
 // #else floor branch. That line is intentional and floor-correct — allowlist it. (If the
 // file shifts, the lint fails loudly and this line number must be updated — not a silent miss.)
 const ALLOWLIST = [
-  { file: 'unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs', line: 16, api: 'PrefabStageUtility (qualified)' },
+  { file: 'unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs', line: 17, api: 'PrefabStageUtility (qualified)' },
 ];
 
 async function* walkCs(dir) {

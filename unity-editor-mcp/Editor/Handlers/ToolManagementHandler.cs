@@ -6,6 +6,7 @@ using UnityEditor.PackageManager;
 using UnityEditor.PackageManager.Requests;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -22,7 +23,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Handle tool management operations (get, activate, deactivate, refresh)
         /// </summary>
-        public static object HandleCommand(string action, JObject parameters)
+        public static HandlerOutcome HandleCommand(string action, JObject parameters)
         {
             try
             {
@@ -40,20 +41,20 @@ namespace UnityEditorMCP.Handlers
                     case "refresh":
                         return RefreshToolCache();
                     default:
-                        return new { error = $"Unknown action: {action}" };
+                        return HandlerOutcome.Fail($"Unknown action: {action}", "VALIDATION_ERROR");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[ToolManagementHandler] Error handling {action}: {e.Message}");
-                return new { error = e.Message };
+                return HandlerOutcome.Fail(e.Message);
             }
         }
 
         /// <summary>
         /// Get all available tools, optionally filtered by category
         /// </summary>
-        private static object GetTools(string category)
+        private static HandlerOutcome GetTools(string category)
         {
             try
             {
@@ -76,19 +77,19 @@ namespace UnityEditorMCP.Handlers
                 // Sort tools by name
                 tools = tools.OrderBy(t => (t as dynamic).name).ToList();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "get",
                     tools = tools,
                     installedCount = installedCount,
                     activeCount = activeCount
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[ToolManagementHandler] Error getting tools: {e.Message}");
-                return new { error = $"Failed to get tools: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get tools: {e.Message}");
             }
         }
 
@@ -191,33 +192,33 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Activate a tool
         /// </summary>
-        private static object ActivateTool(string toolName)
+        private static HandlerOutcome ActivateTool(string toolName)
         {
             try
             {
                 if (string.IsNullOrEmpty(toolName))
                 {
-                    return new { error = "Tool name not specified" };
+                    return HandlerOutcome.Fail("Tool name not specified", "VALIDATION_ERROR");
                 }
 
                 // Check if tool exists
                 var toolInfo = GetToolInfo(toolName);
                 if (toolInfo == null)
                 {
-                    return new { error = $"Tool not found: {toolName}" };
+                    return HandlerOutcome.Fail($"Tool not found: {toolName}", "NOT_FOUND");
                 }
 
                 // Check if already active
                 if (toolInfo.IsActive)
                 {
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         success = true,
                         action = "activate",
                         toolName = toolName,
                         alreadyActive = true,
                         message = $"Tool is already active: {toolName}"
-                    };
+                    });
                 }
 
                 // Try to open the tool window
@@ -226,7 +227,7 @@ namespace UnityEditorMCP.Handlers
                 if (activated)
                 {
                     toolInfo.IsActive = true;
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         success = true,
                         action = "activate",
@@ -234,50 +235,50 @@ namespace UnityEditorMCP.Handlers
                         previousState = new { isActive = false },
                         currentState = new { isActive = true },
                         message = $"Tool activated: {toolName}"
-                    };
+                    });
                 }
                 else
                 {
-                    return new { error = $"Failed to activate tool: {toolName}" };
+                    return HandlerOutcome.Fail($"Failed to activate tool: {toolName}", "INVALID_STATE");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[ToolManagementHandler] Error activating tool '{toolName}': {e.Message}");
-                return new { error = $"Failed to activate tool: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to activate tool: {e.Message}");
             }
         }
 
         /// <summary>
         /// Deactivate a tool
         /// </summary>
-        private static object DeactivateTool(string toolName)
+        private static HandlerOutcome DeactivateTool(string toolName)
         {
             try
             {
                 if (string.IsNullOrEmpty(toolName))
                 {
-                    return new { error = "Tool name not specified" };
+                    return HandlerOutcome.Fail("Tool name not specified", "VALIDATION_ERROR");
                 }
 
                 // Check if tool exists
                 var toolInfo = GetToolInfo(toolName);
                 if (toolInfo == null)
                 {
-                    return new { error = $"Tool not found: {toolName}" };
+                    return HandlerOutcome.Fail($"Tool not found: {toolName}", "NOT_FOUND");
                 }
 
                 // Check if already inactive
                 if (!toolInfo.IsActive)
                 {
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         success = true,
                         action = "deactivate",
                         toolName = toolName,
                         alreadyInactive = true,
                         message = $"Tool is already inactive: {toolName}"
-                    };
+                    });
                 }
 
                 // Try to close the tool window
@@ -286,7 +287,7 @@ namespace UnityEditorMCP.Handlers
                 if (deactivated)
                 {
                     toolInfo.IsActive = false;
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         success = true,
                         action = "deactivate",
@@ -294,42 +295,42 @@ namespace UnityEditorMCP.Handlers
                         previousState = new { isActive = true },
                         currentState = new { isActive = false },
                         message = $"Tool deactivated: {toolName}"
-                    };
+                    });
                 }
                 else
                 {
-                    return new { error = $"Failed to deactivate tool: {toolName}" };
+                    return HandlerOutcome.Fail($"Failed to deactivate tool: {toolName}", "INVALID_STATE");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[ToolManagementHandler] Error deactivating tool '{toolName}': {e.Message}");
-                return new { error = $"Failed to deactivate tool: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to deactivate tool: {e.Message}");
             }
         }
 
         /// <summary>
         /// Refresh the tool cache
         /// </summary>
-        private static object RefreshToolCache()
+        private static HandlerOutcome RefreshToolCache()
         {
             try
             {
                 UpdateToolCache();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "refresh",
                     message = "Tool cache refreshed",
                     toolsCount = toolCache.Count + 3, // +3 for built-in tools
                     timestamp = DateTime.UtcNow.ToString("o")
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[ToolManagementHandler] Error refreshing tool cache: {e.Message}");
-                return new { error = $"Failed to refresh tool cache: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to refresh tool cache: {e.Message}");
             }
         }
 

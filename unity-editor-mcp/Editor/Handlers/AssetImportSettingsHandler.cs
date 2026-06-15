@@ -4,6 +4,7 @@ using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -15,15 +16,15 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Handle asset import settings operations (get, modify, apply_preset, reimport)
         /// </summary>
-        public static object HandleCommand(string action, JObject parameters)
+        public static HandlerOutcome HandleCommand(string action, JObject parameters)
         {
             try
             {
                 var assetPath = parameters["assetPath"]?.ToString();
-                
+
                 if (string.IsNullOrEmpty(assetPath))
                 {
-                    return new { error = "Asset path not specified" };
+                    return HandlerOutcome.Fail("Asset path not specified", "VALIDATION_ERROR");
                 }
 
                 switch (action.ToLower())
@@ -39,27 +40,27 @@ namespace UnityEditorMCP.Handlers
                     case "reimport":
                         return ReimportAsset(assetPath);
                     default:
-                        return new { error = $"Unknown action: {action}" };
+                        return HandlerOutcome.Fail($"Unknown action: {action}", "VALIDATION_ERROR");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetImportSettingsHandler] Error handling {action}: {e.Message}");
-                return new { error = e.Message };
+                return HandlerOutcome.Fail(e.Message);
             }
         }
 
         /// <summary>
         /// Get import settings for an asset
         /// </summary>
-        private static object GetImportSettings(string assetPath)
+        private static HandlerOutcome GetImportSettings(string assetPath)
         {
             try
             {
                 var assetImporter = AssetImporter.GetAtPath(assetPath);
                 if (assetImporter == null)
                 {
-                    return new { error = $"Asset not found: {assetPath}" };
+                    return HandlerOutcome.Fail($"Asset not found: {assetPath}", "NOT_FOUND");
                 }
 
                 var settings = new Dictionary<string, object>();
@@ -107,37 +108,37 @@ namespace UnityEditorMCP.Handlers
                     settings["sampleRateSetting"] = sampleSettings.sampleRateSetting.ToString();
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "get",
                     assetPath = assetPath,
                     settings = settings
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetImportSettingsHandler] Error getting import settings for '{assetPath}': {e.Message}");
-                return new { error = $"Failed to get import settings: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get import settings: {e.Message}");
             }
         }
 
         /// <summary>
         /// Modify import settings for an asset
         /// </summary>
-        private static object ModifyImportSettings(string assetPath, JObject newSettings)
+        private static HandlerOutcome ModifyImportSettings(string assetPath, JObject newSettings)
         {
             try
             {
                 if (newSettings == null)
                 {
-                    return new { error = "Settings not specified" };
+                    return HandlerOutcome.Fail("Settings not specified", "VALIDATION_ERROR");
                 }
 
                 var assetImporter = AssetImporter.GetAtPath(assetPath);
                 if (assetImporter == null)
                 {
-                    return new { error = $"Asset not found: {assetPath}" };
+                    return HandlerOutcome.Fail($"Asset not found: {assetPath}", "NOT_FOUND");
                 }
 
                 var previousSettings = new Dictionary<string, object>();
@@ -213,7 +214,7 @@ namespace UnityEditorMCP.Handlers
                 // Apply the changes
                 assetImporter.SaveAndReimport();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "modify",
@@ -221,31 +222,31 @@ namespace UnityEditorMCP.Handlers
                     previousSettings = previousSettings,
                     newSettings = appliedSettings,
                     message = $"Import settings modified for: {assetPath}"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetImportSettingsHandler] Error modifying import settings for '{assetPath}': {e.Message}");
-                return new { error = $"Failed to modify import settings: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to modify import settings: {e.Message}");
             }
         }
 
         /// <summary>
         /// Apply a preset to an asset
         /// </summary>
-        private static object ApplyPreset(string assetPath, string preset)
+        private static HandlerOutcome ApplyPreset(string assetPath, string preset)
         {
             try
             {
                 if (string.IsNullOrEmpty(preset))
                 {
-                    return new { error = "Preset not specified" };
+                    return HandlerOutcome.Fail("Preset not specified", "VALIDATION_ERROR");
                 }
 
                 var assetImporter = AssetImporter.GetAtPath(assetPath);
                 if (assetImporter == null)
                 {
-                    return new { error = $"Asset not found: {assetPath}" };
+                    return HandlerOutcome.Fail($"Asset not found: {assetPath}", "NOT_FOUND");
                 }
 
                 var appliedSettings = new Dictionary<string, object>();
@@ -260,41 +261,41 @@ namespace UnityEditorMCP.Handlers
                             textureImporter.filterMode = FilterMode.Bilinear;
                             textureImporter.maxTextureSize = 2048;
                             textureImporter.mipmapEnabled = false;
-                            
+
                             appliedSettings["textureType"] = "Sprite";
                             appliedSettings["filterMode"] = "Bilinear";
                             appliedSettings["maxTextureSize"] = 2048;
                             appliedSettings["generateMipMaps"] = false;
                             break;
-                            
+
                         case "3D_Texture":
                             textureImporter.textureType = TextureImporterType.Default;
                             textureImporter.filterMode = FilterMode.Trilinear;
                             textureImporter.mipmapEnabled = true;
                             textureImporter.anisoLevel = 4;
-                            
+
                             appliedSettings["textureType"] = "Default";
                             appliedSettings["filterMode"] = "Trilinear";
                             appliedSettings["generateMipMaps"] = true;
                             appliedSettings["anisoLevel"] = 4;
                             break;
-                            
+
                         case "Icon":
                             textureImporter.textureType = TextureImporterType.Sprite;
                             textureImporter.filterMode = FilterMode.Point;
                             textureImporter.maxTextureSize = 256;
                             textureImporter.mipmapEnabled = false;
                             textureImporter.textureCompression = TextureImporterCompression.Uncompressed;
-                            
+
                             appliedSettings["textureType"] = "Sprite";
                             appliedSettings["filterMode"] = "Point";
                             appliedSettings["maxTextureSize"] = 256;
                             appliedSettings["generateMipMaps"] = false;
                             appliedSettings["compression"] = "None";
                             break;
-                            
+
                         default:
-                            return new { error = $"Unknown preset: {preset}" };
+                            return HandlerOutcome.Fail($"Unknown preset: {preset}", "VALIDATION_ERROR");
                     }
                 }
                 else if (assetImporter is ModelImporter modelImporter)
@@ -305,37 +306,37 @@ namespace UnityEditorMCP.Handlers
                             modelImporter.animationType = ModelImporterAnimationType.Human;
                             modelImporter.optimizeMeshPolygons = true;
                             modelImporter.importBlendShapes = true;
-                            
+
                             appliedSettings["animationType"] = "Human";
                             appliedSettings["optimizeMesh"] = true;
                             appliedSettings["importBlendShapes"] = true;
                             break;
-                            
+
                         case "Static_Prop":
                             modelImporter.animationType = ModelImporterAnimationType.None;
                             modelImporter.optimizeMeshPolygons = true;
                             modelImporter.addCollider = false;
                             modelImporter.generateSecondaryUV = true;
-                            
+
                             appliedSettings["animationType"] = "None";
                             appliedSettings["optimizeMesh"] = true;
                             appliedSettings["generateColliders"] = false;
                             appliedSettings["generateLightmapUVs"] = true;
                             break;
-                            
+
                         default:
-                            return new { error = $"Unknown preset: {preset}" };
+                            return HandlerOutcome.Fail($"Unknown preset: {preset}", "VALIDATION_ERROR");
                     }
                 }
                 else
                 {
-                    return new { error = $"No presets available for asset type: {assetImporter.GetType().Name}" };
+                    return HandlerOutcome.Fail($"No presets available for asset type: {assetImporter.GetType().Name}", "INVALID_STATE");
                 }
 
                 // Apply the changes
                 assetImporter.SaveAndReimport();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "apply_preset",
@@ -343,46 +344,46 @@ namespace UnityEditorMCP.Handlers
                     preset = preset,
                     appliedSettings = appliedSettings,
                     message = $"Preset \"{preset}\" applied to: {assetPath}"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetImportSettingsHandler] Error applying preset '{preset}' to '{assetPath}': {e.Message}");
-                return new { error = $"Failed to apply preset: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to apply preset: {e.Message}");
             }
         }
 
         /// <summary>
         /// Reimport an asset
         /// </summary>
-        private static object ReimportAsset(string assetPath)
+        private static HandlerOutcome ReimportAsset(string assetPath)
         {
             try
             {
                 if (!AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath))
                 {
-                    return new { error = $"Asset not found: {assetPath}" };
+                    return HandlerOutcome.Fail($"Asset not found: {assetPath}", "NOT_FOUND");
                 }
 
                 var startTime = EditorApplication.timeSinceStartup;
-                
+
                 AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
-                
+
                 var duration = EditorApplication.timeSinceStartup - startTime;
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "reimport",
                     assetPath = assetPath,
                     message = $"Asset reimported: {assetPath}",
                     duration = Math.Round(duration, 3)
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetImportSettingsHandler] Error reimporting '{assetPath}': {e.Message}");
-                return new { error = $"Failed to reimport asset: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to reimport asset: {e.Message}");
             }
         }
     }

@@ -5,6 +5,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -16,7 +17,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Handle asset database operations (find_assets, get_asset_info, create_folder, etc.)
         /// </summary>
-        public static object HandleCommand(string action, JObject parameters)
+        public static HandlerOutcome HandleCommand(string action, JObject parameters)
         {
             try
             {
@@ -48,26 +49,26 @@ namespace UnityEditorMCP.Handlers
                     case "save":
                         return SaveAssetDatabase();
                     default:
-                        return new { error = $"Unknown action: {action}" };
+                        return HandlerOutcome.Fail($"Unknown action: {action}", "VALIDATION_ERROR");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDatabaseHandler] Error handling {action}: {e.Message}");
-                return new { error = e.Message };
+                return HandlerOutcome.Fail(e.Message);
             }
         }
 
         /// <summary>
         /// Find assets using AssetDatabase search filters
         /// </summary>
-        private static object FindAssets(string filter, string[] searchInFolders)
+        private static HandlerOutcome FindAssets(string filter, string[] searchInFolders)
         {
             try
             {
                 if (string.IsNullOrEmpty(filter))
                 {
-                    return new { error = "Filter not specified" };
+                    return HandlerOutcome.Fail("Filter not specified", "VALIDATION_ERROR");
                 }
 
                 var guids = AssetDatabase.FindAssets(filter, searchInFolders);
@@ -77,11 +78,11 @@ namespace UnityEditorMCP.Handlers
                 {
                     var path = AssetDatabase.GUIDToAssetPath(guid);
                     var asset = AssetDatabase.LoadMainAssetAtPath(path);
-                    
+
                     if (asset != null)
                     {
                         var fileInfo = new FileInfo(Path.Combine(Application.dataPath, "..", path));
-                        
+
                         assets.Add(new
                         {
                             path = path,
@@ -93,7 +94,7 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "find_assets",
@@ -101,40 +102,40 @@ namespace UnityEditorMCP.Handlers
                     searchInFolders = searchInFolders ?? new string[0],
                     assets = assets,
                     count = assets.Count
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDatabaseHandler] Error finding assets with filter '{filter}': {e.Message}");
-                return new { error = $"Failed to find assets: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to find assets: {e.Message}");
             }
         }
 
         /// <summary>
         /// Get detailed information about an asset
         /// </summary>
-        private static object GetAssetInfo(string assetPath)
+        private static HandlerOutcome GetAssetInfo(string assetPath)
         {
             try
             {
                 if (string.IsNullOrEmpty(assetPath))
                 {
-                    return new { error = "Asset path not specified" };
+                    return HandlerOutcome.Fail("Asset path not specified", "VALIDATION_ERROR");
                 }
 
                 var asset = AssetDatabase.LoadMainAssetAtPath(assetPath);
                 if (asset == null)
                 {
-                    return new { error = $"Asset not found: {assetPath}" };
+                    return HandlerOutcome.Fail($"Asset not found: {assetPath}", "NOT_FOUND");
                 }
 
                 var guid = AssetDatabase.AssetPathToGUID(assetPath);
                 var fileInfo = new FileInfo(Path.Combine(Application.dataPath, "..", assetPath));
                 var importer = AssetImporter.GetAtPath(assetPath);
-                
+
                 // Get dependencies
                 var dependencies = AssetDatabase.GetDependencies(assetPath, false).Where(dep => dep != assetPath).ToArray();
-                
+
                 // Get import settings based on asset type
                 var importSettings = new Dictionary<string, object>();
                 if (importer is TextureImporter textureImporter)
@@ -167,36 +168,36 @@ namespace UnityEditorMCP.Handlers
                     ["isValid"] = asset != null
                 };
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "get_asset_info",
                     assetPath = assetPath,
                     info = info
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDatabaseHandler] Error getting asset info for '{assetPath}': {e.Message}");
-                return new { error = $"Failed to get asset info: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get asset info: {e.Message}");
             }
         }
 
         /// <summary>
         /// Create a new folder in the Asset Database
         /// </summary>
-        private static object CreateFolder(string folderPath)
+        private static HandlerOutcome CreateFolder(string folderPath)
         {
             try
             {
                 if (string.IsNullOrEmpty(folderPath))
                 {
-                    return new { error = "Folder path not specified" };
+                    return HandlerOutcome.Fail("Folder path not specified", "VALIDATION_ERROR");
                 }
 
                 if (AssetDatabase.IsValidFolder(folderPath))
                 {
-                    return new { error = $"Folder already exists: {folderPath}" };
+                    return HandlerOutcome.Fail($"Folder already exists: {folderPath}", "INVALID_STATE");
                 }
 
                 // Extract parent folder and folder name
@@ -205,128 +206,128 @@ namespace UnityEditorMCP.Handlers
 
                 if (!AssetDatabase.IsValidFolder(parentPath))
                 {
-                    return new { error = $"Parent folder does not exist: {parentPath}" };
+                    return HandlerOutcome.Fail($"Parent folder does not exist: {parentPath}", "NOT_FOUND");
                 }
 
                 var guid = AssetDatabase.CreateFolder(parentPath, folderName);
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "create_folder",
                     folderPath = folderPath,
                     guid = guid,
                     message = $"Folder created: {folderPath}"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDatabaseHandler] Error creating folder '{folderPath}': {e.Message}");
-                return new { error = $"Failed to create folder: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to create folder: {e.Message}");
             }
         }
 
         /// <summary>
         /// Delete an asset from the Asset Database
         /// </summary>
-        private static object DeleteAsset(string assetPath)
+        private static HandlerOutcome DeleteAsset(string assetPath)
         {
             try
             {
                 if (string.IsNullOrEmpty(assetPath))
                 {
-                    return new { error = "Asset path not specified" };
+                    return HandlerOutcome.Fail("Asset path not specified", "VALIDATION_ERROR");
                 }
 
                 if (!AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath))
                 {
-                    return new { error = $"Asset not found: {assetPath}" };
+                    return HandlerOutcome.Fail($"Asset not found: {assetPath}", "NOT_FOUND");
                 }
 
                 if (!AssetDatabase.DeleteAsset(assetPath))
                 {
-                    return new { error = $"Failed to delete asset: {assetPath}" };
+                    return HandlerOutcome.Fail($"Failed to delete asset: {assetPath}", "INVALID_STATE");
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "delete_asset",
                     assetPath = assetPath,
                     message = $"Asset deleted: {assetPath}"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDatabaseHandler] Error deleting asset '{assetPath}': {e.Message}");
-                return new { error = $"Failed to delete asset: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to delete asset: {e.Message}");
             }
         }
 
         /// <summary>
         /// Move an asset to a new location
         /// </summary>
-        private static object MoveAsset(string fromPath, string toPath)
+        private static HandlerOutcome MoveAsset(string fromPath, string toPath)
         {
             try
             {
                 if (string.IsNullOrEmpty(fromPath) || string.IsNullOrEmpty(toPath))
                 {
-                    return new { error = "Source and destination paths must be specified" };
+                    return HandlerOutcome.Fail("Source and destination paths must be specified", "VALIDATION_ERROR");
                 }
 
                 if (!AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(fromPath))
                 {
-                    return new { error = $"Source asset not found: {fromPath}" };
+                    return HandlerOutcome.Fail($"Source asset not found: {fromPath}", "NOT_FOUND");
                 }
 
                 var errorMessage = AssetDatabase.MoveAsset(fromPath, toPath);
                 if (!string.IsNullOrEmpty(errorMessage))
                 {
-                    return new { error = $"Failed to move asset: {errorMessage}" };
+                    return HandlerOutcome.Fail($"Failed to move asset: {errorMessage}", "INVALID_STATE");
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "move_asset",
                     fromPath = fromPath,
                     toPath = toPath,
                     message = $"Asset moved from {fromPath} to {toPath}"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDatabaseHandler] Error moving asset from '{fromPath}' to '{toPath}': {e.Message}");
-                return new { error = $"Failed to move asset: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to move asset: {e.Message}");
             }
         }
 
         /// <summary>
         /// Copy an asset to a new location
         /// </summary>
-        private static object CopyAsset(string fromPath, string toPath)
+        private static HandlerOutcome CopyAsset(string fromPath, string toPath)
         {
             try
             {
                 if (string.IsNullOrEmpty(fromPath) || string.IsNullOrEmpty(toPath))
                 {
-                    return new { error = "Source and destination paths must be specified" };
+                    return HandlerOutcome.Fail("Source and destination paths must be specified", "VALIDATION_ERROR");
                 }
 
                 if (!AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(fromPath))
                 {
-                    return new { error = $"Source asset not found: {fromPath}" };
+                    return HandlerOutcome.Fail($"Source asset not found: {fromPath}", "NOT_FOUND");
                 }
 
                 if (!AssetDatabase.CopyAsset(fromPath, toPath))
                 {
-                    return new { error = $"Failed to copy asset from {fromPath} to {toPath}" };
+                    return HandlerOutcome.Fail($"Failed to copy asset from {fromPath} to {toPath}", "INVALID_STATE");
                 }
 
                 var newGuid = AssetDatabase.AssetPathToGUID(toPath);
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "copy_asset",
@@ -334,59 +335,59 @@ namespace UnityEditorMCP.Handlers
                     toPath = toPath,
                     newGuid = newGuid,
                     message = $"Asset copied from {fromPath} to {toPath}"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDatabaseHandler] Error copying asset from '{fromPath}' to '{toPath}': {e.Message}");
-                return new { error = $"Failed to copy asset: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to copy asset: {e.Message}");
             }
         }
 
         /// <summary>
         /// Refresh the Asset Database
         /// </summary>
-        private static object RefreshAssetDatabase()
+        private static HandlerOutcome RefreshAssetDatabase()
         {
             try
             {
                 var startTime = EditorApplication.timeSinceStartup;
-                
+
                 AssetDatabase.Refresh();
-                
+
                 var duration = EditorApplication.timeSinceStartup - startTime;
-                
+
                 // Count assets in project
                 var allAssetGuids = AssetDatabase.FindAssets("");
                 var assetsFound = allAssetGuids.Length;
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "refresh",
                     message = "Asset database refreshed",
                     assetsFound = assetsFound,
                     duration = Math.Round(duration, 2)
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDatabaseHandler] Error refreshing asset database: {e.Message}");
-                return new { error = $"Failed to refresh asset database: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to refresh asset database: {e.Message}");
             }
         }
 
         /// <summary>
         /// Save pending changes to the Asset Database
         /// </summary>
-        private static object SaveAssetDatabase()
+        private static HandlerOutcome SaveAssetDatabase()
         {
             try
             {
                 // Get count of modified assets (this is an approximation)
                 var allAssetGuids = AssetDatabase.FindAssets("");
                 var modifiedCount = 0;
-                
+
                 // Count recently modified assets (modified in last hour as an example)
                 var oneHourAgo = DateTime.UtcNow.AddHours(-1);
                 foreach (var guid in allAssetGuids.Take(100)) // Limit to avoid performance issues
@@ -401,18 +402,18 @@ namespace UnityEditorMCP.Handlers
 
                 AssetDatabase.SaveAssets();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "save",
                     message = "Asset database saved",
                     assetsModified = modifiedCount
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDatabaseHandler] Error saving asset database: {e.Message}");
-                return new { error = $"Failed to save asset database: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to save asset database: {e.Message}");
             }
         }
     }

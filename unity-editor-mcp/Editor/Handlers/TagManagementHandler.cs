@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -22,7 +23,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Handle tag management operations (add, remove, get)
         /// </summary>
-        public static object HandleCommand(string action, JObject parameters)
+        public static HandlerOutcome HandleCommand(string action, JObject parameters)
         {
             try
             {
@@ -37,75 +38,75 @@ namespace UnityEditorMCP.Handlers
                         var tagNameToRemove = parameters["tagName"]?.ToString();
                         return RemoveTag(tagNameToRemove);
                     default:
-                        return new { error = $"Unknown action: {action}" };
+                        return HandlerOutcome.Fail($"Unknown action: {action}", "VALIDATION_ERROR");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[TagManagementHandler] Error handling {action}: {e.Message}");
-                return new { error = e.Message };
+                return HandlerOutcome.Fail(e.Message);
             }
         }
 
         /// <summary>
         /// Get all available tags in the project
         /// </summary>
-        public static object GetTags()
+        public static HandlerOutcome GetTags()
         {
             try
             {
                 var tags = InternalEditorUtility.tags.ToList();
-                
-                return new
+
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "get",
                     tags = tags,
                     count = tags.Count
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[TagManagementHandler] Error getting tags: {e.Message}");
-                return new { error = $"Failed to get tags: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get tags: {e.Message}");
             }
         }
 
         /// <summary>
         /// Add a new tag to the project
         /// </summary>
-        public static object AddTag(string tagName)
+        public static HandlerOutcome AddTag(string tagName)
         {
             try
             {
                 if (string.IsNullOrEmpty(tagName))
                 {
-                    return new { error = "Tag name cannot be null or empty" };
+                    return HandlerOutcome.Fail("Tag name cannot be null or empty", "VALIDATION_ERROR");
                 }
 
                 // Validate tag name
                 if (!IsValidTagName(tagName))
                 {
-                    return new { error = "Tag name contains invalid characters. Only letters, numbers, and underscores are allowed" };
+                    return HandlerOutcome.Fail("Tag name contains invalid characters. Only letters, numbers, and underscores are allowed", "VALIDATION_ERROR");
                 }
 
                 // Check if tag already exists
                 var currentTags = InternalEditorUtility.tags.ToList();
                 if (currentTags.Contains(tagName))
                 {
-                    return new { error = $"Tag \"{tagName}\" already exists" };
+                    return HandlerOutcome.Fail($"Tag \"{tagName}\" already exists", "INVALID_STATE");
                 }
 
                 // Check for reserved tag names
                 if (RESERVED_TAGS.Contains(tagName))
                 {
-                    return new { error = $"Tag \"{tagName}\" is reserved and cannot be added" };
+                    return HandlerOutcome.Fail($"Tag \"{tagName}\" is reserved and cannot be added", "INVALID_STATE");
                 }
 
                 // Add the tag using SerializedObject approach
                 var tagManager = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
                 var tagsProp = tagManager.FindProperty("tags");
-                
+
                 tagsProp.InsertArrayElementAtIndex(tagsProp.arraySize);
                 tagsProp.GetArrayElementAtIndex(tagsProp.arraySize - 1).stringValue = tagName;
                 tagManager.ApplyModifiedProperties();
@@ -113,45 +114,45 @@ namespace UnityEditorMCP.Handlers
                 // Force refresh of the tags
                 AssetDatabase.Refresh();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "add",
                     tagName = tagName,
                     message = $"Tag \"{tagName}\" added successfully",
                     tagsCount = InternalEditorUtility.tags.Length
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[TagManagementHandler] Error adding tag '{tagName}': {e.Message}");
-                return new { error = $"Failed to add tag: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to add tag: {e.Message}");
             }
         }
 
         /// <summary>
         /// Remove an existing tag from the project
         /// </summary>
-        public static object RemoveTag(string tagName)
+        public static HandlerOutcome RemoveTag(string tagName)
         {
             try
             {
                 if (string.IsNullOrEmpty(tagName))
                 {
-                    return new { error = "Tag name cannot be null or empty" };
+                    return HandlerOutcome.Fail("Tag name cannot be null or empty", "VALIDATION_ERROR");
                 }
 
                 // Check for reserved tag names
                 if (RESERVED_TAGS.Contains(tagName))
                 {
-                    return new { error = $"Cannot remove reserved tag \"{tagName}\"" };
+                    return HandlerOutcome.Fail($"Cannot remove reserved tag \"{tagName}\"", "INVALID_STATE");
                 }
 
                 // Check if tag exists
                 var currentTags = InternalEditorUtility.tags.ToList();
                 if (!currentTags.Contains(tagName))
                 {
-                    return new { error = $"Tag \"{tagName}\" does not exist" };
+                    return HandlerOutcome.Fail($"Tag \"{tagName}\" does not exist", "NOT_FOUND");
                 }
 
                 // Check if any GameObjects are using this tag
@@ -164,7 +165,7 @@ namespace UnityEditorMCP.Handlers
                 // Remove the tag using SerializedObject approach
                 var tagManager = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
                 var tagsProp = tagManager.FindProperty("tags");
-                
+
                 for (int i = 0; i < tagsProp.arraySize; i++)
                 {
                     if (tagsProp.GetArrayElementAtIndex(i).stringValue == tagName)
@@ -178,7 +179,7 @@ namespace UnityEditorMCP.Handlers
                 // Force refresh of the tags
                 AssetDatabase.Refresh();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "remove",
@@ -186,12 +187,12 @@ namespace UnityEditorMCP.Handlers
                     message = $"Tag \"{tagName}\" removed successfully",
                     tagsCount = InternalEditorUtility.tags.Length,
                     gameObjectsAffected = gameObjectsWithTag.Length
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[TagManagementHandler] Error removing tag '{tagName}': {e.Message}");
-                return new { error = $"Failed to remove tag: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to remove tag: {e.Message}");
             }
         }
 
@@ -218,7 +219,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Get tag usage statistics
         /// </summary>
-        public static object GetTagUsage()
+        public static HandlerOutcome GetTagUsage()
         {
             try
             {
@@ -231,18 +232,18 @@ namespace UnityEditorMCP.Handlers
                     tagUsage[tag] = gameObjectsWithTag.Length;
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     tagUsage = tagUsage,
                     totalTags = tags.Count,
                     totalUsages = tagUsage.Values.Sum()
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[TagManagementHandler] Error getting tag usage: {e.Message}");
-                return new { error = $"Failed to get tag usage: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get tag usage: {e.Message}");
             }
         }
     }

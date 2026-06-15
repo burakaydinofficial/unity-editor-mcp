@@ -6,6 +6,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -17,7 +18,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Handle window management operations (get, focus, get_state)
         /// </summary>
-        public static object HandleCommand(string action, JObject parameters)
+        public static HandlerOutcome HandleCommand(string action, JObject parameters)
         {
             try
             {
@@ -33,20 +34,20 @@ namespace UnityEditorMCP.Handlers
                         var windowTypeToGetState = parameters["windowType"]?.ToString();
                         return GetWindowState(windowTypeToGetState);
                     default:
-                        return new { error = $"Unknown action: {action}" };
+                        return HandlerOutcome.Fail($"Unknown action: {action}", "VALIDATION_ERROR");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[WindowManagementHandler] Error handling {action}: {e.Message}");
-                return new { error = e.Message };
+                return HandlerOutcome.Fail(e.Message);
             }
         }
 
         /// <summary>
         /// Get all open editor windows
         /// </summary>
-        private static object GetWindows(bool includeHidden)
+        private static HandlerOutcome GetWindows(bool includeHidden)
         {
             try
             {
@@ -117,25 +118,25 @@ namespace UnityEditorMCP.Handlers
                     result["hiddenCount"] = hiddenCount;
                 }
 
-                return result;
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception e)
             {
                 Debug.LogError($"[WindowManagementHandler] Error getting windows: {e.Message}");
-                return new { error = $"Failed to get windows: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get windows: {e.Message}");
             }
         }
 
         /// <summary>
         /// Focus a specific window type
         /// </summary>
-        private static object FocusWindow(string windowType)
+        private static HandlerOutcome FocusWindow(string windowType)
         {
             try
             {
                 if (string.IsNullOrEmpty(windowType))
                 {
-                    return new { error = "Window type not specified" };
+                    return HandlerOutcome.Fail("Window type not specified", "VALIDATION_ERROR");
                 }
 
                 // Get current focused window before changing
@@ -144,7 +145,7 @@ namespace UnityEditorMCP.Handlers
                 // Find window of the specified type
                 EditorWindow targetWindow = null;
                 var windows = Resources.FindObjectsOfTypeAll<EditorWindow>();
-                
+
                 foreach (var window in windows)
                 {
                     if (window != null && window.GetType().Name == windowType)
@@ -156,58 +157,58 @@ namespace UnityEditorMCP.Handlers
 
                 if (targetWindow == null)
                 {
-                    return new { error = $"Window type \"{windowType}\" not found" };
+                    return HandlerOutcome.Fail($"Window type \"{windowType}\" not found", "NOT_FOUND");
                 }
 
                 // Check if already focused
                 if (targetWindow == EditorWindow.focusedWindow)
                 {
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         success = true,
                         action = "focus",
                         windowType = windowType,
                         alreadyFocused = true,
                         message = $"Window \"{windowType}\" is already focused"
-                    };
+                    });
                 }
 
                 // Focus the window
                 targetWindow.Focus();
                 targetWindow.Show();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "focus",
                     windowType = windowType,
                     previousFocus = previousFocus,
                     message = $"Focused window: {windowType}"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[WindowManagementHandler] Error focusing window '{windowType}': {e.Message}");
-                return new { error = $"Failed to focus window: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to focus window: {e.Message}");
             }
         }
 
         /// <summary>
         /// Get detailed state of a specific window
         /// </summary>
-        private static object GetWindowState(string windowType)
+        private static HandlerOutcome GetWindowState(string windowType)
         {
             try
             {
                 if (string.IsNullOrEmpty(windowType))
                 {
-                    return new { error = "Window type not specified" };
+                    return HandlerOutcome.Fail("Window type not specified", "VALIDATION_ERROR");
                 }
 
                 // Find window of the specified type
                 EditorWindow targetWindow = null;
                 var windows = Resources.FindObjectsOfTypeAll<EditorWindow>();
-                
+
                 foreach (var window in windows)
                 {
                     if (window != null && window.GetType().Name == windowType)
@@ -219,14 +220,14 @@ namespace UnityEditorMCP.Handlers
 
                 if (targetWindow == null)
                 {
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         success = true,
                         action = "get_state",
                         windowType = windowType,
                         state = (object)null,
                         message = $"Window \"{windowType}\" is not open"
-                    };
+                    });
                 }
 
                 // Get detailed window state
@@ -271,18 +272,18 @@ namespace UnityEditorMCP.Handlers
                     state["hasUnsavedChanges"] = false;
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "get_state",
                     windowType = windowType,
                     state = state
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[WindowManagementHandler] Error getting window state for '{windowType}': {e.Message}");
-                return new { error = $"Failed to get window state: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get window state: {e.Message}");
             }
         }
 

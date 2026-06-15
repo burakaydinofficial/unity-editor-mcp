@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditorInternal;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -22,7 +23,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Handle layer management operations (add, remove, get, get_by_name, get_by_index)
         /// </summary>
-        public static object HandleCommand(string action, JObject parameters)
+        public static HandlerOutcome HandleCommand(string action, JObject parameters)
         {
             try
             {
@@ -43,25 +44,25 @@ namespace UnityEditorMCP.Handlers
                         var layerIndexToGet = parameters["layerIndex"]?.ToObject<int>();
                         return GetLayerByIndex(layerIndexToGet ?? -1);
                     default:
-                        return new { error = $"Unknown action: {action}" };
+                        return HandlerOutcome.Fail($"Unknown action: {action}", "VALIDATION_ERROR");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[LayerManagementHandler] Error handling {action}: {e.Message}");
-                return new { error = e.Message };
+                return HandlerOutcome.Fail(e.Message);
             }
         }
 
         /// <summary>
         /// Get all available layers with their indices
         /// </summary>
-        public static object GetLayers()
+        public static HandlerOutcome GetLayers()
         {
             try
             {
                 var layers = new List<object>();
-                
+
                 // Unity has 32 possible layers (0-31)
                 for (int i = 0; i < 32; i++)
                 {
@@ -75,38 +76,38 @@ namespace UnityEditorMCP.Handlers
                         });
                     }
                 }
-                
-                return new
+
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "get",
                     layers = layers,
                     count = layers.Count
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[LayerManagementHandler] Error getting layers: {e.Message}");
-                return new { error = $"Failed to get layers: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get layers: {e.Message}");
             }
         }
 
         /// <summary>
         /// Add a new layer to the project
         /// </summary>
-        public static object AddLayer(string layerName)
+        public static HandlerOutcome AddLayer(string layerName)
         {
             try
             {
                 if (string.IsNullOrEmpty(layerName))
                 {
-                    return new { error = "Layer name cannot be null or empty" };
+                    return HandlerOutcome.Fail("Layer name cannot be null or empty", "VALIDATION_ERROR");
                 }
 
                 // Validate layer name
                 if (!IsValidLayerName(layerName))
                 {
-                    return new { error = "Layer name contains invalid characters. Only letters, numbers, spaces, and underscores are allowed" };
+                    return HandlerOutcome.Fail("Layer name contains invalid characters. Only letters, numbers, spaces, and underscores are allowed", "VALIDATION_ERROR");
                 }
 
                 // Check if layer already exists
@@ -114,14 +115,14 @@ namespace UnityEditorMCP.Handlers
                 {
                     if (LayerMask.LayerToName(i) == layerName)
                     {
-                        return new { error = $"Layer \"{layerName}\" already exists" };
+                        return HandlerOutcome.Fail($"Layer \"{layerName}\" already exists", "INVALID_STATE");
                     }
                 }
 
                 // Check for reserved layer names
                 if (RESERVED_LAYERS.Contains(layerName))
                 {
-                    return new { error = $"Layer \"{layerName}\" is reserved and cannot be added" };
+                    return HandlerOutcome.Fail($"Layer \"{layerName}\" is reserved and cannot be added", "INVALID_STATE");
                 }
 
                 // Find first available slot
@@ -137,13 +138,13 @@ namespace UnityEditorMCP.Handlers
 
                 if (availableIndex == -1)
                 {
-                    return new { error = "No available layer slots. All 32 layers are in use" };
+                    return HandlerOutcome.Fail("No available layer slots. All 32 layers are in use", "INVALID_STATE");
                 }
 
                 // Add the layer
                 SerializedObject tagManager = new SerializedObject(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>("ProjectSettings/TagManager.asset"));
                 SerializedProperty layers = tagManager.FindProperty("layers");
-                
+
                 if (availableIndex < layers.arraySize)
                 {
                     SerializedProperty layerProperty = layers.GetArrayElementAtIndex(availableIndex);
@@ -154,7 +155,7 @@ namespace UnityEditorMCP.Handlers
                 // Force refresh
                 AssetDatabase.Refresh();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "add",
@@ -162,31 +163,31 @@ namespace UnityEditorMCP.Handlers
                     layerIndex = availableIndex,
                     message = $"Layer \"{layerName}\" added successfully at index {availableIndex}",
                     layersCount = GetLayerCount()
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[LayerManagementHandler] Error adding layer '{layerName}': {e.Message}");
-                return new { error = $"Failed to add layer: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to add layer: {e.Message}");
             }
         }
 
         /// <summary>
         /// Remove an existing layer from the project
         /// </summary>
-        public static object RemoveLayer(string layerName)
+        public static HandlerOutcome RemoveLayer(string layerName)
         {
             try
             {
                 if (string.IsNullOrEmpty(layerName))
                 {
-                    return new { error = "Layer name cannot be null or empty" };
+                    return HandlerOutcome.Fail("Layer name cannot be null or empty", "VALIDATION_ERROR");
                 }
 
                 // Check for reserved layer names
                 if (RESERVED_LAYERS.Contains(layerName))
                 {
-                    return new { error = $"Cannot remove reserved layer \"{layerName}\"" };
+                    return HandlerOutcome.Fail($"Cannot remove reserved layer \"{layerName}\"", "INVALID_STATE");
                 }
 
                 // Find the layer index
@@ -202,13 +203,13 @@ namespace UnityEditorMCP.Handlers
 
                 if (layerIndex == -1)
                 {
-                    return new { error = $"Layer \"{layerName}\" does not exist" };
+                    return HandlerOutcome.Fail($"Layer \"{layerName}\" does not exist", "NOT_FOUND");
                 }
 
                 // Check if any GameObjects are using this layer
                 var allGameObjects = GameObject.FindObjectsOfType<GameObject>();
                 var gameObjectsWithLayer = allGameObjects.Where(go => go.layer == layerIndex).ToArray();
-                
+
                 if (gameObjectsWithLayer.Length > 0)
                 {
                     Debug.LogWarning($"[LayerManagementHandler] Removing layer '{layerName}' while {gameObjectsWithLayer.Length} GameObjects are still using it");
@@ -217,7 +218,7 @@ namespace UnityEditorMCP.Handlers
                 // Remove the layer
                 SerializedObject tagManager = new SerializedObject(AssetDatabase.LoadAssetAtPath<UnityEngine.Object>("ProjectSettings/TagManager.asset"));
                 SerializedProperty layers = tagManager.FindProperty("layers");
-                
+
                 if (layerIndex < layers.arraySize)
                 {
                     SerializedProperty layerProperty = layers.GetArrayElementAtIndex(layerIndex);
@@ -228,7 +229,7 @@ namespace UnityEditorMCP.Handlers
                 // Force refresh
                 AssetDatabase.Refresh();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "remove",
@@ -237,89 +238,89 @@ namespace UnityEditorMCP.Handlers
                     message = $"Layer \"{layerName}\" removed successfully from index {layerIndex}",
                     layersCount = GetLayerCount(),
                     gameObjectsAffected = gameObjectsWithLayer.Length
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[LayerManagementHandler] Error removing layer '{layerName}': {e.Message}");
-                return new { error = $"Failed to remove layer: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to remove layer: {e.Message}");
             }
         }
 
         /// <summary>
         /// Get layer index by name
         /// </summary>
-        public static object GetLayerByName(string layerName)
+        public static HandlerOutcome GetLayerByName(string layerName)
         {
             try
             {
                 if (string.IsNullOrEmpty(layerName))
                 {
-                    return new { error = "Layer name cannot be null or empty" };
+                    return HandlerOutcome.Fail("Layer name cannot be null or empty", "VALIDATION_ERROR");
                 }
 
                 int layerIndex = LayerMask.NameToLayer(layerName);
-                
+
                 if (layerIndex == -1)
                 {
-                    return new { error = $"Layer \"{layerName}\" does not exist" };
+                    return HandlerOutcome.Fail($"Layer \"{layerName}\" does not exist", "NOT_FOUND");
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "get_by_name",
                     layerName = layerName,
                     layerIndex = layerIndex,
                     message = $"Layer \"{layerName}\" is at index {layerIndex}"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[LayerManagementHandler] Error getting layer by name '{layerName}': {e.Message}");
-                return new { error = $"Failed to get layer by name: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get layer by name: {e.Message}");
             }
         }
 
         /// <summary>
         /// Get layer name by index
         /// </summary>
-        public static object GetLayerByIndex(int layerIndex)
+        public static HandlerOutcome GetLayerByIndex(int layerIndex)
         {
             try
             {
                 if (layerIndex < 0 || layerIndex > 31)
                 {
-                    return new { error = "Layer index must be between 0 and 31" };
+                    return HandlerOutcome.Fail("Layer index must be between 0 and 31", "VALIDATION_ERROR");
                 }
 
                 string layerName = LayerMask.LayerToName(layerIndex);
-                
+
                 if (string.IsNullOrEmpty(layerName))
                 {
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         success = true,
                         action = "get_by_index",
                         layerIndex = layerIndex,
                         layerName = (string)null,
                         message = $"Layer at index {layerIndex} is not assigned"
-                    };
+                    });
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "get_by_index",
                     layerIndex = layerIndex,
                     layerName = layerName,
                     message = $"Layer at index {layerIndex} is \"{layerName}\""
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[LayerManagementHandler] Error getting layer by index {layerIndex}: {e.Message}");
-                return new { error = $"Failed to get layer by index: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get layer by index: {e.Message}");
             }
         }
 

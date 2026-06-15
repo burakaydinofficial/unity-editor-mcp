@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
+using UnityEditorMCP.Core;
 using UnityEditorMCP.Helpers;
 using Newtonsoft.Json.Linq;
 
@@ -18,7 +19,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Creates a new C# script file
         /// </summary>
-        public static object CreateScript(JObject parameters)
+        public static HandlerOutcome CreateScript(JObject parameters)
         {
             try
             {
@@ -32,13 +33,13 @@ namespace UnityEditorMCP.Handlers
                 // Validate required parameters
                 if (string.IsNullOrEmpty(scriptName))
                 {
-                    return Response.Error("scriptName parameter is required");
+                    return HandlerOutcome.Fail("scriptName parameter is required", "VALIDATION_ERROR");
                 }
 
                 // Validate script name format
                 if (!Regex.IsMatch(scriptName, @"^[A-Za-z_][A-Za-z0-9_]*$"))
                 {
-                    return Response.Error($"Invalid script name format: {scriptName}. Must be a valid C# class name.");
+                    return HandlerOutcome.Fail($"Invalid script name format: {scriptName}. Must be a valid C# class name.", "VALIDATION_ERROR");
                 }
 
                 // Normalize path
@@ -52,7 +53,7 @@ namespace UnityEditorMCP.Handlers
                 // Check if script already exists
                 if (File.Exists(fullPath))
                 {
-                    return Response.Error($"Script already exists at {relativePath}");
+                    return HandlerOutcome.Fail($"Script already exists at {relativePath}", "INVALID_STATE");
                 }
 
                 // Ensure directory exists
@@ -69,7 +70,7 @@ namespace UnityEditorMCP.Handlers
                 AssetDatabase.ImportAsset(relativePath);
                 AssetDatabase.Refresh();
 
-                return Response.Success($"Script '{scriptName}.cs' created successfully", new
+                return HandlerOutcome.Ok(new
                 {
                     scriptPath = relativePath,
                     message = "Script created successfully"
@@ -77,14 +78,14 @@ namespace UnityEditorMCP.Handlers
             }
             catch (Exception ex)
             {
-                return Response.Error($"Failed to create script: {ex.Message}");
+                return HandlerOutcome.Fail($"Failed to create script: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Reads the contents of an existing C# script file
         /// </summary>
-        public static object ReadScript(JObject parameters)
+        public static HandlerOutcome ReadScript(JObject parameters)
         {
             try
             {
@@ -108,19 +109,19 @@ namespace UnityEditorMCP.Handlers
                     var foundPath = FindScriptByName(scriptName, searchPath);
                     if (foundPath == null)
                     {
-                        return Response.Error($"Script '{scriptName}' not found in {searchPath}");
+                        return HandlerOutcome.Fail($"Script '{scriptName}' not found in {searchPath}", "NOT_FOUND");
                     }
                     relativePath = foundPath;
                     fullPath = Path.Combine(Application.dataPath, "../", foundPath);
                 }
                 else
                 {
-                    return Response.Error("Either scriptPath or scriptName must be provided");
+                    return HandlerOutcome.Fail("Either scriptPath or scriptName must be provided", "VALIDATION_ERROR");
                 }
 
                 if (!File.Exists(fullPath))
                 {
-                    return Response.Error($"Script not found at {relativePath}");
+                    return HandlerOutcome.Fail($"Script not found at {relativePath}", "NOT_FOUND");
                 }
 
                 string content = File.ReadAllText(fullPath);
@@ -143,21 +144,21 @@ namespace UnityEditorMCP.Handlers
                         fileSize = fileInfo.Length,
                         encoding = "UTF-8"
                     };
-                    return Response.Success("Script read successfully", resultWithMetadata);
+                    return HandlerOutcome.Ok(resultWithMetadata);
                 }
 
-                return Response.Success("Script read successfully", result);
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
-                return Response.Error($"Failed to read script: {ex.Message}");
+                return HandlerOutcome.Fail($"Failed to read script: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Updates an existing C# script file
         /// </summary>
-        public static object UpdateScript(JObject parameters)
+        public static HandlerOutcome UpdateScript(JObject parameters)
         {
             try
             {
@@ -170,7 +171,7 @@ namespace UnityEditorMCP.Handlers
 
                 if (string.IsNullOrEmpty(scriptContent))
                 {
-                    return Response.Error("scriptContent is required");
+                    return HandlerOutcome.Fail("scriptContent is required", "VALIDATION_ERROR");
                 }
 
                 string fullPath;
@@ -186,19 +187,19 @@ namespace UnityEditorMCP.Handlers
                     var foundPath = FindScriptByName(scriptName, searchPath);
                     if (foundPath == null)
                     {
-                        return Response.Error($"Script '{scriptName}' not found in {searchPath}");
+                        return HandlerOutcome.Fail($"Script '{scriptName}' not found in {searchPath}", "NOT_FOUND");
                     }
                     relativePath = foundPath;
                     fullPath = Path.Combine(Application.dataPath, "../", foundPath);
                 }
                 else
                 {
-                    return Response.Error("Either scriptPath or scriptName must be provided");
+                    return HandlerOutcome.Fail("Either scriptPath or scriptName must be provided", "VALIDATION_ERROR");
                 }
 
                 if (!File.Exists(fullPath))
                 {
-                    return Response.Error($"Script not found at {relativePath}");
+                    return HandlerOutcome.Fail($"Script not found at {relativePath}", "NOT_FOUND");
                 }
 
                 // Create backup if requested
@@ -225,7 +226,7 @@ namespace UnityEditorMCP.Handlers
                         finalContent = scriptContent + existingContent;
                         break;
                     default:
-                        return Response.Error($"Unknown update mode: {updateMode}. Valid modes: replace, append, prepend");
+                        return HandlerOutcome.Fail($"Unknown update mode: {updateMode}. Valid modes: replace, append, prepend", "VALIDATION_ERROR");
                 }
 
                 // Write updated content
@@ -247,21 +248,21 @@ namespace UnityEditorMCP.Handlers
                         message = "Script updated successfully",
                         backupPath = backupPath.Replace(Application.dataPath + "/../", "")
                     };
-                    return Response.Success("Script updated successfully", resultWithBackup);
+                    return HandlerOutcome.Ok(resultWithBackup);
                 }
 
-                return Response.Success("Script updated successfully", result);
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
-                return Response.Error($"Failed to update script: {ex.Message}");
+                return HandlerOutcome.Fail($"Failed to update script: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Deletes a C# script file
         /// </summary>
-        public static object DeleteScript(JObject parameters)
+        public static HandlerOutcome DeleteScript(JObject parameters)
         {
             try
             {
@@ -284,11 +285,11 @@ namespace UnityEditorMCP.Handlers
                     var foundPaths = FindScriptsByName(scriptName, searchPath);
                     if (foundPaths.Count == 0)
                     {
-                        return Response.Error($"Script '{scriptName}' not found in {searchPath}");
+                        return HandlerOutcome.Fail($"Script '{scriptName}' not found in {searchPath}", "NOT_FOUND");
                     }
                     if (foundPaths.Count > 1 && !force)
                     {
-                        return Response.Error($"Multiple scripts named '{scriptName}' found. Use force=true to delete all or specify exact path.");
+                        return HandlerOutcome.Fail($"Multiple scripts named '{scriptName}' found. Use force=true to delete all or specify exact path.", "INVALID_STATE");
                     }
 
                     // Handle multiple deletions
@@ -303,7 +304,7 @@ namespace UnityEditorMCP.Handlers
                             }
                         }
                         AssetDatabase.Refresh();
-                        return Response.Success($"Multiple scripts deleted successfully", new
+                        return HandlerOutcome.Ok(new
                         {
                             deletedPaths = deletedPaths.ToArray(),
                             message = "Multiple scripts deleted successfully"
@@ -315,12 +316,12 @@ namespace UnityEditorMCP.Handlers
                 }
                 else
                 {
-                    return Response.Error("Either scriptPath or scriptName must be provided");
+                    return HandlerOutcome.Fail("Either scriptPath or scriptName must be provided", "VALIDATION_ERROR");
                 }
 
                 if (!File.Exists(fullPath))
                 {
-                    return Response.Error($"Script not found at {relativePath}");
+                    return HandlerOutcome.Fail($"Script not found at {relativePath}", "NOT_FOUND");
                 }
 
                 // Create backup if requested
@@ -334,12 +335,12 @@ namespace UnityEditorMCP.Handlers
                 bool deleted = AssetDatabase.MoveAssetToTrash(relativePath);
                 if (!deleted)
                 {
-                    return Response.Error($"Failed to delete script at {relativePath}");
+                    return HandlerOutcome.Fail($"Failed to delete script at {relativePath}", "INTERNAL_ERROR");
                 }
 
                 AssetDatabase.Refresh();
 
-                return Response.Success("Script deleted successfully", new
+                return HandlerOutcome.Ok(new
                 {
                     scriptPath = relativePath,
                     message = "Script deleted successfully"
@@ -347,14 +348,14 @@ namespace UnityEditorMCP.Handlers
             }
             catch (Exception ex)
             {
-                return Response.Error($"Failed to delete script: {ex.Message}");
+                return HandlerOutcome.Fail($"Failed to delete script: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Lists C# scripts in the project with filtering options
         /// </summary>
-        public static object ListScripts(JObject parameters)
+        public static HandlerOutcome ListScripts(JObject parameters)
         {
             try
             {
@@ -455,7 +456,7 @@ namespace UnityEditorMCP.Handlers
                         break;
                 }
 
-                return Response.Success("Scripts listed successfully", new
+                return HandlerOutcome.Ok(new
                 {
                     scripts = scripts.ToArray(),
                     totalCount = scripts.Count,
@@ -464,14 +465,14 @@ namespace UnityEditorMCP.Handlers
             }
             catch (Exception ex)
             {
-                return Response.Error($"Failed to list scripts: {ex.Message}");
+                return HandlerOutcome.Fail($"Failed to list scripts: {ex.Message}");
             }
         }
 
         /// <summary>
         /// Validates a C# script for syntax and Unity compatibility
         /// </summary>
-        public static object ValidateScript(JObject parameters)
+        public static HandlerOutcome ValidateScript(JObject parameters)
         {
             try
             {
@@ -496,7 +497,7 @@ namespace UnityEditorMCP.Handlers
                     string fullPath = Path.Combine(Application.dataPath, "../", scriptPath);
                     if (!File.Exists(fullPath))
                     {
-                        return Response.Error($"Script not found at {scriptPath}");
+                        return HandlerOutcome.Fail($"Script not found at {scriptPath}", "NOT_FOUND");
                     }
                     content = File.ReadAllText(fullPath);
                 }
@@ -505,7 +506,7 @@ namespace UnityEditorMCP.Handlers
                     var foundPath = FindScriptByName(scriptName, searchPath);
                     if (foundPath == null)
                     {
-                        return Response.Error($"Script '{scriptName}' not found in {searchPath}");
+                        return HandlerOutcome.Fail($"Script '{scriptName}' not found in {searchPath}", "NOT_FOUND");
                     }
                     actualPath = foundPath;
                     string fullPath = Path.Combine(Application.dataPath, "../", foundPath);
@@ -513,7 +514,7 @@ namespace UnityEditorMCP.Handlers
                 }
                 else
                 {
-                    return Response.Error("Either scriptPath, scriptContent, or scriptName must be provided");
+                    return HandlerOutcome.Fail("Either scriptPath, scriptContent, or scriptName must be provided", "VALIDATION_ERROR");
                 }
 
                 var errors = new List<object>();
@@ -573,10 +574,10 @@ namespace UnityEditorMCP.Handlers
                             scriptPath = actualPath,
                             message = isValid ? "Script validation completed successfully" : "Script validation completed with errors"
                         };
-                        return Response.Success("Script validation completed", resultWithPath);
+                        return HandlerOutcome.Ok(resultWithPath);
                     }
 
-                    return Response.Success("Script validation completed", resultWithSuggestions);
+                    return HandlerOutcome.Ok(resultWithSuggestions);
                 }
 
                 if (actualPath != null)
@@ -589,14 +590,14 @@ namespace UnityEditorMCP.Handlers
                         scriptPath = actualPath,
                         message = isValid ? "Script validation completed successfully" : "Script validation completed with errors"
                     };
-                    return Response.Success("Script validation completed", resultWithPath);
+                    return HandlerOutcome.Ok(resultWithPath);
                 }
 
-                return Response.Success("Script validation completed", result);
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception ex)
             {
-                return Response.Error($"Failed to validate script: {ex.Message}");
+                return HandlerOutcome.Fail($"Failed to validate script: {ex.Message}");
             }
         }
 

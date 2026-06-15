@@ -4,6 +4,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -15,7 +16,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Handle selection operations (get, set, clear, get_details)
         /// </summary>
-        public static object HandleCommand(string action, JObject parameters)
+        public static HandlerOutcome HandleCommand(string action, JObject parameters)
         {
             try
             {
@@ -32,20 +33,20 @@ namespace UnityEditorMCP.Handlers
                     case "get_details":
                         return GetSelectionDetails();
                     default:
-                        return new { error = $"Unknown action: {action}" };
+                        return HandlerOutcome.Fail($"Unknown action: {action}", "VALIDATION_ERROR");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[SelectionHandler] Error handling {action}: {e.Message}");
-                return new { error = e.Message };
+                return HandlerOutcome.Fail(e.Message);
             }
         }
 
         /// <summary>
         /// Get current selection
         /// </summary>
-        private static object GetSelection(bool includeDetails)
+        private static HandlerOutcome GetSelection(bool includeDetails)
         {
             try
             {
@@ -68,31 +69,31 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "get",
                     selection = selection,
                     count = selection.Count
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[SelectionHandler] Error getting selection: {e.Message}");
-                return new { error = $"Failed to get selection: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get selection: {e.Message}");
             }
         }
 
         /// <summary>
         /// Set selection to specific objects
         /// </summary>
-        private static object SetSelection(string[] objectPaths)
+        private static HandlerOutcome SetSelection(string[] objectPaths)
         {
             try
             {
                 if (objectPaths == null || objectPaths.Length == 0)
                 {
-                    return new { error = "No object paths provided" };
+                    return HandlerOutcome.Fail("No object paths provided", "VALIDATION_ERROR");
                 }
 
                 var selectedObjects = new List<GameObject>();
@@ -113,7 +114,7 @@ namespace UnityEditorMCP.Handlers
 
                 if (selectedObjects.Count == 0)
                 {
-                    return new { error = "No valid objects found to select" };
+                    return HandlerOutcome.Fail("No valid objects found to select", "NOT_FOUND");
                 }
 
                 // Set the selection
@@ -140,19 +141,19 @@ namespace UnityEditorMCP.Handlers
                     result["message"] = $"Selection set to {selectedObjects.Count} objects";
                 }
 
-                return result;
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception e)
             {
                 Debug.LogError($"[SelectionHandler] Error setting selection: {e.Message}");
-                return new { error = $"Failed to set selection: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to set selection: {e.Message}");
             }
         }
 
         /// <summary>
         /// Clear current selection
         /// </summary>
-        private static object ClearSelection()
+        private static HandlerOutcome ClearSelection()
         {
             try
             {
@@ -160,42 +161,42 @@ namespace UnityEditorMCP.Handlers
                 Selection.activeGameObject = null;
                 Selection.objects = new UnityEngine.Object[0];
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "clear",
                     previousCount = previousCount,
-                    message = previousCount > 0 
+                    message = previousCount > 0
                         ? $"Selection cleared. Previously had {previousCount} objects selected."
                         : "Selection was already empty"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[SelectionHandler] Error clearing selection: {e.Message}");
-                return new { error = $"Failed to clear selection: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to clear selection: {e.Message}");
             }
         }
 
         /// <summary>
         /// Get detailed information about current selection
         /// </summary>
-        private static object GetSelectionDetails()
+        private static HandlerOutcome GetSelectionDetails()
         {
             try
             {
                 var selectedObjects = Selection.gameObjects;
-                
+
                 if (selectedObjects.Length == 0)
                 {
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         success = true,
                         action = "get_details",
                         selection = new List<object>(),
                         count = 0,
                         message = "No objects selected"
-                    };
+                    });
                 }
 
                 var selection = new List<object>();
@@ -207,13 +208,13 @@ namespace UnityEditorMCP.Handlers
                 {
                     var details = GetDetailedObjectInfo(go);
                     selection.Add(details);
-                    
+
                     totalChildrenCount += go.transform.childCount;
                     if (go.activeSelf) hasActiveObjects = true;
                     else hasInactiveObjects = true;
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "get_details",
@@ -222,12 +223,12 @@ namespace UnityEditorMCP.Handlers
                     totalChildrenCount = totalChildrenCount,
                     hasActiveObjects = hasActiveObjects,
                     hasInactiveObjects = hasInactiveObjects
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[SelectionHandler] Error getting selection details: {e.Message}");
-                return new { error = $"Failed to get selection details: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get selection details: {e.Message}");
             }
         }
 

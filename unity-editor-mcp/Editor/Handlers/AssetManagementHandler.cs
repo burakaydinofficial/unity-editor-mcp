@@ -5,6 +5,7 @@ using System.Linq;
 using UnityEngine;
 using UnityEditor;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 // COMPATIBILITY (see COMPATIBILITY.md): PrefabStageUtility moved namespaces in
 // Unity 2021.2 — UnityEditor.Experimental.SceneManagement (<= 2021.1) ->
 // UnityEditor.SceneManagement (2021.2+). This guarded alias keeps both the
@@ -26,7 +27,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Creates a new prefab from a GameObject or from scratch
         /// </summary>
-        public static object CreatePrefab(JObject parameters)
+        public static HandlerOutcome CreatePrefab(JObject parameters)
         {
             try
             {
@@ -39,18 +40,18 @@ namespace UnityEditorMCP.Handlers
                 // Validate prefab path
                 if (string.IsNullOrEmpty(prefabPath))
                 {
-                    return new { error = "prefabPath is required" };
+                    return HandlerOutcome.Fail("prefabPath is required", "VALIDATION_ERROR");
                 }
 
                 if (!prefabPath.StartsWith("Assets/") || !prefabPath.EndsWith(".prefab"))
                 {
-                    return new { error = "prefabPath must start with Assets/ and end with .prefab" };
+                    return HandlerOutcome.Fail("prefabPath must start with Assets/ and end with .prefab", "VALIDATION_ERROR");
                 }
 
                 // Check if prefab already exists
                 if (AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath) != null && !overwrite)
                 {
-                    return new { error = $"Prefab already exists at {prefabPath}. Set overwrite to true to replace it." };
+                    return HandlerOutcome.Fail($"Prefab already exists at {prefabPath}. Set overwrite to true to replace it.", "VALIDATION_ERROR");
                 }
 
                 // Ensure directory exists
@@ -76,7 +77,7 @@ namespace UnityEditorMCP.Handlers
                     GameObject sourceObject = GameObject.Find(gameObjectPath);
                     if (sourceObject == null)
                     {
-                        return new { error = $"GameObject not found at path: {gameObjectPath}" };
+                        return HandlerOutcome.Fail($"GameObject not found at path: {gameObjectPath}", "NOT_FOUND");
                     }
 
                     // Create prefab from GameObject
@@ -84,36 +85,36 @@ namespace UnityEditorMCP.Handlers
                 }
                 else
                 {
-                    return new { error = "Either gameObjectPath or createFromTemplate must be specified" };
+                    return HandlerOutcome.Fail("Either gameObjectPath or createFromTemplate must be specified", "VALIDATION_ERROR");
                 }
 
                 if (prefabAsset == null)
                 {
-                    return new { error = "Failed to create prefab" };
+                    return HandlerOutcome.Fail("Failed to create prefab", "INTERNAL_ERROR");
                 }
 
                 // Get asset GUID
                 string guid = AssetDatabase.AssetPathToGUID(prefabPath);
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     prefabPath = prefabPath,
                     guid = guid,
                     message = createFromTemplate ? "Empty prefab created successfully" : "Prefab created successfully"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetManagementHandler] Error in CreatePrefab: {e.Message}");
-                return new { error = $"Failed to create prefab: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to create prefab: {e.Message}");
             }
         }
 
         /// <summary>
         /// Modifies properties of an existing prefab
         /// </summary>
-        public static object ModifyPrefab(JObject parameters)
+        public static HandlerOutcome ModifyPrefab(JObject parameters)
         {
             try
             {
@@ -125,27 +126,27 @@ namespace UnityEditorMCP.Handlers
                 // Validate parameters
                 if (string.IsNullOrEmpty(prefabPath))
                 {
-                    return new { error = "prefabPath is required" };
+                    return HandlerOutcome.Fail("prefabPath is required", "VALIDATION_ERROR");
                 }
 
                 if (modifications == null || !modifications.HasValues)
                 {
-                    return new { error = "modifications object is required and cannot be empty" };
+                    return HandlerOutcome.Fail("modifications object is required and cannot be empty", "VALIDATION_ERROR");
                 }
 
                 // Load the prefab
                 GameObject prefabAsset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
                 if (prefabAsset == null)
                 {
-                    return new { error = $"Prefab not found at path: {prefabPath}" };
+                    return HandlerOutcome.Fail($"Prefab not found at path: {prefabPath}", "NOT_FOUND");
                 }
 
                 // Track modifications
                 List<string> modifiedProperties = new List<string>();
-                
+
                 // Load prefab contents for editing
                 GameObject prefabRoot = PrefabUtility.LoadPrefabContents(prefabPath);
-                
+
                 try
                 {
                     // Apply modifications
@@ -167,7 +168,7 @@ namespace UnityEditorMCP.Handlers
                 }
 
                 int affectedInstances = 0;
-                
+
                 // Apply to instances if requested
                 if (applyToInstances)
                 {
@@ -183,28 +184,28 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     prefabPath = prefabPath,
                     modifiedProperties = modifiedProperties.ToArray(),
                     affectedInstances = affectedInstances,
-                    message = applyToInstances ? 
-                        "Prefab modified successfully" : 
+                    message = applyToInstances ?
+                        "Prefab modified successfully" :
                         "Prefab modified without updating instances"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetManagementHandler] Error in ModifyPrefab: {e.Message}");
-                return new { error = $"Failed to modify prefab: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to modify prefab: {e.Message}");
             }
         }
 
         /// <summary>
         /// Instantiates a prefab in the scene
         /// </summary>
-        public static object InstantiatePrefab(JObject parameters)
+        public static HandlerOutcome InstantiatePrefab(JObject parameters)
         {
             try
             {
@@ -218,14 +219,14 @@ namespace UnityEditorMCP.Handlers
                 // Validate prefab path
                 if (string.IsNullOrEmpty(prefabPath))
                 {
-                    return new { error = "prefabPath is required" };
+                    return HandlerOutcome.Fail("prefabPath is required", "VALIDATION_ERROR");
                 }
 
                 // Load the prefab
                 GameObject prefabAsset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
                 if (prefabAsset == null)
                 {
-                    return new { error = $"Prefab not found at path: {prefabPath}" };
+                    return HandlerOutcome.Fail($"Prefab not found at path: {prefabPath}", "NOT_FOUND");
                 }
 
                 // Find parent if specified
@@ -235,7 +236,7 @@ namespace UnityEditorMCP.Handlers
                     parent = GameObject.Find(parentPath);
                     if (parent == null)
                     {
-                        return new { error = $"Parent GameObject not found at path: {parentPath}" };
+                        return HandlerOutcome.Fail($"Parent GameObject not found at path: {parentPath}", "NOT_FOUND");
                     }
                 }
 
@@ -243,13 +244,13 @@ namespace UnityEditorMCP.Handlers
                 GameObject instance = PrefabUtility.InstantiatePrefab(prefabAsset) as GameObject;
                 if (instance == null)
                 {
-                    return new { error = "Failed to instantiate prefab" };
+                    return HandlerOutcome.Fail("Failed to instantiate prefab", "INTERNAL_ERROR");
                 }
 
                 // Set transform
                 instance.transform.position = position;
                 instance.transform.rotation = Quaternion.Euler(rotation);
-                
+
                 // Set parent
                 if (parent != null)
                 {
@@ -268,7 +269,7 @@ namespace UnityEditorMCP.Handlers
                 // Get the path to the created object
                 string gameObjectPath = GetGameObjectPath(instance);
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     gameObjectPath = gameObjectPath,
@@ -278,19 +279,19 @@ namespace UnityEditorMCP.Handlers
                     parent = parentPath,
                     name = instance.name,
                     message = "Prefab instantiated successfully"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetManagementHandler] Error in InstantiatePrefab: {e.Message}");
-                return new { error = $"Failed to instantiate prefab: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to instantiate prefab: {e.Message}");
             }
         }
 
         /// <summary>
         /// Creates a new material with specified shader and properties
         /// </summary>
-        public static object CreateMaterial(JObject parameters)
+        public static HandlerOutcome CreateMaterial(JObject parameters)
         {
             try
             {
@@ -304,18 +305,18 @@ namespace UnityEditorMCP.Handlers
                 // Validate material path
                 if (string.IsNullOrEmpty(materialPath))
                 {
-                    return new { error = "materialPath is required" };
+                    return HandlerOutcome.Fail("materialPath is required", "VALIDATION_ERROR");
                 }
 
                 if (!materialPath.StartsWith("Assets/") || !materialPath.EndsWith(".mat"))
                 {
-                    return new { error = "materialPath must start with Assets/ and end with .mat" };
+                    return HandlerOutcome.Fail("materialPath must start with Assets/ and end with .mat", "VALIDATION_ERROR");
                 }
 
                 // Check if material already exists
                 if (AssetDatabase.LoadAssetAtPath<Material>(materialPath) != null && !overwrite)
                 {
-                    return new { error = $"Material already exists at {materialPath}. Set overwrite to true to replace it." };
+                    return HandlerOutcome.Fail($"Material already exists at {materialPath}. Set overwrite to true to replace it.", "VALIDATION_ERROR");
                 }
 
                 // Ensure directory exists
@@ -335,7 +336,7 @@ namespace UnityEditorMCP.Handlers
                     Material sourceMaterial = AssetDatabase.LoadAssetAtPath<Material>(copyFrom);
                     if (sourceMaterial == null)
                     {
-                        return new { error = $"Source material not found at: {copyFrom}" };
+                        return HandlerOutcome.Fail($"Source material not found at: {copyFrom}", "NOT_FOUND");
                     }
 
                     material = new Material(sourceMaterial);
@@ -346,7 +347,7 @@ namespace UnityEditorMCP.Handlers
                     Shader shaderAsset = Shader.Find(shader);
                     if (shaderAsset == null)
                     {
-                        return new { error = $"Shader not found: {shader}" };
+                        return HandlerOutcome.Fail($"Shader not found: {shader}", "NOT_FOUND");
                     }
 
                     material = new Material(shaderAsset);
@@ -371,7 +372,7 @@ namespace UnityEditorMCP.Handlers
                 // Get asset GUID
                 string guid = AssetDatabase.AssetPathToGUID(materialPath);
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     materialPath = materialPath,
@@ -379,22 +380,22 @@ namespace UnityEditorMCP.Handlers
                     guid = guid,
                     propertiesSet = propertiesSet.ToArray(),
                     copiedFrom = copyFrom,
-                    message = !string.IsNullOrEmpty(copyFrom) ? 
-                        "Material created from copy successfully" : 
+                    message = !string.IsNullOrEmpty(copyFrom) ?
+                        "Material created from copy successfully" :
                         "Material created successfully"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetManagementHandler] Error in CreateMaterial: {e.Message}");
-                return new { error = $"Failed to create material: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to create material: {e.Message}");
             }
         }
 
         /// <summary>
         /// Modifies properties of an existing material
         /// </summary>
-        public static object ModifyMaterial(JObject parameters)
+        public static HandlerOutcome ModifyMaterial(JObject parameters)
         {
             try
             {
@@ -406,25 +407,25 @@ namespace UnityEditorMCP.Handlers
                 // Validate material path
                 if (string.IsNullOrEmpty(materialPath))
                 {
-                    return new { error = "materialPath is required" };
+                    return HandlerOutcome.Fail("materialPath is required", "VALIDATION_ERROR");
                 }
 
                 if (!materialPath.StartsWith("Assets/") || !materialPath.EndsWith(".mat"))
                 {
-                    return new { error = "materialPath must start with Assets/ and end with .mat" };
+                    return HandlerOutcome.Fail("materialPath must start with Assets/ and end with .mat", "VALIDATION_ERROR");
                 }
 
                 // Validate properties
                 if (properties == null || !properties.HasValues)
                 {
-                    return new { error = "properties object is required and cannot be empty" };
+                    return HandlerOutcome.Fail("properties object is required and cannot be empty", "VALIDATION_ERROR");
                 }
 
                 // Load the material
                 Material material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
                 if (material == null)
                 {
-                    return new { error = $"Material not found at path: {materialPath}" };
+                    return HandlerOutcome.Fail($"Material not found at path: {materialPath}", "NOT_FOUND");
                 }
 
                 List<string> propertiesModified = new List<string>();
@@ -437,7 +438,7 @@ namespace UnityEditorMCP.Handlers
                     Shader newShader = Shader.Find(shader);
                     if (newShader == null)
                     {
-                        return new { error = $"Shader not found: {shader}" };
+                        return HandlerOutcome.Fail($"Shader not found: {shader}", "NOT_FOUND");
                     }
 
                     if (material.shader != newShader)
@@ -460,7 +461,7 @@ namespace UnityEditorMCP.Handlers
                 EditorUtility.SetDirty(material);
                 AssetDatabase.SaveAssets();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     materialPath = materialPath,
@@ -469,12 +470,12 @@ namespace UnityEditorMCP.Handlers
                     previousShader = shaderChanged ? previousShader : null,
                     newShader = shaderChanged ? shader : null,
                     message = "Material modified successfully"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetManagementHandler] Error in ModifyMaterial: {e.Message}");
-                return new { error = $"Failed to modify material: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to modify material: {e.Message}");
             }
         }
 
@@ -711,7 +712,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Opens a prefab in prefab mode for editing
         /// </summary>
-        public static object OpenPrefab(JObject parameters)
+        public static HandlerOutcome OpenPrefab(JObject parameters)
         {
             try
             {
@@ -723,26 +724,26 @@ namespace UnityEditorMCP.Handlers
                 // Validate prefab path
                 if (string.IsNullOrEmpty(prefabPath))
                 {
-                    return new { error = "prefabPath is required" };
+                    return HandlerOutcome.Fail("prefabPath is required", "VALIDATION_ERROR");
                 }
 
                 // Load the prefab asset
                 GameObject prefabAsset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
                 if (prefabAsset == null)
                 {
-                    return new { error = $"Prefab asset not found at path: {prefabPath}" };
+                    return HandlerOutcome.Fail($"Prefab asset not found at path: {prefabPath}", "NOT_FOUND");
                 }
 
                 // Check if asset is actually a prefab
                 if (!PrefabUtility.IsPartOfPrefabAsset(prefabAsset))
                 {
-                    return new { error = $"Asset at path is not a prefab: {prefabPath}" };
+                    return HandlerOutcome.Fail($"Asset at path is not a prefab: {prefabPath}", "VALIDATION_ERROR");
                 }
 
                 // Check if already in prefab mode with this prefab
                 var currentStage = PrefabStageUtility.GetCurrentPrefabStage();
                 bool wasAlreadyOpen = false;
-                
+
                 if (currentStage != null && currentStage.assetPath == prefabPath)
                 {
                     wasAlreadyOpen = true;
@@ -761,7 +762,7 @@ namespace UnityEditorMCP.Handlers
 
                 if (currentStage == null)
                 {
-                    return new { error = "Failed to enter prefab mode" };
+                    return HandlerOutcome.Fail("Failed to enter prefab mode", "INVALID_STATE");
                 }
 
                 GameObject prefabRoot = currentStage.prefabContentsRoot;
@@ -785,7 +786,7 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     prefabPath = prefabPath,
@@ -794,19 +795,19 @@ namespace UnityEditorMCP.Handlers
                     focusedObject = focusedObjectPath,
                     wasAlreadyOpen = wasAlreadyOpen,
                     message = wasAlreadyOpen ? "Already editing this prefab" : "Prefab opened in prefab mode"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetManagementHandler] Error in OpenPrefab: {e.Message}");
-                return new { error = $"Failed to open prefab: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to open prefab: {e.Message}");
             }
         }
 
         /// <summary>
         /// Exits prefab mode and optionally saves changes
         /// </summary>
-        public static object ExitPrefabMode(JObject parameters)
+        public static HandlerOutcome ExitPrefabMode(JObject parameters)
         {
             try
             {
@@ -817,12 +818,12 @@ namespace UnityEditorMCP.Handlers
                 var currentStage = PrefabStageUtility.GetCurrentPrefabStage();
                 if (currentStage == null)
                 {
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         success = true,
                         wasInPrefabMode = false,
                         message = "Not currently in prefab mode"
-                    };
+                    });
                 }
 
                 string prefabPath = currentStage.assetPath;
@@ -838,33 +839,33 @@ namespace UnityEditorMCP.Handlers
                     }
                     catch (Exception saveEx)
                     {
-                        return new { error = $"Failed to save prefab changes: {saveEx.Message}" };
+                        return HandlerOutcome.Fail($"Failed to save prefab changes: {saveEx.Message}", "INTERNAL_ERROR");
                     }
                 }
 
                 // Exit prefab mode
                 UnityEditor.SceneManagement.StageUtility.GoBackToPreviousStage();
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     wasInPrefabMode = true,
                     changesSaved = changesSaved,
                     prefabPath = prefabPath,
                     message = changesSaved ? "Exited prefab mode and saved changes" : "Exited prefab mode without saving changes"
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetManagementHandler] Error in ExitPrefabMode: {e.Message}");
-                return new { error = $"Failed to exit prefab mode: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to exit prefab mode: {e.Message}");
             }
         }
 
         /// <summary>
         /// Saves current prefab changes or applies overrides from a prefab instance
         /// </summary>
-        public static object SavePrefab(JObject parameters)
+        public static HandlerOutcome SavePrefab(JObject parameters)
         {
             try
             {
@@ -874,33 +875,33 @@ namespace UnityEditorMCP.Handlers
 
                 // Check if in prefab mode
                 var currentStage = PrefabStageUtility.GetCurrentPrefabStage();
-                
+
                 if (currentStage != null && string.IsNullOrEmpty(gameObjectPath))
                 {
                     // Save current prefab in prefab mode
                     string prefabPath = currentStage.assetPath;
-                    
+
                     if (currentStage.scene.isDirty)
                     {
                         PrefabUtility.SaveAsPrefabAsset(currentStage.prefabContentsRoot, prefabPath);
-                        
-                        return new
+
+                        return HandlerOutcome.Ok(new
                         {
                             success = true,
                             savedInPrefabMode = true,
                             prefabPath = prefabPath,
                             message = "Prefab changes saved successfully"
-                        };
+                        });
                     }
                     else
                     {
-                        return new
+                        return HandlerOutcome.Ok(new
                         {
                             success = true,
                             savedInPrefabMode = true,
                             prefabPath = prefabPath,
                             message = "No changes to save"
-                        };
+                        });
                     }
                 }
                 else if (!string.IsNullOrEmpty(gameObjectPath))
@@ -909,18 +910,18 @@ namespace UnityEditorMCP.Handlers
                     GameObject gameObject = GameObject.Find(gameObjectPath);
                     if (gameObject == null)
                     {
-                        return new { error = $"GameObject not found at path: {gameObjectPath}" };
+                        return HandlerOutcome.Fail($"GameObject not found at path: {gameObjectPath}", "NOT_FOUND");
                     }
 
                     // Check if it's a prefab instance
                     if (!PrefabUtility.IsPartOfPrefabInstance(gameObject))
                     {
-                        return new { error = $"GameObject is not a prefab instance: {gameObjectPath}" };
+                        return HandlerOutcome.Fail($"GameObject is not a prefab instance: {gameObjectPath}", "INVALID_STATE");
                     }
 
                     // Get prefab path
                     string prefabPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(gameObject);
-                    
+
                     // Count overrides before applying
                     var overrides = PrefabUtility.GetObjectOverrides(gameObject, includeChildren);
                     int overrideCount = overrides.Count;
@@ -936,7 +937,7 @@ namespace UnityEditorMCP.Handlers
                         PrefabUtility.ApplyObjectOverride(gameObject, AssetDatabase.GetAssetPath(PrefabUtility.GetCorrespondingObjectFromSource(gameObject)), InteractionMode.UserAction);
                     }
 
-                    return new
+                    return HandlerOutcome.Ok(new
                     {
                         success = true,
                         gameObjectPath = gameObjectPath,
@@ -944,17 +945,17 @@ namespace UnityEditorMCP.Handlers
                         overridesApplied = overrideCount,
                         includedChildren = includeChildren,
                         message = $"Applied {overrideCount} overrides to prefab"
-                    };
+                    });
                 }
                 else
                 {
-                    return new { error = "Not currently in prefab mode and no gameObjectPath specified" };
+                    return HandlerOutcome.Fail("Not currently in prefab mode and no gameObjectPath specified", "INVALID_STATE");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetManagementHandler] Error in SavePrefab: {e.Message}");
-                return new { error = $"Failed to save prefab: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to save prefab: {e.Message}");
             }
         }
     }

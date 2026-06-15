@@ -108,6 +108,39 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("execute_menu_item", MenuHandler.ExecuteMenuItem);
             dispatcher.Register("clear_console", ConsoleHandler.ClearConsole);
             dispatcher.Register("enhanced_read_logs", ConsoleHandler.EnhancedReadLogs);
+            // Batch B — core system commands (lifted from the legacy inline cases into SystemHandler).
+            dispatcher.Register("ping", SystemHandler.Ping);
+            dispatcher.Register("read_logs", SystemHandler.ReadLogs);
+            dispatcher.Register("clear_logs", SystemHandler.ClearLogs);
+            dispatcher.Register("refresh_assets", SystemHandler.RefreshAssets);
+            // Batch B — asset / script / test single-method handlers (Shape A).
+            dispatcher.Register("create_prefab", AssetManagementHandler.CreatePrefab);
+            dispatcher.Register("modify_prefab", AssetManagementHandler.ModifyPrefab);
+            dispatcher.Register("instantiate_prefab", AssetManagementHandler.InstantiatePrefab);
+            dispatcher.Register("create_material", AssetManagementHandler.CreateMaterial);
+            dispatcher.Register("modify_material", AssetManagementHandler.ModifyMaterial);
+            dispatcher.Register("open_prefab", AssetManagementHandler.OpenPrefab);
+            dispatcher.Register("exit_prefab_mode", AssetManagementHandler.ExitPrefabMode);
+            dispatcher.Register("save_prefab", AssetManagementHandler.SavePrefab);
+            dispatcher.Register("create_script", ScriptHandler.CreateScript);
+            dispatcher.Register("read_script", ScriptHandler.ReadScript);
+            dispatcher.Register("update_script", ScriptHandler.UpdateScript);
+            dispatcher.Register("delete_script", ScriptHandler.DeleteScript);
+            dispatcher.Register("list_scripts", ScriptHandler.ListScripts);
+            dispatcher.Register("validate_script", ScriptHandler.ValidateScript);
+            dispatcher.Register("list_tests", TestRunnerHandler.ListTests);
+            dispatcher.Register("run_tests", TestRunnerHandler.RunTests);
+            dispatcher.Register("get_test_results", TestRunnerHandler.GetTestResults);
+            dispatcher.Register("cancel_tests", TestRunnerHandler.CancelTests);
+            // Batch B — action-dispatch handlers (Shape B): one registration; HandleCommand reads params["action"].
+            dispatcher.Register("manage_tags", p => TagManagementHandler.HandleCommand(p["action"]?.ToString() ?? string.Empty, p));
+            dispatcher.Register("manage_layers", p => LayerManagementHandler.HandleCommand(p["action"]?.ToString() ?? string.Empty, p));
+            dispatcher.Register("manage_selection", p => SelectionHandler.HandleCommand(p["action"]?.ToString() ?? string.Empty, p));
+            dispatcher.Register("manage_windows", p => WindowManagementHandler.HandleCommand(p["action"]?.ToString() ?? string.Empty, p));
+            dispatcher.Register("manage_tools", p => ToolManagementHandler.HandleCommand(p["action"]?.ToString() ?? string.Empty, p));
+            dispatcher.Register("manage_asset_import_settings", p => AssetImportSettingsHandler.HandleCommand(p["action"]?.ToString() ?? string.Empty, p));
+            dispatcher.Register("manage_asset_database", p => AssetDatabaseHandler.HandleCommand(p["action"]?.ToString() ?? string.Empty, p));
+            dispatcher.Register("analyze_asset_dependencies", p => AssetDependencyHandler.HandleCommand(p["action"]?.ToString() ?? string.Empty, p));
             return dispatcher;
         }
 

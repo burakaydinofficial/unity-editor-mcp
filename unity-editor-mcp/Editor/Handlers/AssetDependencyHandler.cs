@@ -5,6 +5,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 
 namespace UnityEditorMCP.Handlers
 {
@@ -16,7 +17,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Handle asset dependency analysis operations
         /// </summary>
-        public static object HandleCommand(string action, JObject parameters)
+        public static HandlerOutcome HandleCommand(string action, JObject parameters)
         {
             try
             {
@@ -40,31 +41,31 @@ namespace UnityEditorMCP.Handlers
                     case "validate_references":
                         return ValidateReferences();
                     default:
-                        return new { error = $"Unknown action: {action}" };
+                        return HandlerOutcome.Fail($"Unknown action: {action}", "VALIDATION_ERROR");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDependencyHandler] Error handling {action}: {e.Message}");
-                return new { error = e.Message };
+                return HandlerOutcome.Fail(e.Message);
             }
         }
 
         /// <summary>
         /// Get dependencies of an asset
         /// </summary>
-        private static object GetDependencies(string assetPath, bool recursive)
+        private static HandlerOutcome GetDependencies(string assetPath, bool recursive)
         {
             try
             {
                 if (string.IsNullOrEmpty(assetPath))
                 {
-                    return new { error = "Asset path not specified" };
+                    return HandlerOutcome.Fail("Asset path not specified", "VALIDATION_ERROR");
                 }
 
                 if (!AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath))
                 {
-                    return new { error = $"Asset not found: {assetPath}" };
+                    return HandlerOutcome.Fail($"Asset not found: {assetPath}", "NOT_FOUND");
                 }
 
                 var dependencies = AssetDatabase.GetDependencies(assetPath, recursive);
@@ -102,7 +103,7 @@ namespace UnityEditorMCP.Handlers
                     });
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "get_dependencies",
@@ -111,30 +112,30 @@ namespace UnityEditorMCP.Handlers
                     dependencies = dependencyList,
                     count = dependencyList.Count,
                     maxDepth = maxDepth
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDependencyHandler] Error getting dependencies for '{assetPath}': {e.Message}");
-                return new { error = $"Failed to get dependencies: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get dependencies: {e.Message}");
             }
         }
 
         /// <summary>
         /// Get assets that depend on the specified asset
         /// </summary>
-        private static object GetDependents(string assetPath)
+        private static HandlerOutcome GetDependents(string assetPath)
         {
             try
             {
                 if (string.IsNullOrEmpty(assetPath))
                 {
-                    return new { error = "Asset path not specified" };
+                    return HandlerOutcome.Fail("Asset path not specified", "VALIDATION_ERROR");
                 }
 
                 if (!AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath))
                 {
-                    return new { error = $"Asset not found: {assetPath}" };
+                    return HandlerOutcome.Fail($"Asset not found: {assetPath}", "NOT_FOUND");
                 }
 
                 var dependents = new List<object>();
@@ -173,26 +174,26 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "get_dependents",
                     assetPath = assetPath,
                     dependents = dependents,
                     count = dependents.Count
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDependencyHandler] Error getting dependents for '{assetPath}': {e.Message}");
-                return new { error = $"Failed to get dependents: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to get dependents: {e.Message}");
             }
         }
 
         /// <summary>
         /// Analyze circular dependencies in the project
         /// </summary>
-        private static object AnalyzeCircularDependencies()
+        private static HandlerOutcome AnalyzeCircularDependencies()
         {
             try
             {
@@ -221,19 +222,19 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "analyze_circular",
                     circularDependencies = circularDependencies,
                     hasCircularDependencies = circularDependencies.Count > 0,
                     totalCycles = circularDependencies.Count
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDependencyHandler] Error analyzing circular dependencies: {e.Message}");
-                return new { error = $"Failed to analyze circular dependencies: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to analyze circular dependencies: {e.Message}");
             }
         }
 
@@ -268,7 +269,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Find unused assets in the project
         /// </summary>
-        private static object FindUnusedAssets(bool includeBuiltIn)
+        private static HandlerOutcome FindUnusedAssets(bool includeBuiltIn)
         {
             try
             {
@@ -317,7 +318,7 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "find_unused",
@@ -325,30 +326,30 @@ namespace UnityEditorMCP.Handlers
                     unusedAssets = unusedAssets,
                     count = unusedAssets.Count,
                     totalSizeKB = totalSizeKB
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDependencyHandler] Error finding unused assets: {e.Message}");
-                return new { error = $"Failed to find unused assets: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to find unused assets: {e.Message}");
             }
         }
 
         /// <summary>
         /// Analyze the size impact of an asset
         /// </summary>
-        private static object AnalyzeSizeImpact(string assetPath)
+        private static HandlerOutcome AnalyzeSizeImpact(string assetPath)
         {
             try
             {
                 if (string.IsNullOrEmpty(assetPath))
                 {
-                    return new { error = "Asset path not specified" };
+                    return HandlerOutcome.Fail("Asset path not specified", "VALIDATION_ERROR");
                 }
 
                 if (!AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath))
                 {
-                    return new { error = $"Asset not found: {assetPath}" };
+                    return HandlerOutcome.Fail($"Asset not found: {assetPath}", "NOT_FOUND");
                 }
 
                 var fileInfo = new FileInfo(Path.Combine(Application.dataPath, "..", assetPath));
@@ -389,25 +390,25 @@ namespace UnityEditorMCP.Handlers
                     }
                 };
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "analyze_size_impact",
                     assetPath = assetPath,
                     analysis = analysis
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDependencyHandler] Error analyzing size impact for '{assetPath}': {e.Message}");
-                return new { error = $"Failed to analyze size impact: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to analyze size impact: {e.Message}");
             }
         }
 
         /// <summary>
         /// Validate asset references in the project
         /// </summary>
-        private static object ValidateReferences()
+        private static HandlerOutcome ValidateReferences()
         {
             try
             {
@@ -459,17 +460,17 @@ namespace UnityEditorMCP.Handlers
                     ["validationTime"] = Math.Round(validationTime, 2)
                 };
 
-                return new
+                return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "validate_references",
                     validation = validation
-                };
+                });
             }
             catch (Exception e)
             {
                 Debug.LogError($"[AssetDependencyHandler] Error validating references: {e.Message}");
-                return new { error = $"Failed to validate references: {e.Message}" };
+                return HandlerOutcome.Fail($"Failed to validate references: {e.Message}");
             }
         }
     }
