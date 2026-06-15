@@ -74,7 +74,7 @@ Add to your `claude_desktop_config.json`:
 - **`list_unity_tools`** — list the tools a connected editor supports, with schemas learned at runtime
 - **`call_unity_tool`** — invoke any of those tools by name (params validated against the editor's advertised schema before the call), routed to the named instance (required as of v0.5.0 — no default)
 
-This is what lets one server drive **any Unity version** and **several editors at once**. To re-advertise the full typed catalog as individual MCP tools instead, set `UNITY_MCP_TYPED_TOOLS=true`.
+This is what lets one server drive **any Unity version** and **several editors at once**. The agent discovers each editor's tools on demand via `list_unity_tools` and invokes them by name with `call_unity_tool` — there is no per-tool advertised surface (ADR 0006).
 
 The editor exposes ~78 tools spanning GameObjects, components, scenes, scene analysis, assets (prefabs / materials / import settings), scripts, code intelligence, play mode, UI automation, the Test Runner, and editor operations. The complete, categorized catalog lives in the [project README](https://github.com/burakaydinofficial/unity-editor-mcp#available-tools).
 

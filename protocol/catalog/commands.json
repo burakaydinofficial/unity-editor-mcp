@@ -7645,11 +7645,10 @@
           "instances": {
             "type": "array",
             "items": { "type": "object" },
-            "description": "Discoverable editors with projectPath, unityVersion, port, pid, protocolVersion, host, startedAt, lastHeartbeat, live, active."
+            "description": "Discoverable editors with projectPath, unityVersion, port, pid, protocolVersion, host, startedAt, lastHeartbeat, live."
           },
           "count": { "type": "number" },
-          "registryDir": { "type": "string" },
-          "activePort": { "type": ["number", "null"], "description": "The port this server resolves to by default (UNITY_PORT / project / derived)." }
+          "registryDir": { "type": "string" }
         }
       }
     },
