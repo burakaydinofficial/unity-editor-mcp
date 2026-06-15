@@ -43,9 +43,9 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail("prefabPath is required", "VALIDATION_ERROR");
                 }
 
-                if (!prefabPath.StartsWith("Assets/") || !prefabPath.EndsWith(".prefab"))
+                if (!prefabPath.StartsWith("Assets/") || !prefabPath.EndsWith(".prefab") || !PathSafety.IsWithinProject(prefabPath))
                 {
-                    return HandlerOutcome.Fail("prefabPath must start with Assets/ and end with .prefab", "VALIDATION_ERROR");
+                    return HandlerOutcome.Fail("prefabPath must be a .prefab inside the project (Assets/...), with no '..' traversal", "VALIDATION_ERROR");
                 }
 
                 // Check if prefab already exists
@@ -308,9 +308,9 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail("materialPath is required", "VALIDATION_ERROR");
                 }
 
-                if (!materialPath.StartsWith("Assets/") || !materialPath.EndsWith(".mat"))
+                if (!materialPath.StartsWith("Assets/") || !materialPath.EndsWith(".mat") || !PathSafety.IsWithinProject(materialPath))
                 {
-                    return HandlerOutcome.Fail("materialPath must start with Assets/ and end with .mat", "VALIDATION_ERROR");
+                    return HandlerOutcome.Fail("materialPath must be a .mat inside the project (Assets/...), with no '..' traversal", "VALIDATION_ERROR");
                 }
 
                 // Check if material already exists
@@ -410,9 +410,9 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail("materialPath is required", "VALIDATION_ERROR");
                 }
 
-                if (!materialPath.StartsWith("Assets/") || !materialPath.EndsWith(".mat"))
+                if (!materialPath.StartsWith("Assets/") || !materialPath.EndsWith(".mat") || !PathSafety.IsWithinProject(materialPath))
                 {
-                    return HandlerOutcome.Fail("materialPath must start with Assets/ and end with .mat", "VALIDATION_ERROR");
+                    return HandlerOutcome.Fail("materialPath must be a .mat inside the project (Assets/...), with no '..' traversal", "VALIDATION_ERROR");
                 }
 
                 // Validate properties
