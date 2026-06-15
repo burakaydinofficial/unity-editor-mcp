@@ -135,13 +135,17 @@ describe('Server', () => {
       const handlers = createHandlers(unityConnection);
       
       assert.ok(handlers instanceof Map);
-      assert.equal(handlers.size, 70);
-      
+      assert.equal(handlers.size, 73);
+
       // Check for some key handlers
       assert.ok(handlers.has('ping'));
       assert.ok(handlers.has('create_gameobject'));
       assert.ok(handlers.has('get_hierarchy'));
       assert.ok(handlers.has('analyze_scene_contents'));
+      // Introspection tools (Tier 1)
+      assert.ok(handlers.has('get_editor_info'));
+      assert.ok(handlers.has('get_project_settings'));
+      assert.ok(handlers.has('list_packages'));
       // Check for new editor control handlers
       assert.ok(handlers.has('manage_tags'));
       assert.ok(handlers.has('manage_layers'));

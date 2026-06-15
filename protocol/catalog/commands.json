@@ -6,6 +6,164 @@
   "knownGaps": [],
   "commands": [
     {
+      "name": "get_editor_info",
+      "category": "system",
+      "sides": [
+        "server",
+        "editor"
+      ],
+      "internal": false,
+      "destructive": false,
+      "description": "Get Unity editor environment info: Unity version, platform, project path, active build target, product/company name, and quick play/compile state.",
+      "params": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "unityVersion": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "systemLanguage": {
+            "type": "string"
+          },
+          "projectPath": {
+            "type": "string"
+          },
+          "dataPath": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "companyName": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "activeBuildTarget": {
+            "type": "string"
+          },
+          "isPlaying": {
+            "type": "boolean"
+          },
+          "isCompiling": {
+            "type": "boolean"
+          },
+          "applicationPath": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_project_settings",
+      "category": "editor",
+      "sides": [
+        "server",
+        "editor"
+      ],
+      "internal": false,
+      "destructive": false,
+      "description": "Get key Unity project settings: product/company name, bundle version, color space, default screen size, scripting backend, API compatibility level, scripting define symbols, and the active build target.",
+      "params": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "productName": {
+            "type": "string"
+          },
+          "companyName": {
+            "type": "string"
+          },
+          "bundleVersion": {
+            "type": "string"
+          },
+          "colorSpace": {
+            "type": "string"
+          },
+          "defaultScreenWidth": {
+            "type": "number"
+          },
+          "defaultScreenHeight": {
+            "type": "number"
+          },
+          "runInBackground": {
+            "type": "boolean"
+          },
+          "activeBuildTarget": {
+            "type": "string"
+          },
+          "selectedBuildTargetGroup": {
+            "type": "string"
+          },
+          "scriptingBackend": {
+            "type": "string"
+          },
+          "apiCompatibilityLevel": {
+            "type": "string"
+          },
+          "scriptingDefineSymbols": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "list_packages",
+      "category": "editor",
+      "sides": [
+        "server",
+        "editor"
+      ],
+      "internal": false,
+      "destructive": false,
+      "description": "List the Unity project UPM packages: directly-requested dependencies (from manifest.json) plus the full resolved set with each package source (from packages-lock.json).",
+      "params": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "dependencies": {
+            "type": "object"
+          },
+          "resolved": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "count": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    {
       "name": "analyze_scene_contents",
       "category": "analysis",
       "sides": [

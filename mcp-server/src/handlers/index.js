@@ -9,6 +9,7 @@ export { BaseToolHandler } from './base/BaseToolHandler.js';
 export { PingToolHandler } from './system/PingToolHandler.js';
 export { ReadLogsToolHandler } from './system/ReadLogsToolHandler.js';
 export { RefreshAssetsToolHandler } from './system/RefreshAssetsToolHandler.js';
+export { GetEditorInfoToolHandler } from './system/GetEditorInfoToolHandler.js';
 
 // GameObject handlers
 export { CreateGameObjectToolHandler } from './gameobject/CreateGameObjectToolHandler.js';
@@ -94,6 +95,8 @@ export { LayerManagementToolHandler } from './editor/LayerManagementToolHandler.
 export { SelectionToolHandler } from './editor/SelectionToolHandler.js';
 export { WindowManagementToolHandler } from './editor/WindowManagementToolHandler.js';
 export { ToolManagementToolHandler } from './editor/ToolManagementToolHandler.js';
+export { GetProjectSettingsToolHandler } from './editor/GetProjectSettingsToolHandler.js';
+export { ListPackagesToolHandler } from './editor/ListPackagesToolHandler.js';
 
 // Test runner handlers
 export { ListTestsToolHandler } from './test/ListTestsToolHandler.js';
@@ -111,6 +114,7 @@ export { SetActiveUnityInstanceToolHandler } from './instances/SetActiveUnityIns
 import { PingToolHandler } from './system/PingToolHandler.js';
 import { ReadLogsToolHandler } from './system/ReadLogsToolHandler.js';
 import { RefreshAssetsToolHandler } from './system/RefreshAssetsToolHandler.js';
+import { GetEditorInfoToolHandler } from './system/GetEditorInfoToolHandler.js';
 import { CreateGameObjectToolHandler } from './gameobject/CreateGameObjectToolHandler.js';
 import { FindGameObjectToolHandler } from './gameobject/FindGameObjectToolHandler.js';
 import { ModifyGameObjectToolHandler } from './gameobject/ModifyGameObjectToolHandler.js';
@@ -170,6 +174,8 @@ import { LayerManagementToolHandler } from './editor/LayerManagementToolHandler.
 import { SelectionToolHandler } from './editor/SelectionToolHandler.js';
 import { WindowManagementToolHandler } from './editor/WindowManagementToolHandler.js';
 import { ToolManagementToolHandler } from './editor/ToolManagementToolHandler.js';
+import { GetProjectSettingsToolHandler } from './editor/GetProjectSettingsToolHandler.js';
+import { ListPackagesToolHandler } from './editor/ListPackagesToolHandler.js';
 import { ListTestsToolHandler } from './test/ListTestsToolHandler.js';
 import { RunTestsToolHandler } from './test/RunTestsToolHandler.js';
 import { GetTestResultsToolHandler } from './test/GetTestResultsToolHandler.js';
@@ -185,7 +191,8 @@ const HANDLER_CLASSES = [
   PingToolHandler,
   ReadLogsToolHandler,
   RefreshAssetsToolHandler,
-  
+  GetEditorInfoToolHandler,
+
   // GameObject handlers
   CreateGameObjectToolHandler,
   FindGameObjectToolHandler,
@@ -270,7 +277,9 @@ const HANDLER_CLASSES = [
   SelectionToolHandler,
   WindowManagementToolHandler,
   ToolManagementToolHandler,
-  
+  GetProjectSettingsToolHandler,
+  ListPackagesToolHandler,
+
   // Test runner handlers
   ListTestsToolHandler,
   RunTestsToolHandler,

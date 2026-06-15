@@ -554,7 +554,23 @@ namespace UnityEditorMCP.Core
                         var stateResult = PlayModeHandler.HandleCommand("get_editor_state", command.Parameters);
                         response = Response.Result(command.Id, stateResult);
                         break;
-                        
+
+                    // Editor / project introspection (read-only)
+                    case "get_editor_info":
+                        var editorInfoResult = EditorInfoHandler.GetEditorInfo(command.Parameters);
+                        response = Response.Result(command.Id, editorInfoResult);
+                        break;
+
+                    case "get_project_settings":
+                        var projectSettingsResult = EditorInfoHandler.GetProjectSettings(command.Parameters);
+                        response = Response.Result(command.Id, projectSettingsResult);
+                        break;
+
+                    case "list_packages":
+                        var listPackagesResult = EditorInfoHandler.ListPackages(command.Parameters);
+                        response = Response.Result(command.Id, listPackagesResult);
+                        break;
+
                     // UI Interaction commands
                     case "find_ui_elements":
                         var findUIResult = UIInteractionHandler.FindUIElements(command.Parameters);
