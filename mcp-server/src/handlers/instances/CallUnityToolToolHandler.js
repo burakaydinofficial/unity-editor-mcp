@@ -12,13 +12,13 @@ export class CallUnityToolToolHandler extends BaseToolHandler {
   constructor(unityConnection, manager) {
     super(
       'call_unity_tool',
-      'Invoke any tool a connected Unity editor supports, by name (discover names + schemas with list_unity_tools). Params are validated against the editor-advertised schema before the call, so a validation error tells you exactly what to fix. Use "instance" to target a specific editor (project path or port); omit it for the active/default one.',
+      'Invoke any tool a connected Unity editor supports, by name (discover names + schemas with list_unity_tools). Params are validated against the editor-advertised schema before the call, so a validation error tells you exactly what to fix. Use "instance" to target a specific editor (project path or port); omit it for the active/default one. To trim the response, pass params.fields — an array of dot-paths (GraphQL-style); omit for the full result.',
       {
         type: 'object',
         properties: {
           instance: { type: 'string', description: 'Target editor: a project path or port. Omit for the active/default instance.' },
           tool: { type: 'string', description: 'The tool name to invoke (see list_unity_tools).' },
-          params: { type: 'object', description: 'Parameters for the tool, matching its advertised schema.' },
+          params: { type: 'object', description: 'Parameters for the tool, matching its advertised schema. Also accepts an optional reserved "fields": a string[] of dot-paths that projects the result to just those fields (e.g. ["count","objects.name","state.isPlaying"]); arrays are transparent (the path applies to each element). Omit for all fields. Discover the shape by calling once without "fields".' },
         },
         required: ['tool'],
       },
@@ -54,7 +54,13 @@ export class CallUnityToolToolHandler extends BaseToolHandler {
     // stops a rich-manifest entry that merely omits its schema from silently bypassing the gate.
     // (Delta-audit finding.)
     if (hasSchemas) {
-      const { valid, errors } = validateAgainstSchema(callParams, entry.params || { type: 'object' }, 'params');
+      // `fields` is a reserved protocol meta-param (GraphQL-style result projection) honored by every
+      // command and described by no per-command schema — exclude it from per-command param validation
+      // (so it survives even a command that sets additionalProperties:false). It still rides through to
+      // the editor in callParams below.
+      const toValidate = { ...callParams };
+      delete toValidate.fields;
+      const { valid, errors } = validateAgainstSchema(toValidate, entry.params || { type: 'object' }, 'params');
       if (!valid) {
         const err = new Error(`Invalid params for "${params.tool}": ${errors.join('; ')}`);
         err.code = 'INVALID_PARAMS';

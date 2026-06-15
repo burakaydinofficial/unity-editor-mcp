@@ -7920,7 +7920,7 @@
         "properties": {
           "instance": { "type": "string", "description": "Target editor: a project path or port. Omit for the active/default instance." },
           "tool": { "type": "string", "description": "The tool name to invoke (see list_unity_tools)." },
-          "params": { "type": "object", "description": "Parameters for the tool, matching its advertised schema." }
+          "params": { "type": "object", "description": "Parameters for the tool, matching its advertised schema. Also accepts an optional reserved \"fields\": a string[] of dot-paths that projects the result to just those fields (e.g. [\"count\",\"objects.name\",\"state.isPlaying\"]); arrays are transparent (the path applies to each element). Omit for all fields. Discover the shape by calling once without \"fields\"." }
         },
         "required": ["tool"]
       },

@@ -98,7 +98,15 @@ namespace UnityEditorMCP.Core
 
             try
             {
-                var outcome = handler(request.Params ?? new JObject());
+                var rawParams = request.Params ?? new JObject();
+                // GraphQL-style field selection: the reserved "fields" meta-param trims the success
+                // payload. Handlers never see it (stripped); errors are returned unprojected.
+                var fields = ExtractFields(rawParams);
+                var outcome = handler(fields == null ? rawParams : StripFields(rawParams));
+                if (fields != null && outcome != null && !outcome.IsError && outcome.Payload != null)
+                {
+                    outcome = ProjectPayload(outcome, fields);
+                }
                 return CommandResult.FromOutcome(request.Id, outcome);
             }
             catch (Exception ex)
@@ -106,6 +114,39 @@ namespace UnityEditorMCP.Core
                 _log.Error($"Handler '{request.Type}' threw: {ex}");
                 return CommandResult.FromOutcome(request.Id,
                     HandlerOutcome.Fail($"Internal error: {ex.Message}", "INTERNAL_ERROR", details: new { type = request.Type }));
+            }
+        }
+
+        // The reserved "fields" meta-param: a string[] of dot-paths selecting which result fields to
+        // return (GraphQL-style). Null when absent or not a non-empty string array (→ full payload).
+        private static List<string> ExtractFields(JObject p)
+        {
+            if (!(p["fields"] is JArray arr) || arr.Count == 0) return null;
+            var list = new List<string>();
+            foreach (var t in arr)
+                if (t.Type == JTokenType.String) list.Add((string)t);
+            return list.Count > 0 ? list : null;
+        }
+
+        // Hand the handler its params WITHOUT the meta-param, so "fields" never collides with a real param.
+        private static JObject StripFields(JObject p)
+        {
+            var clone = (JObject)p.DeepClone();
+            clone.Remove("fields");
+            return clone;
+        }
+
+        private static HandlerOutcome ProjectPayload(HandlerOutcome outcome, List<string> fields)
+        {
+            try
+            {
+                var token = outcome.Payload as JToken ?? JToken.FromObject(outcome.Payload);
+                return HandlerOutcome.Ok(FieldProjection.Project(token, fields));
+            }
+            catch
+            {
+                // Non-serializable payload — leave it untouched; CommandResult.ToJson's SafeToken handles it.
+                return outcome;
             }
         }
     }
