@@ -140,7 +140,8 @@ namespace UnityEditorMCP.Handlers
                 if (string.IsNullOrEmpty(path)) return Err("Missing required parameter: path");
                 if (string.IsNullOrEmpty(name)) return Err("Missing required parameter: name");
                 var full = ResolveScript(path);
-                if (full == null || !File.Exists(full)) return Err($"File not found: {path}");
+                if (full == null) return Err($"Path is not a .cs file inside the project: {path}");
+                if (!File.Exists(full)) return Err($"File not found: {path}");
 
                 var src = File.ReadAllText(full);
                 var sym = Extract(src).FirstOrDefault(s => s.Name == name);
@@ -215,10 +216,27 @@ namespace UnityEditorMCP.Handlers
                 }
                 int line = LineNumberAt(lineStarts, m.Index);
                 var term = m.Groups[2].Value;
-                // 'where' (generic constraint) has its block after the constraint clause — scan past the match.
-                int end = term == "{" ? MatchBlockEnd(masked, lineStarts, m.Index, line)
-                        : term == "where" ? MatchBlockEnd(masked, lineStarts, m.Index + m.Length, line)
+                int end;
+                if (term == "{")
+                {
+                    end = MatchBlockEnd(masked, lineStarts, m.Index, line);
+                }
+                else if (term == "where")
+                {
+                    // Generic constraint: any body starts after the constraint clause. A ';' before the next
+                    // '{' means a bodyless declaration (abstract/interface) — keep it on its line so the
+                    // brace scan doesn't run into the NEXT method's body.
+                    int after = m.Index + m.Length;
+                    int nextBrace = masked.IndexOf('{', after);
+                    int nextSemi = masked.IndexOf(';', after);
+                    end = (nextBrace >= 0 && (nextSemi < 0 || nextBrace < nextSemi))
+                        ? MatchBlockEnd(masked, lineStarts, after, line)
                         : line;
+                }
+                else
+                {
+                    end = line; // expression-bodied (=>) is self-contained on its line
+                }
                 result.Add(new Sym { Kind = "method", Name = name, Line = line, EndLine = end, Signature = LineText(src, lineStarts, line).Trim() });
             }
 
