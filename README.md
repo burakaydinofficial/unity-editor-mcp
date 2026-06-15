@@ -80,15 +80,17 @@ Add the same configuration to Cursor's MCP settings
 
 ## Available Tools
 
-Unity Editor MCP provides **70 comprehensive tools** across 13 categories for complete Unity Editor automation:
+Unity Editor MCP provides **80 comprehensive tools** across 14 categories for complete Unity Editor automation:
 
 > **Default surface (v0.3.0):** the server advertises a small **generic surface** — `list_unity_instances`,
 > `list_unity_tools`, `call_unity_tool`, and `set_active_unity_instance`. The agent discovers each connected
 > editor's real tools (with schemas, learned at runtime) via `list_unity_tools`, then invokes them via
 > `call_unity_tool` — so **one server works with any Unity version and several editors at once**, without
-> paying the context cost of ~70 tool definitions up front. To advertise the full typed catalog below as
+> paying the context cost of ~80 tool definitions up front. To advertise the full typed catalog below as
 > individual MCP tools instead, set `UNITY_MCP_TYPED_TOOLS=true`. The catalog below documents what each
 > editor exposes either way.
+>
+> **Result field selection (v0.4.0):** Every tool call accepts an optional `fields` parameter — an array of dot-paths (e.g., `["count","objects.name","state.isPlaying"]`) — that trims the response to just those fields (GraphQL-style). Array elements are transparent to path traversal — the path applies to each array item. Omit `fields` for the full result. Discover a tool's response shape by calling it once without field projection.
 
 ### System & Core Tools (3 tools)
 - **`ping`** - Test connection to Unity Editor and verify server status
@@ -150,6 +152,12 @@ Unity Editor MCP provides **70 comprehensive tools** across 13 categories for co
 - **`list_scripts`** - List all scripts in project with filtering and metadata
 - **`validate_script`** - Validate script syntax and check for compilation errors
 
+### Code Intelligence (4 tools)
+- **`get_symbols`** - Outline a C# file's types/methods/properties (with line ranges)
+- **`find_symbol`** - Find a symbol by name across the project's Assets scripts (optional kind filter)
+- **`find_references`** - Find textual (syntactic) references to an identifier across Assets scripts
+- **`get_symbol_body`** - Extract a named symbol's source from a C# file
+
 ### Play Mode Controls (4 tools)
 - **`play_game`** - Start Unity play mode for testing and interaction
 - **`pause_game`** - Pause or resume Unity play mode
@@ -163,12 +171,18 @@ Unity Editor MCP provides **70 comprehensive tools** across 13 categories for co
 - **`set_ui_element_value`** - Set values for UI input elements (sliders, input fields, etc.)
 - **`simulate_ui_input`** - Execute complex UI interaction sequences
 
-### Editor Operations (5 tools)
+### Editor Operations (11 tools)
 - **`execute_menu_item`** - Execute Unity menu items programmatically with safety checks
 - **`clear_console`** - Clear Unity console logs with optional filtering
 - **`enhanced_read_logs`** - Advanced log reading with search, filtering, and export capabilities
 - **`capture_screenshot`** - Take screenshots of Game View or Scene View with custom resolution and encoding
 - **`analyze_screenshot`** - Analyze screenshot content with basic image analysis capabilities
+- **`get_editor_info`** - Read editor/project environment info (Unity version, platform, build target, paths, play/compile state)
+- **`get_project_settings`** - Read curated project settings (product/company name, version, color space, screen size, scripting backend, define symbols)
+- **`list_packages`** - List installed UPM packages from the manifest + lock files (direct deps + full resolved set with source)
+- **`set_project_setting`** - Write a curated project setting (productName, companyName, bundleVersion, defaultScreenWidth/Height, runInBackground, colorSpace, scriptingDefineSymbols)
+- **`manage_packages`** - Add or remove a UPM package (asynchronous; verify with list_packages)
+- **`quit_editor`** - Quit the Unity editor (deferred so the response flushes first)
 
 ### Editor Control & Automation (8 tools)
 - **`manage_tags`** - Manage Unity project tags (add, remove, list)

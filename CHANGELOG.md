@@ -1,0 +1,65 @@
+# Changelog
+
+All notable changes to this project are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to follow semantic
+versioning. This fork is **the deep, floor-true MCP bridge for older Unity projects** (Unity 2019 →
+latest; initial focus 2020.3–2022.3 LTS).
+
+## [0.4.0] — Unreleased
+
+Theme: **master the existing structure.** Hardens the editor side onto a single tested dispatch
+rail and adds editor/project + code-intelligence tools, all on the Unity 2020.3 floor.
+
+### Added
+- **Editor & project operations** (6 tools): `get_editor_info`, `get_project_settings`,
+  `list_packages` (reads), `set_project_setting` (curated keys), `manage_packages` (UPM add/remove),
+  `quit_editor`. All floor-safe (Unity 2020.3+) and synchronous.
+- **Syntactic code intelligence** (4 tools): `get_symbols`, `find_symbol`, `find_references`,
+  `get_symbol_body`. An in-editor, dependency-free C# analyzer (masks comments/strings, then regex +
+  brace matching) — no Roslyn, no external LSP. (Full semantic analysis is a later milestone.)
+- **GraphQL-style result field projection.** Any tool call accepts an optional reserved `fields`
+  param — an array of dot-paths (e.g. `["count","objects.name"]`) — to trim the response to just
+  those fields and cut tokens. Arrays are transparent (the path applies to each element); omit
+  `fields` for the full result. Implemented once at the dispatcher, so it covers every command.
+
+### Changed
+- **Dispatch-rail migration (internal).** All editor commands now run on the Unity-independent,
+  `dotnet`-tested `CommandDispatcher` via the `HandlerOutcome`/`CommandResult` contract — which
+  cannot serialize an error as a success. The legacy `ProcessCommand` switch has been fully retired.
+  Wire shapes are unchanged.
+- **Precise error codes.** Handler errors now carry specific codes — `VALIDATION_ERROR`, `NOT_FOUND`,
+  `INVALID_STATE`, `INTERNAL_ERROR` — instead of the previous generic `EDITOR_ERROR`.
+
+### Notes
+- Compatibility: all version-divergent Unity APIs stay behind `#if UNITY_*` guards (both branches
+  maintained); guarded sites are cataloged in `COMPATIBILITY.md`.
+- Out of scope (planned for later): a floor-CI matrix and release automation (0.4.x ship-prep);
+  editor-advertised result-field discovery and the lean Adaptive-Node client (0.5.0); semantic
+  (Roslyn) code intelligence (0.6.0).
+
+## [0.3.0] — 2026-06-15
+
+The protocol-contract + architecture foundation of the fork.
+
+### Added
+- **Version-agnostic generic surface** (ADR 0004): four meta-tools — `list_unity_instances`,
+  `list_unity_tools`, `call_unity_tool`, `set_active_unity_instance`. The editor advertises its
+  command manifest on the handshake and the Node server learns the tool surface at runtime, so one
+  server drives any supported editor. (`UNITY_MCP_TYPED_TOOLS=true` re-advertises the full typed
+  catalog as individual MCP tools.)
+- **Multi-instance discovery + routing** (ADR 0003, 0005): per-project derived ports and a discovery
+  registry, so multiple editors can be targeted by project path or port.
+- **Protocol contract sub-project** (`protocol/`): the canonical command catalog, the wire/result/
+  error spec, a protocol version line, and a dependency-free drift gate.
+
+### Changed
+- **Three-part architecture** (ADR 0001) and a Unity-dependency assembly split (ADR 0002): a
+  Unity-independent `Core` (framing, dispatch, the result/error contract) that runs under `dotnet
+  test` with no editor, and an `Editor` assembly holding the bootstrap, handlers, and all `#if
+  UNITY_*` guards.
+- **Domain errors are no longer laundered as success.** `ResponseClassifier` (Unity-independent,
+  `dotnet`-tested) classifies a handler's `{ error: … }` return into a real error envelope.
+
+### Compatibility
+- Unity 2019 → latest, initial focus 2020.3–2022.3 LTS. Unity C# stays within C# 8 / netstandard 2.0;
+  the Node server is pure ESM with no native modules.

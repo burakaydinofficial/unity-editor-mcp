@@ -5,7 +5,7 @@ MCP (Model Context Protocol) server for Unity Editor integration. Enables AI ass
 ## Features
 
 - **Version-agnostic generic surface** - the server learns each connected editor's tools (with schemas, at runtime) and exposes them through four meta-tools, so one server works with **any Unity version** and **several editors at once**
-- **~66 editor tools** spanning GameObjects, components, scenes, scene analysis, assets (prefabs/materials/import settings), scripts, play mode, UI automation, the Test Runner, and editor operations
+- **~78 editor tools** spanning GameObjects, components, scenes, scene analysis, assets (prefabs/materials/import settings), scripts, code intelligence, play mode, UI automation, the Test Runner, and editor operations
 - **Multi-instance routing** - discover every running editor and target any of them by project path or port
 - **Pure ESM, zero native modules** - `npx`-friendly; the only runtime dependency is the MCP SDK
 
@@ -77,7 +77,7 @@ Add to your `claude_desktop_config.json`:
 
 This is what lets one server drive **any Unity version** and **several editors at once**. To re-advertise the full typed catalog as individual MCP tools instead, set `UNITY_MCP_TYPED_TOOLS=true`.
 
-The editor exposes ~66 tools spanning GameObjects, components, scenes, scene analysis, assets (prefabs / materials / import settings), scripts, play mode, UI automation, the Test Runner, and editor operations. The complete, categorized catalog lives in the [project README](https://github.com/burakaydinofficial/unity-editor-mcp#available-tools).
+The editor exposes ~78 tools spanning GameObjects, components, scenes, scene analysis, assets (prefabs / materials / import settings), scripts, code intelligence, play mode, UI automation, the Test Runner, and editor operations. The complete, categorized catalog lives in the [project README](https://github.com/burakaydinofficial/unity-editor-mcp#available-tools).
 
 ## Requirements
 
