@@ -115,6 +115,82 @@ namespace UnityEditorMCP.Handlers
             catch (Exception e) { return Err($"Error listing packages: {e.Message}"); }
         }
 
+        public static JObject SetProjectSetting(JObject parameters)
+        {
+            try
+            {
+                var key = parameters["key"]?.ToString();
+                if (string.IsNullOrEmpty(key)) return Err("Missing required parameter: key");
+                var value = parameters["value"];
+                if (value == null || value.Type == JTokenType.Null) return Err("Missing required parameter: value");
+
+                var group = EditorUserBuildSettings.selectedBuildTargetGroup;
+                switch (key)
+                {
+                    case "productName": PlayerSettings.productName = value.ToString(); break;
+                    case "companyName": PlayerSettings.companyName = value.ToString(); break;
+                    case "bundleVersion": PlayerSettings.bundleVersion = value.ToString(); break;
+                    case "defaultScreenWidth": PlayerSettings.defaultScreenWidth = value.ToObject<int>(); break;
+                    case "defaultScreenHeight": PlayerSettings.defaultScreenHeight = value.ToObject<int>(); break;
+                    case "runInBackground": PlayerSettings.runInBackground = value.ToObject<bool>(); break;
+                    case "colorSpace": PlayerSettings.colorSpace = (ColorSpace)Enum.Parse(typeof(ColorSpace), value.ToString(), true); break;
+                    case "scriptingDefineSymbols": PlayerSettings.SetScriptingDefineSymbolsForGroup(group, value.ToString()); break;
+                    default:
+                        return Err($"Unsupported setting key: {key}. Supported: productName, companyName, bundleVersion, defaultScreenWidth, defaultScreenHeight, runInBackground, colorSpace, scriptingDefineSymbols.");
+                }
+                AssetDatabase.SaveAssets();
+                return new JObject { ["message"] = $"Set project setting '{key}'.", ["key"] = key };
+            }
+            catch (Exception e) { return Err($"Error setting project setting: {e.Message}"); }
+        }
+
+        public static JObject ManagePackages(JObject parameters)
+        {
+            try
+            {
+                var action = parameters["action"]?.ToString()?.ToLowerInvariant();
+                var packageId = parameters["packageId"]?.ToString();
+                if (string.IsNullOrEmpty(packageId)) return Err("Missing required parameter: packageId");
+
+                switch (action)
+                {
+                    case "add":
+                        // Fire-and-forget: the PackageManager resolves asynchronously and triggers a domain
+                        // reload; the bridge reconnects on its own. Verify the outcome with list_packages.
+                        UnityEditor.PackageManager.Client.Add(packageId);
+                        return new JObject
+                        {
+                            ["message"] = $"Requested add of '{packageId}'. Resolution is asynchronous (the editor will recompile/reload); verify with list_packages.",
+                            ["action"] = "add",
+                            ["packageId"] = packageId
+                        };
+                    case "remove":
+                        UnityEditor.PackageManager.Client.Remove(packageId);
+                        return new JObject
+                        {
+                            ["message"] = $"Requested removal of '{packageId}'. Resolution is asynchronous; verify with list_packages.",
+                            ["action"] = "remove",
+                            ["packageId"] = packageId
+                        };
+                    default:
+                        return Err($"Unknown action: {action}. Supported: add, remove.");
+                }
+            }
+            catch (Exception e) { return Err($"Error managing packages: {e.Message}"); }
+        }
+
+        public static JObject QuitEditor(JObject parameters)
+        {
+            try
+            {
+                // Defer the exit one tick so the success response flushes to the client before the
+                // process dies (an immediate Exit would drop the reply and look like a crash).
+                EditorApplication.delayCall += () => EditorApplication.Exit(0);
+                return new JObject { ["message"] = "Editor quit scheduled." };
+            }
+            catch (Exception e) { return Err($"Error quitting editor: {e.Message}"); }
+        }
+
         // Error as an opaque { error } payload — ResponseClassifier classifies it as a real error
         // envelope on the wire (no inline status key needed).
         private static JObject Err(string error) => new JObject { ["error"] = error };

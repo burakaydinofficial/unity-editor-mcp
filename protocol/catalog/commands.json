@@ -6,6 +6,352 @@
   "knownGaps": [],
   "commands": [
     {
+      "name": "set_project_setting",
+      "category": "editor",
+      "sides": [
+        "server",
+        "editor"
+      ],
+      "internal": false,
+      "destructive": true,
+      "description": "Set one project setting by key (PlayerSettings). Supported keys: productName, companyName, bundleVersion, defaultScreenWidth, defaultScreenHeight, runInBackground, colorSpace, scriptingDefineSymbols.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "productName",
+              "companyName",
+              "bundleVersion",
+              "defaultScreenWidth",
+              "defaultScreenHeight",
+              "runInBackground",
+              "colorSpace",
+              "scriptingDefineSymbols"
+            ],
+            "description": "Which setting to set."
+          },
+          "value": {
+            "description": "New value; type depends on the key (string, number, or boolean)."
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ]
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "manage_packages",
+      "category": "editor",
+      "sides": [
+        "server",
+        "editor"
+      ],
+      "internal": false,
+      "destructive": true,
+      "description": "Add or remove a UPM package. Resolution is asynchronous (the editor recompiles/reloads); the call returns once the request is queued — verify with list_packages afterwards.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "remove"
+            ],
+            "description": "Whether to add or remove the package."
+          },
+          "packageId": {
+            "type": "string",
+            "description": "Package identifier, e.g. \"com.unity.textmeshpro\" or \"com.unity.textmeshpro@3.0.6\" or a git URL."
+          }
+        },
+        "required": [
+          "action",
+          "packageId"
+        ]
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "packageId": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "quit_editor",
+      "category": "system",
+      "sides": [
+        "server",
+        "editor"
+      ],
+      "internal": false,
+      "destructive": true,
+      "description": "Quit the Unity editor (intended for CI/automation). The editor exits after the response is sent, so the connection will drop. Unsaved changes are NOT saved.",
+      "params": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_symbols",
+      "category": "code",
+      "sides": [
+        "server",
+        "editor"
+      ],
+      "internal": false,
+      "destructive": false,
+      "description": "Outline a C# file: its types (class/struct/interface/enum), methods, and properties with line ranges. Syntactic (no semantic resolution). Accepts an \"Assets/...\" path or an absolute .cs path under the project.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path to the .cs file (\"Assets/...\" or absolute)."
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "line": {
+                  "type": "number"
+                },
+                "endLine": {
+                  "type": "number"
+                },
+                "signature": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "find_symbol",
+      "category": "code",
+      "sides": [
+        "server",
+        "editor"
+      ],
+      "internal": false,
+      "destructive": false,
+      "description": "Find C# symbol declarations by exact name across the project Assets scripts. Returns each match's file, line range, kind, and signature. Syntactic (no semantic resolution).",
+      "params": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Exact symbol name to find."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "class",
+              "struct",
+              "interface",
+              "enum",
+              "method",
+              "property"
+            ],
+            "description": "Optional: only return declarations of this kind."
+          },
+          "maxResults": {
+            "type": "number",
+            "description": "Maximum matches to return (default 200)."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "find_references",
+      "category": "code",
+      "sides": [
+        "server",
+        "editor"
+      ],
+      "internal": false,
+      "destructive": false,
+      "description": "Find textual references to an identifier across the project Assets scripts (comments and string literals excluded). Syntactic: same-named members across types/overloads are not disambiguated. Returns file, line, and the matching line text.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Identifier to search for (word-boundary match)."
+          },
+          "maxResults": {
+            "type": "number",
+            "description": "Maximum references to return (default 200)."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "count": {
+            "type": "number"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "file": {
+                  "type": "string"
+                },
+                "line": {
+                  "type": "number"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_symbol_body",
+      "category": "code",
+      "sides": [
+        "server",
+        "editor"
+      ],
+      "internal": false,
+      "destructive": false,
+      "description": "Return the source text of a named symbol (type/method/property) within a C# file — the declaration through its matching closing brace. Syntactic. Accepts an \"Assets/...\" path or an absolute .cs path under the project.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path to the .cs file (\"Assets/...\" or absolute)."
+          },
+          "name": {
+            "type": "string",
+            "description": "Exact symbol name within the file."
+          }
+        },
+        "required": [
+          "path",
+          "name"
+        ]
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "startLine": {
+            "type": "number"
+          },
+          "endLine": {
+            "type": "number"
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
       "name": "get_editor_info",
       "category": "system",
       "sides": [

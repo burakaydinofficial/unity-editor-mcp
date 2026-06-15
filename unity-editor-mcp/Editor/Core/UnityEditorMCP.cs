@@ -571,6 +571,42 @@ namespace UnityEditorMCP.Core
                         response = Response.Result(command.Id, listPackagesResult);
                         break;
 
+                    case "set_project_setting":
+                        var setProjectSettingResult = EditorInfoHandler.SetProjectSetting(command.Parameters);
+                        response = Response.Result(command.Id, setProjectSettingResult);
+                        break;
+
+                    case "manage_packages":
+                        var managePackagesResult = EditorInfoHandler.ManagePackages(command.Parameters);
+                        response = Response.Result(command.Id, managePackagesResult);
+                        break;
+
+                    case "quit_editor":
+                        var quitEditorResult = EditorInfoHandler.QuitEditor(command.Parameters);
+                        response = Response.Result(command.Id, quitEditorResult);
+                        break;
+
+                    // Code intelligence (syntactic, in-editor)
+                    case "get_symbols":
+                        var getSymbolsResult = CodeIntelligenceHandler.GetSymbols(command.Parameters);
+                        response = Response.Result(command.Id, getSymbolsResult);
+                        break;
+
+                    case "find_symbol":
+                        var findSymbolResult = CodeIntelligenceHandler.FindSymbol(command.Parameters);
+                        response = Response.Result(command.Id, findSymbolResult);
+                        break;
+
+                    case "find_references":
+                        var findReferencesResult = CodeIntelligenceHandler.FindReferences(command.Parameters);
+                        response = Response.Result(command.Id, findReferencesResult);
+                        break;
+
+                    case "get_symbol_body":
+                        var getSymbolBodyResult = CodeIntelligenceHandler.GetSymbolBody(command.Parameters);
+                        response = Response.Result(command.Id, getSymbolBodyResult);
+                        break;
+
                     // UI Interaction commands
                     case "find_ui_elements":
                         var findUIResult = UIInteractionHandler.FindUIElements(command.Parameters);

@@ -10,6 +10,7 @@ export { PingToolHandler } from './system/PingToolHandler.js';
 export { ReadLogsToolHandler } from './system/ReadLogsToolHandler.js';
 export { RefreshAssetsToolHandler } from './system/RefreshAssetsToolHandler.js';
 export { GetEditorInfoToolHandler } from './system/GetEditorInfoToolHandler.js';
+export { QuitEditorToolHandler } from './system/QuitEditorToolHandler.js';
 
 // GameObject handlers
 export { CreateGameObjectToolHandler } from './gameobject/CreateGameObjectToolHandler.js';
@@ -97,6 +98,14 @@ export { WindowManagementToolHandler } from './editor/WindowManagementToolHandle
 export { ToolManagementToolHandler } from './editor/ToolManagementToolHandler.js';
 export { GetProjectSettingsToolHandler } from './editor/GetProjectSettingsToolHandler.js';
 export { ListPackagesToolHandler } from './editor/ListPackagesToolHandler.js';
+export { SetProjectSettingToolHandler } from './editor/SetProjectSettingToolHandler.js';
+export { ManagePackagesToolHandler } from './editor/ManagePackagesToolHandler.js';
+
+// Code intelligence handlers
+export { GetSymbolsToolHandler } from './code/GetSymbolsToolHandler.js';
+export { FindSymbolToolHandler } from './code/FindSymbolToolHandler.js';
+export { FindReferencesToolHandler } from './code/FindReferencesToolHandler.js';
+export { GetSymbolBodyToolHandler } from './code/GetSymbolBodyToolHandler.js';
 
 // Test runner handlers
 export { ListTestsToolHandler } from './test/ListTestsToolHandler.js';
@@ -115,6 +124,7 @@ import { PingToolHandler } from './system/PingToolHandler.js';
 import { ReadLogsToolHandler } from './system/ReadLogsToolHandler.js';
 import { RefreshAssetsToolHandler } from './system/RefreshAssetsToolHandler.js';
 import { GetEditorInfoToolHandler } from './system/GetEditorInfoToolHandler.js';
+import { QuitEditorToolHandler } from './system/QuitEditorToolHandler.js';
 import { CreateGameObjectToolHandler } from './gameobject/CreateGameObjectToolHandler.js';
 import { FindGameObjectToolHandler } from './gameobject/FindGameObjectToolHandler.js';
 import { ModifyGameObjectToolHandler } from './gameobject/ModifyGameObjectToolHandler.js';
@@ -176,6 +186,12 @@ import { WindowManagementToolHandler } from './editor/WindowManagementToolHandle
 import { ToolManagementToolHandler } from './editor/ToolManagementToolHandler.js';
 import { GetProjectSettingsToolHandler } from './editor/GetProjectSettingsToolHandler.js';
 import { ListPackagesToolHandler } from './editor/ListPackagesToolHandler.js';
+import { SetProjectSettingToolHandler } from './editor/SetProjectSettingToolHandler.js';
+import { ManagePackagesToolHandler } from './editor/ManagePackagesToolHandler.js';
+import { GetSymbolsToolHandler } from './code/GetSymbolsToolHandler.js';
+import { FindSymbolToolHandler } from './code/FindSymbolToolHandler.js';
+import { FindReferencesToolHandler } from './code/FindReferencesToolHandler.js';
+import { GetSymbolBodyToolHandler } from './code/GetSymbolBodyToolHandler.js';
 import { ListTestsToolHandler } from './test/ListTestsToolHandler.js';
 import { RunTestsToolHandler } from './test/RunTestsToolHandler.js';
 import { GetTestResultsToolHandler } from './test/GetTestResultsToolHandler.js';
@@ -192,6 +208,7 @@ const HANDLER_CLASSES = [
   ReadLogsToolHandler,
   RefreshAssetsToolHandler,
   GetEditorInfoToolHandler,
+  QuitEditorToolHandler,
 
   // GameObject handlers
   CreateGameObjectToolHandler,
@@ -279,6 +296,14 @@ const HANDLER_CLASSES = [
   ToolManagementToolHandler,
   GetProjectSettingsToolHandler,
   ListPackagesToolHandler,
+  SetProjectSettingToolHandler,
+  ManagePackagesToolHandler,
+
+  // Code intelligence handlers
+  GetSymbolsToolHandler,
+  FindSymbolToolHandler,
+  FindReferencesToolHandler,
+  GetSymbolBodyToolHandler,
 
   // Test runner handlers
   ListTestsToolHandler,
