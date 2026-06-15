@@ -1,6 +1,7 @@
 import { BaseToolHandler } from '../base/BaseToolHandler.js';
 import { validateAgainstSchema } from '../../core/schemaValidator.js';
 import { editorToolSurface } from '../../core/editorToolSurface.js';
+import { NODE_LOGIC_TOOLS, isNodeLogicTool } from '../../core/nodeLogicTools.js';
 
 /**
  * Invokes any tool a connected Unity editor supports, by name — the generic dispatch half of the
@@ -37,13 +38,25 @@ export class CallUnityToolToolHandler extends BaseToolHandler {
   async execute(params = {}) {
     const conn = this.manager.requireConnection(params.instance);
     await this.manager.ensureReady(conn);
+    const callParams = params.params || {};
+
+    // Node-logic tools (security normalization / template generation / base64 analysis — ADR 0006) are
+    // dispatched to a Node handler BOUND TO THE RESOLVED CONNECTION rather than forwarded raw to the
+    // editor. The handler validates against its own schema (its agent-facing contract) and returns its
+    // raw result, which this tool then surfaces like any other.
+    if (isNodeLogicTool(params.tool)) {
+      const HandlerClass = NODE_LOGIC_TOOLS[params.tool].handler;
+      const h = new HandlerClass(conn);
+      h.validate(callParams);
+      return await h.execute(callParams);
+    }
+
     const { tools, hasSchemas } = editorToolSurface(conn.editorInfo);
     const entry = tools.find((t) => t.name === params.tool);
     if (!entry) {
       throw new Error(`Tool "${params.tool}" is not available on this instance. Use list_unity_tools to see what is.`);
     }
 
-    const callParams = params.params || {};
     // When the editor advertises a rich manifest the Node side is the SOLE gate, so it ALWAYS
     // validates — a per-entry missing schema defaults to {type:object} (as the pre-degradation code
     // did). Only a names-only editor (older build, hasSchemas:false) skips validation and passes

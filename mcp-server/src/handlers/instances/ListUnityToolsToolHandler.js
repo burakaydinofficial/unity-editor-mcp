@@ -1,5 +1,6 @@
 import { BaseToolHandler } from '../base/BaseToolHandler.js';
 import { editorToolSurface } from '../../core/editorToolSurface.js';
+import { mergeNodeLogicSurface } from '../../core/nodeLogicTools.js';
 
 /**
  * Lists the tools a connected Unity editor actually supports, with their schemas — learned from the
@@ -29,7 +30,10 @@ export class ListUnityToolsToolHandler extends BaseToolHandler {
   async execute(params = {}) {
     const conn = this.manager.requireConnection(params.instance);
     await this.manager.ensureReady(conn);
-    const { tools: surface, hasSchemas } = editorToolSurface(conn.editorInfo);
+    // The editor manifest surface, with the Node-logic tools (execute_menu_item/create_script/
+    // analyze_screenshot) overridden by their Node handler's schema — the agent-facing contract (ADR 0006).
+    const { tools: raw, hasSchemas } = editorToolSurface(conn.editorInfo);
+    const surface = mergeNodeLogicSurface(raw);
 
     if (params.name) {
       const tool = surface.find((t) => t.name === params.name);

@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { ListUnityToolsToolHandler } from '../../../../src/handlers/instances/ListUnityToolsToolHandler.js';
 import { CallUnityToolToolHandler } from '../../../../src/handlers/instances/CallUnityToolToolHandler.js';
+import { CreateScriptToolHandler } from '../../../../src/handlers/scripting/CreateScriptToolHandler.js';
 
 const manifest = [
   { name: 'ping', category: 'system', description: 'Test connection', params: { type: 'object', properties: { message: { type: 'string' } }, required: [] } },
@@ -157,5 +158,29 @@ describe('graceful degradation (editor without a rich manifest)', () => {
     const res = await h.handle({ instance: '7000', tool: 'not_a_real_tool' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /not available/);
+  });
+});
+
+describe('Node-logic routing (ADR 0006)', () => {
+  it('list_unity_tools overrides a Node-logic tool with its Node handler schema', async () => {
+    const conn = {
+      editorInfo: { commands: [{ name: 'create_script', category: 'scripting', description: 'editor', params: { type: 'object', properties: { scriptContent: { type: 'string' } } } }] },
+      isConnected: () => true,
+      sendCommand: async () => ({}),
+    };
+    const h = new ListUnityToolsToolHandler({}, fakeManager({ conn }));
+    const r = await h.execute({ instance: '7000', name: 'create_script' });
+    const nodeDef = new CreateScriptToolHandler(null).getDefinition();
+    assert.equal(r.tool.description, nodeDef.description);
+    assert.deepEqual(r.tool.params, nodeDef.inputSchema);
+  });
+
+  it('call_unity_tool dispatches a Node-logic tool to its Node handler (not a raw passthrough)', async () => {
+    let sent;
+    const conn = fakeConn(async (type, p) => { sent = { type, p }; return { success: true }; });
+    const h = new CallUnityToolToolHandler({}, fakeManager({ conn }));
+    await h.execute({ instance: '7000', tool: 'execute_menu_item', params: { menuPath: 'GameObject/Create Empty' } });
+    assert.equal(sent.type, 'execute_menu_item'); // the Node handler ran and forwarded after normalization
+    assert.equal(sent.p.menuPath, 'GameObject/Create Empty');
   });
 });
