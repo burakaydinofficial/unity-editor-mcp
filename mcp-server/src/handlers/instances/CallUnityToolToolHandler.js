@@ -10,7 +10,7 @@ import { NODE_LOGIC_TOOLS, isNodeLogicTool } from '../../core/nodeLogicTools.js'
  * the editor-advertised schema before the call, with precise field-pathed errors for self-correction.
  */
 export class CallUnityToolToolHandler extends BaseToolHandler {
-  constructor(unityConnection, manager) {
+  constructor(manager) {
     super(
       'call_unity_tool',
       'Invoke any tool a connected Unity editor supports, by name (discover names + schemas with list_unity_tools). Params are validated against the editor-advertised schema before the call, so a validation error tells you exactly what to fix. The "instance" (a project path or port) is required — there is no default editor, so every call names its target. To trim the response, pass params.fields — an array of dot-paths (GraphQL-style); omit for the full result.',
@@ -24,7 +24,6 @@ export class CallUnityToolToolHandler extends BaseToolHandler {
         required: ['instance', 'tool'],
       },
     );
-    this.unityConnection = unityConnection;
     this.manager = manager;
   }
 

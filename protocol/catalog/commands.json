@@ -8,10 +8,7 @@
     {
       "name": "set_project_setting",
       "category": "editor",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": true,
       "description": "Set one project setting by key (PlayerSettings). Supported keys: productName, companyName, bundleVersion, defaultScreenWidth, defaultScreenHeight, runInBackground, colorSpace, scriptingDefineSymbols.",
@@ -56,10 +53,7 @@
     {
       "name": "manage_packages",
       "category": "editor",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": true,
       "description": "Add or remove a UPM package. Resolution is asynchronous (the editor recompiles/reloads); the call returns once the request is queued — verify with list_packages afterwards.",
@@ -102,10 +96,7 @@
     {
       "name": "quit_editor",
       "category": "system",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": true,
       "description": "Quit the Unity editor (intended for CI/automation). The editor exits after the response is sent, so the connection will drop. Unsaved changes are NOT saved.",
@@ -126,10 +117,7 @@
     {
       "name": "get_symbols",
       "category": "code",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Outline a C# file: its types (class/struct/interface/enum), methods, and properties with line ranges. Syntactic (no semantic resolution). Accepts an \"Assets/...\" path or an absolute .cs path under the project.",
@@ -183,10 +171,7 @@
     {
       "name": "find_symbol",
       "category": "code",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Find C# symbol declarations by exact name across the project Assets scripts. Returns each match's file, line range, kind, and signature. Syntactic (no semantic resolution).",
@@ -242,10 +227,7 @@
     {
       "name": "find_references",
       "category": "code",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Find textual references to an identifier across the project Assets scripts (comments and string literals excluded). Syntactic: same-named members across types/overloads are not disambiguated. Returns file, line, and the matching line text.",
@@ -303,10 +285,7 @@
     {
       "name": "get_symbol_body",
       "category": "code",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Return the source text of a named symbol (type/method/property) within a C# file — the declaration through its matching closing brace. Syntactic. Accepts an \"Assets/...\" path or an absolute .cs path under the project.",
@@ -354,10 +333,7 @@
     {
       "name": "get_editor_info",
       "category": "system",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Get Unity editor environment info: Unity version, platform, project path, active build target, product/company name, and quick play/compile state.",
@@ -411,10 +387,7 @@
     {
       "name": "get_project_settings",
       "category": "editor",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Get key Unity project settings: product/company name, bundle version, color space, default screen size, scripting backend, API compatibility level, scripting define symbols, and the active build target.",
@@ -468,10 +441,7 @@
     {
       "name": "list_packages",
       "category": "editor",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "List the Unity project UPM packages: directly-requested dependencies (from manifest.json) plus the full resolved set with each package source (from packages-lock.json).",
@@ -512,10 +482,7 @@
     {
       "name": "analyze_scene_contents",
       "category": "analysis",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Analyze and get statistics about the current scene",
@@ -641,10 +608,7 @@
     {
       "name": "find_by_component",
       "category": "analysis",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Find all GameObjects that have a specific component type",
@@ -750,10 +714,7 @@
     {
       "name": "get_component_values",
       "category": "analysis",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Get all properties and values of a specific component",
@@ -845,10 +806,7 @@
     {
       "name": "get_gameobject_details",
       "category": "analysis",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Get detailed information about a specific GameObject",
@@ -1008,10 +966,7 @@
     {
       "name": "get_object_references",
       "category": "analysis",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Find all references to and from a GameObject",
@@ -1162,10 +1117,7 @@
     {
       "name": "analyze_asset_dependencies",
       "category": "asset",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Analyze Unity asset dependencies (get dependencies, dependents, circular deps, unused assets, size impact)",
@@ -1485,10 +1437,7 @@
     {
       "name": "create_material",
       "category": "asset",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Create a new material in Unity with specified shader and properties",
@@ -1562,10 +1511,7 @@
     {
       "name": "create_prefab",
       "category": "asset",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Create a new prefab from a GameObject or from scratch",
@@ -1621,10 +1567,7 @@
     {
       "name": "exit_prefab_mode",
       "category": "asset",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Exit prefab mode and return to the main scene",
@@ -1668,10 +1611,7 @@
     {
       "name": "instantiate_prefab",
       "category": "asset",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Instantiate a prefab in the scene",
@@ -1788,10 +1728,7 @@
     {
       "name": "manage_asset_database",
       "category": "asset",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Manage Unity Asset Database operations (find, info, create folders, move, copy, delete, refresh)",
@@ -2096,10 +2033,7 @@
     {
       "name": "manage_asset_import_settings",
       "category": "asset",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Manage Unity asset import settings (get, modify, apply presets, reimport)",
@@ -2241,10 +2175,7 @@
     {
       "name": "modify_material",
       "category": "asset",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Modify properties of an existing material",
@@ -2312,10 +2243,7 @@
     {
       "name": "modify_prefab",
       "category": "asset",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Modify properties of an existing prefab",
@@ -2372,10 +2300,7 @@
     {
       "name": "open_prefab",
       "category": "asset",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Open a prefab asset in prefab mode for editing",
@@ -2437,10 +2362,7 @@
     {
       "name": "save_prefab",
       "category": "asset",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Save current prefab changes in prefab mode or save a GameObject as prefab override",
@@ -2512,10 +2434,7 @@
     {
       "name": "get_compilation_state",
       "category": "compilation",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Get current Unity compilation state, errors, and warnings with enhanced detection",
@@ -2655,10 +2574,7 @@
     {
       "name": "start_compilation_monitoring",
       "category": "compilation",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Start monitoring Unity compilation events and error detection",
@@ -2689,10 +2605,7 @@
     {
       "name": "stop_compilation_monitoring",
       "category": "compilation",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Stop monitoring Unity compilation events",
@@ -2723,10 +2636,7 @@
     {
       "name": "add_component",
       "category": "component",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Add a component to a GameObject in Unity",
@@ -2791,10 +2701,7 @@
     {
       "name": "get_component_types",
       "category": "component",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Get available component types in Unity",
@@ -2840,10 +2747,7 @@
     {
       "name": "list_components",
       "category": "component",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "List all components on a GameObject in Unity",
@@ -2920,10 +2824,7 @@
     {
       "name": "modify_component",
       "category": "component",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Modify properties of a component on a GameObject in Unity",
@@ -2993,10 +2894,7 @@
     {
       "name": "remove_component",
       "category": "component",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Remove a component from a GameObject in Unity",
@@ -3056,10 +2954,7 @@
     {
       "name": "clear_console",
       "category": "console",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Clear Unity Editor console logs",
@@ -3160,10 +3055,7 @@
     {
       "name": "enhanced_read_logs",
       "category": "console",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Read Unity console logs with advanced filtering",
@@ -3457,10 +3349,7 @@
     {
       "name": "manage_layers",
       "category": "editor",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Manage Unity project layers (add, remove, list, convert)",
@@ -3669,10 +3558,7 @@
     {
       "name": "manage_selection",
       "category": "editor",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Manage Unity Editor selection (get, set, clear)",
@@ -3863,10 +3749,7 @@
     {
       "name": "manage_tags",
       "category": "editor",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Manage Unity project tags (add, remove, list)",
@@ -3994,10 +3877,7 @@
     {
       "name": "manage_tools",
       "category": "editor",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Manage Unity Editor tools and plugins (list, activate, deactivate, refresh)",
@@ -4176,10 +4056,7 @@
     {
       "name": "manage_windows",
       "category": "editor",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Manage Unity Editor windows (list, focus, get state)",
@@ -4421,10 +4298,7 @@
     {
       "name": "create_gameobject",
       "category": "gameobject",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Create a GameObject in Unity scene",
@@ -4590,10 +4464,7 @@
     {
       "name": "delete_gameobject",
       "category": "gameobject",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": true,
       "description": "Delete GameObject(s) from Unity scene",
@@ -4655,10 +4526,7 @@
     {
       "name": "find_gameobject",
       "category": "gameobject",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Find GameObjects in Unity scene by name, tag, or layer",
@@ -4779,10 +4647,7 @@
     {
       "name": "get_hierarchy",
       "category": "gameobject",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Get the Unity scene hierarchy",
@@ -4910,10 +4775,7 @@
     {
       "name": "modify_gameobject",
       "category": "gameobject",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Modify properties of an existing GameObject",
@@ -5084,10 +4946,7 @@
     {
       "name": "execute_menu_item",
       "category": "menu",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Execute Unity Editor menu items",
@@ -5218,10 +5077,7 @@
     {
       "name": "get_editor_state",
       "category": "playmode",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Get current Unity editor state including play mode status",
@@ -5284,10 +5140,7 @@
     {
       "name": "pause_game",
       "category": "playmode",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Pause or resume Unity play mode",
@@ -5354,10 +5207,7 @@
     {
       "name": "play_game",
       "category": "playmode",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Start Unity play mode to test the game",
@@ -5424,10 +5274,7 @@
     {
       "name": "stop_game",
       "category": "playmode",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Stop Unity play mode and return to edit mode",
@@ -5494,10 +5341,7 @@
     {
       "name": "create_scene",
       "category": "scene",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Create a new scene in Unity",
@@ -5561,10 +5405,7 @@
     {
       "name": "get_scene_info",
       "category": "scene",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Get detailed information about a scene",
@@ -5663,10 +5504,7 @@
     {
       "name": "list_scenes",
       "category": "scene",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "List all scenes in the Unity project",
@@ -5756,10 +5594,7 @@
     {
       "name": "load_scene",
       "category": "scene",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Load a scene in Unity",
@@ -5839,10 +5674,7 @@
     {
       "name": "save_scene",
       "category": "scene",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Save the current scene in Unity",
@@ -5903,10 +5735,7 @@
     {
       "name": "analyze_screenshot",
       "category": "screenshot",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Analyze Unity screenshots for content, UI elements, colors, and more",
@@ -6047,10 +5876,7 @@
     {
       "name": "capture_screenshot",
       "category": "screenshot",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Capture screenshots from Unity Editor (Game View, Scene View, or specific windows)",
@@ -6208,10 +6034,7 @@
     {
       "name": "create_script",
       "category": "scripting",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Create a new C# script in Unity project",
@@ -6271,10 +6094,7 @@
     {
       "name": "delete_script",
       "category": "scripting",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": true,
       "description": "Delete a C# script from Unity project",
@@ -6346,10 +6166,7 @@
     {
       "name": "list_scripts",
       "category": "scripting",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "List C# scripts in Unity project",
@@ -6469,10 +6286,7 @@
     {
       "name": "read_script",
       "category": "scripting",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Read the contents of a C# script file",
@@ -6538,10 +6352,7 @@
     {
       "name": "update_script",
       "category": "scripting",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Update an existing C# script in Unity project",
@@ -6611,10 +6422,7 @@
     {
       "name": "validate_script",
       "category": "scripting",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Validate a C# script for syntax and Unity compatibility",
@@ -6836,10 +6644,7 @@
     {
       "name": "ping",
       "category": "system",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Test connection to Unity Editor",
@@ -6882,10 +6687,7 @@
     {
       "name": "read_logs",
       "category": "system",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Read Unity console logs",
@@ -6969,10 +6771,7 @@
     {
       "name": "refresh_assets",
       "category": "system",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Trigger Unity to refresh assets and check for compilation",
@@ -7007,10 +6806,7 @@
     {
       "name": "cancel_tests",
       "category": "test",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Cancel currently running tests in Unity",
@@ -7045,10 +6841,7 @@
     {
       "name": "get_test_results",
       "category": "test",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Get results from the last test run in Unity",
@@ -7200,10 +6993,7 @@
     {
       "name": "list_tests",
       "category": "test",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "List all available tests in the Unity project",
@@ -7322,10 +7112,7 @@
     {
       "name": "run_tests",
       "category": "test",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Run tests in Unity Test Runner",
@@ -7406,10 +7193,7 @@
     {
       "name": "click_ui_element",
       "category": "ui",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Simulate clicking on UI elements",
@@ -7488,10 +7272,7 @@
     {
       "name": "find_ui_elements",
       "category": "ui",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Find UI elements in Unity scene by type, tag, or name",
@@ -7577,10 +7358,7 @@
     {
       "name": "get_ui_element_state",
       "category": "ui",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Get detailed state information about UI elements",
@@ -7698,10 +7476,7 @@
     {
       "name": "set_ui_element_value",
       "category": "ui",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Set values for UI input elements",
@@ -7754,10 +7529,7 @@
     {
       "name": "simulate_ui_input",
       "category": "ui",
-      "sides": [
-        "server",
-        "editor"
-      ],
+      "sides": ["editor"],
       "internal": false,
       "destructive": false,
       "description": "Simulate complex UI interactions and input sequences",

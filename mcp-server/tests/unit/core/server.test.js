@@ -1,197 +1,51 @@
-import { describe, it, beforeEach, afterEach, mock } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from '../../../src/core/server.js';
-import { 
-  ListToolsRequestSchema, 
-  CallToolRequestSchema,
-  ListResourcesRequestSchema,
-  ListPromptsRequestSchema
-} from '@modelcontextprotocol/sdk/types.js';
+import { createHandlers, BaseToolHandler } from '../../../src/handlers/index.js';
 
 describe('Server', () => {
   let testSetup;
   let server;
-  let unityConnection;
-  let mockConfig;
-  let requestHandlers;
+  let manager;
+  const mockConfig = { server: { name: 'test-unity-mcp', version: '1.0.0' } };
 
   beforeEach(async () => {
-    mockConfig = {
-      server: {
-        name: 'test-unity-mcp',
-        version: '1.0.0'
-      }
-    };
-    
     testSetup = await createServer(mockConfig);
     server = testSetup.server;
-    unityConnection = testSetup.unityConnection;
-    
-    // Track request handlers
-    requestHandlers = new Map();
-    const originalSetRequestHandler = server.setRequestHandler.bind(server);
-    server.setRequestHandler = mock.fn((schema, handler) => {
-      requestHandlers.set(schema.method, handler);
-      return originalSetRequestHandler(schema, handler);
-    });
-    
-    // Mock Unity connection
-    unityConnection.isConnected = mock.fn(() => true);
-    unityConnection.sendCommand = mock.fn(async () => ({
-      status: 'success',
-      data: {}
-    }));
+    manager = testSetup.manager;
   });
 
   afterEach(async () => {
-    // Defensive teardown of the connection (clears any reconnect timer). The actual
-    // hang was server.js running main() on import; that's fixed by the entry-point
-    // guard in server.js, so no --test-force-exit is needed.
-    if (unityConnection && typeof unityConnection.disconnect === 'function') {
-      unityConnection.disconnect();
-    }
-    if (server && server.close) {
-      await server.close();
-    }
+    if (manager && typeof manager.disconnectAll === 'function') manager.disconnectAll();
+    if (server && server.close) await server.close();
   });
 
   describe('createServer', () => {
-    it('should create server with correct configuration', () => {
+    it('creates a server + connection manager (no default connection — ADR 0006)', () => {
       assert.ok(server);
-      assert.ok(unityConnection);
-      // The actual server info is set during construction
+      assert.ok(manager);
       assert.equal(typeof server.connect, 'function');
       assert.equal(typeof server.setRequestHandler, 'function');
-    });
-
-    it('should return both server and unity connection', () => {
-      assert.ok(testSetup.server);
-      assert.ok(testSetup.unityConnection);
-    });
-  });
-
-  describe('Tool functionality', () => {
-    it('should execute ping tool successfully', async () => {
-      // Mock the Unity response
-      unityConnection.sendCommand.mock.mockImplementation(async (command) => {
-        if (command === 'ping') {
-          return {
-            message: 'pong',
-            timestamp: '2024-01-01T00:00:00.000Z'
-          };
-        }
-        return { status: 'success' };
-      });
-      
-      // Import and test the handler directly
-      const { PingToolHandler } = await import('../../../src/handlers/system/PingToolHandler.js');
-      const pingHandler = new PingToolHandler(unityConnection);
-      
-      const result = await pingHandler.handle({ message: 'test' });
-      
-      assert.equal(result.status, 'success');
-      assert.equal(result.result.message, 'pong');
-    });
-
-    it('should handle create_gameobject with validation', async () => {
-      const { CreateGameObjectToolHandler } = await import('../../../src/handlers/gameobject/CreateGameObjectToolHandler.js');
-      const handler = new CreateGameObjectToolHandler(unityConnection);
-      
-      // Test validation error
-      const errorResult = await handler.handle({
-        primitiveType: 'invalid_type'
-      });
-      
-      assert.equal(errorResult.status, 'error');
-      assert.ok(errorResult.error.includes('primitiveType must be one of'));
-      
-      // Test success
-      unityConnection.sendCommand.mock.mockImplementation(async () => ({
-        id: -1000,
-        name: 'TestCube',
-        path: '/TestCube',
-        position: { x: 0, y: 0, z: 0 },
-        rotation: { x: 0, y: 0, z: 0 },
-        scale: { x: 1, y: 1, z: 1 },
-        tag: 'Untagged',
-        layer: 0,
-        isActive: true
-      }));
-      
-      const successResult = await handler.handle({
-        name: 'TestCube',
-        primitiveType: 'cube'
-      });
-      
-      assert.equal(successResult.status, 'success');
-      assert.equal(successResult.result.name, 'TestCube');
+      assert.equal(testSetup.unityConnection, undefined); // there is no active/default connection
     });
   });
 
   describe('Handler registration', () => {
-    it('should create all expected handlers', async () => {
-      // Import createHandlers to test it directly
-      const { createHandlers } = await import('../../../src/handlers/index.js');
-      const handlers = createHandlers(unityConnection);
-      
+    it('registers exactly the 3 generic meta-tools (ADR 0006)', () => {
+      const handlers = createHandlers(manager);
       assert.ok(handlers instanceof Map);
-      assert.equal(handlers.size, 79);
-
-      // Check for some key handlers
-      assert.ok(handlers.has('ping'));
-      assert.ok(handlers.has('create_gameobject'));
-      assert.ok(handlers.has('get_hierarchy'));
-      assert.ok(handlers.has('analyze_scene_contents'));
-      // Introspection + editor/project ops (Tier 1)
-      assert.ok(handlers.has('get_editor_info'));
-      assert.ok(handlers.has('set_project_setting'));
-      assert.ok(handlers.has('manage_packages'));
-      assert.ok(handlers.has('quit_editor'));
-      // Code intelligence (Tier 2)
-      assert.ok(handlers.has('get_symbols'));
-      assert.ok(handlers.has('find_symbol'));
-      assert.ok(handlers.has('find_references'));
-      assert.ok(handlers.has('get_symbol_body'));
-      assert.ok(handlers.has('get_project_settings'));
-      assert.ok(handlers.has('list_packages'));
-      // Check for new editor control handlers
-      assert.ok(handlers.has('manage_tags'));
-      assert.ok(handlers.has('manage_layers'));
-      assert.ok(handlers.has('manage_selection'));
-      assert.ok(handlers.has('manage_windows'));
-      assert.ok(handlers.has('manage_tools'));
-      // Check for the instance-management + generic meta-tools (ADR 0004/0005)
+      assert.equal(handlers.size, 3);
       assert.ok(handlers.has('list_unity_instances'));
       assert.ok(handlers.has('list_unity_tools'));
       assert.ok(handlers.has('call_unity_tool'));
-      // Check for UI handlers
-      assert.ok(handlers.has('find_ui_elements'));
-      assert.ok(handlers.has('click_ui_element'));
-      
-      // Check for component handlers
-      assert.ok(handlers.has('add_component'));
-      assert.ok(handlers.has('remove_component'));
-      assert.ok(handlers.has('modify_component'));
-      assert.ok(handlers.has('list_components'));
-      assert.ok(handlers.has('get_component_types'));
-      assert.ok(handlers.has('get_ui_element_state'));
-      assert.ok(handlers.has('set_ui_element_value'));
-      assert.ok(handlers.has('simulate_ui_input'));
-      // Check for Asset handlers
-      assert.ok(handlers.has('create_prefab'));
-      assert.ok(handlers.has('modify_prefab'));
-      assert.ok(handlers.has('instantiate_prefab'));
-      assert.ok(handlers.has('create_material'));
-      assert.ok(handlers.has('modify_material'));
-      assert.ok(handlers.has('manage_asset_import_settings'));
-      assert.ok(handlers.has('manage_asset_database'));
-      assert.ok(handlers.has('analyze_asset_dependencies'));
+      // The editor commands + the Node-logic tools are reached via call_unity_tool, not advertised.
+      assert.ok(!handlers.has('ping'));
+      assert.ok(!handlers.has('create_gameobject'));
+      assert.ok(!handlers.has('create_script'));
     });
 
-    it('should have handlers with correct structure', async () => {
-      const { createHandlers } = await import('../../../src/handlers/index.js');
-      const handlers = createHandlers(unityConnection);
-      
+    it('handlers have the correct structure', () => {
+      const handlers = createHandlers(manager);
       for (const [name, handler] of handlers) {
         assert.equal(handler.name, name);
         assert.ok(handler.description);
@@ -204,77 +58,24 @@ describe('Server', () => {
     });
   });
 
-  describe('Unity connection handling', () => {
-    it('should handle Unity connection errors gracefully', async () => {
-      const { PingToolHandler } = await import('../../../src/handlers/system/PingToolHandler.js');
-      const handler = new PingToolHandler(unityConnection);
-      
-      unityConnection.sendCommand.mock.mockImplementation(async () => {
-        throw new Error('Unity not responding');
-      });
-      
-      const result = await handler.handle({});
-      
-      assert.equal(result.status, 'error');
-      assert.equal(result.error, 'Unity not responding');
-      assert.equal(result.code, 'TOOL_ERROR');
-    });
-
-    it('should connect to Unity if not connected', async () => {
-      unityConnection.isConnected.mock.mockImplementation(() => false);
-      unityConnection.connect = mock.fn(async () => {});
-      
-      const { PingToolHandler } = await import('../../../src/handlers/system/PingToolHandler.js');
-      const handler = new PingToolHandler(unityConnection);
-      
-      unityConnection.sendCommand.mock.mockImplementation(async () => ({
-        message: 'pong'
-      }));
-      
-      await handler.execute({});
-      
-      assert.equal(unityConnection.connect.mock.calls.length, 1);
-    });
-  });
-
   describe('Error handling', () => {
-    it('should handle handler exceptions', async () => {
-      const { BaseToolHandler } = await import('../../../src/handlers/base/BaseToolHandler.js');
-      
+    it('wraps a handler exception in an error envelope with the tool name', async () => {
       class ErrorHandler extends BaseToolHandler {
-        constructor() {
-          super('error_test', 'Test error handling');
-        }
-        async execute() {
-          throw new Error('Test error');
-        }
+        constructor() { super('error_test', 'Test error handling'); }
+        async execute() { throw new Error('Test error'); }
       }
-      
-      const handler = new ErrorHandler();
-      const result = await handler.handle({});
-      
+      const result = await new ErrorHandler().handle({});
       assert.equal(result.status, 'error');
       assert.equal(result.error, 'Test error');
       assert.equal(result.details.tool, 'error_test');
     });
 
-    it('should include error codes when available', async () => {
-      const { BaseToolHandler } = await import('../../../src/handlers/base/BaseToolHandler.js');
-      
+    it('includes a custom error code when available', async () => {
       class CodedErrorHandler extends BaseToolHandler {
-        constructor() {
-          super('coded_error_test', 'Test coded error');
-        }
-        async execute() {
-          const error = new Error('Coded error');
-          error.code = 'CUSTOM_ERROR_CODE';
-          throw error;
-        }
+        constructor() { super('coded_error_test', 'Test coded error'); }
+        async execute() { const e = new Error('Coded error'); e.code = 'CUSTOM_ERROR_CODE'; throw e; }
       }
-      
-      const handler = new CodedErrorHandler();
-      const result = await handler.handle({});
-      
+      const result = await new CodedErrorHandler().handle({});
       assert.equal(result.status, 'error');
       assert.equal(result.code, 'CUSTOM_ERROR_CODE');
     });

@@ -10,7 +10,6 @@ import {
 import { UnityConnectionManager } from './unityConnectionManager.js';
 import { createHandlers } from '../handlers/index.js';
 import { config, logger } from './config.js';
-import { filterListedTools } from './toolExposure.js';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -36,19 +35,16 @@ function toMcpResponse(result, name) {
   return { content: [{ type: 'text', text: responseText }] };
 }
 
-// The generic instance meta-tools are the canonical v0.3.0 surface (ADR 0004): by default tools/list
-// advertises only them, so a client isn't born carrying ~70 definitions it may never use. The full
-// typed catalog stays reachable via call_unity_tool, and is re-advertised with UNITY_MCP_TYPED_TOOLS=true.
-const TYPED_TOOLS_DEFAULT = false;
-
 /**
  * Wires an MCP Server's request handlers over a handler map + connection manager. Shared by main()
  * and createServer so the live server and the test server behave identically.
  */
 function registerRequestHandlers(server, handlers) {
+  // The MCP surface is the 3 generic meta-tools (ADR 0006); every editor command is reached via
+  // call_unity_tool after on-demand discovery, so there is nothing else to filter out of the list.
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const all = Array.from(handlers.values()).map((handler) => handler.getDefinition());
-    return { tools: filterListedTools(all, process.env, TYPED_TOOLS_DEFAULT) };
+    return { tools: all };
   });
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [] }));
   server.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [] }));
@@ -77,11 +73,12 @@ function registerRequestHandlers(server, handlers) {
  */
 export async function main() {
   try {
-    // The connection manager + the active/default connection (ADR 0005). The manager lets the
-    // instance meta-tools route to any editor; the active connection serves the typed tools.
+    // The connection manager pools a connection per editor instance (ADR 0005). There is NO
+    // default/active connection (ADR 0006): every meta-tool resolves a connection by explicit
+    // instance, opened lazily on first use — so the server starts without targeting any editor, and
+    // a wrong/forgotten instance fails loudly instead of acting on the wrong project.
     const manager = new UnityConnectionManager();
-    const unityConnection = manager.getActiveConnection();
-    const handlers = createHandlers(unityConnection, manager);
+    const handlers = createHandlers(manager);
 
     const server = new Server(
       { name: config.server.name, version: config.server.version },
@@ -89,23 +86,9 @@ export async function main() {
     );
     registerRequestHandlers(server, handlers);
 
-    // Connection lifecycle logging. The connect-time handshake (protocol/project check + manifest
-    // caching onto editorInfo) is wired by the manager for every connection it manages.
-    unityConnection.on('connected', () => logger.info('Unity connection established'));
-    unityConnection.on('disconnected', () => logger.info('Unity connection lost'));
-    unityConnection.on('error', (error) => logger.error('Unity connection error:', error.message));
-
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    logger.info('MCP server started successfully');
-
-    // Attempt to connect to Unity (retries automatically on failure).
-    try {
-      await unityConnection.connect();
-    } catch (error) {
-      logger.error('Initial Unity connection failed:', error.message);
-      logger.info('Unity connection will retry automatically');
-    }
+    logger.info('MCP server started (no editor targeted until a tool names an instance)');
 
     const shutdown = async () => {
       logger.info('Shutting down...');
@@ -123,13 +106,12 @@ export async function main() {
 }
 
 /**
- * Builds a server + handler map for tests (no transport, no Unity connection). Returns the active
- * connection + manager so tests can drive/inspect them.
+ * Builds a server + handler map for tests (no transport, no Unity connection). Returns the server +
+ * connection manager so tests can drive/inspect them. There is no default connection (ADR 0006).
  */
 export async function createServer(customConfig = config) {
   const testManager = new UnityConnectionManager();
-  const testUnityConnection = testManager.getActiveConnection();
-  const testHandlers = createHandlers(testUnityConnection, testManager);
+  const testHandlers = createHandlers(testManager);
 
   const testServer = new Server(
     { name: customConfig.server.name, version: customConfig.server.version },
@@ -139,7 +121,6 @@ export async function createServer(customConfig = config) {
 
   return {
     server: testServer,
-    unityConnection: testUnityConnection,
     manager: testManager
   };
 }

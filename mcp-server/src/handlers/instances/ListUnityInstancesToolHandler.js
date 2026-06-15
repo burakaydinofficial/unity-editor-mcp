@@ -2,20 +2,19 @@ import { BaseToolHandler } from '../base/BaseToolHandler.js';
 import * as discovery from '../../core/discovery.js';
 
 /**
- * Lists the Unity editor instances discoverable in the per-user registry
- * (ADR 0003 / 0004). LOCAL-ONLY: it reads the filesystem registry, never the
- * wire — the one tool that works with no editor connected, and the foundation of
- * the capability-driven surface (the agent picks an instance, then targets it).
+ * Lists the Unity editor instances discoverable in the per-user registry (ADR 0003 / 0004).
+ * LOCAL-ONLY: it reads the filesystem registry, never the wire — the one tool that works with no
+ * editor connected, and the entry point of the surface: the agent picks an instance here, then names
+ * it as the required `instance` on list_unity_tools / call_unity_tool (ADR 0006 — there is no default).
  *
- * The discovery functions are injected (default = the real module) so the handler
- * is unit-tested without a filesystem or a live editor — the same dependency-
- * injection idiom the other handlers use for `unityConnection`.
+ * The discovery functions are injected (default = the real module) so the handler is unit-tested
+ * without a filesystem or a live editor.
  */
 export class ListUnityInstancesToolHandler extends BaseToolHandler {
-  constructor(unityConnection, manager, deps = discovery) {
+  constructor(manager, deps = discovery) {
     super(
       'list_unity_instances',
-      'List the Unity editor instances currently running and discoverable (project path, Unity version, port, and which one this server targets by default). Use this to see what editors are available before acting; works even when no editor is connected.',
+      'List the Unity editor instances currently running and discoverable (project path, Unity version, port). Use this to see what editors are available, then pass an instance\'s project path or port as the required "instance" on list_unity_tools / call_unity_tool. Works even when no editor is connected.',
       {
         type: 'object',
         properties: {
@@ -27,7 +26,6 @@ export class ListUnityInstancesToolHandler extends BaseToolHandler {
         required: [],
       },
     );
-    this.unityConnection = unityConnection;
     this.deps = deps;
   }
 
@@ -35,13 +33,6 @@ export class ListUnityInstancesToolHandler extends BaseToolHandler {
     const env = process.env;
     const registryDir = this.deps.defaultRegistryDirectory(env);
     const all = this.deps.readInstances(registryDir);
-
-    let activePort = null;
-    try {
-      activePort = this.deps.resolveUnityPort(env);
-    } catch {
-      activePort = null; // discovery should never break a read-only listing
-    }
 
     const includeStale = params.includeStale === true;
     const instances = all
@@ -57,14 +48,9 @@ export class ListUnityInstancesToolHandler extends BaseToolHandler {
         startedAt: d.startedAt ?? null,
         lastHeartbeat: d.lastHeartbeat ?? null,
         live,
-        // Only a LIVE instance can be the active target. resolveUnityPort falls back
-        // to the derived port for a dead project, which equals the dead descriptor's
-        // stored port — without the `live &&` guard a dead instance would show
-        // active:true (audit finding, surfaces under includeStale).
-        active: live && Number.isFinite(d.port) && activePort != null && d.port === activePort,
       }))
       .sort((a, b) => String(a.projectPath).localeCompare(String(b.projectPath)));
 
-    return { instances, count: instances.length, registryDir, activePort };
+    return { instances, count: instances.length, registryDir };
   }
 }

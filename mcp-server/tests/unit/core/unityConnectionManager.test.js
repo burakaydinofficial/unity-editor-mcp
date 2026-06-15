@@ -46,15 +46,6 @@ describe('UnityConnectionManager', () => {
     assert.equal(mgr.connections.size, 2);
   });
 
-  it('getActiveConnection returns a single env-resolving default (no pinned port, reused)', () => {
-    const { mgr, created } = makeManager({ resolvePort: 6543 });
-    const a = mgr.getActiveConnection();
-    const b = mgr.getActiveConnection();
-    assert.equal(a, b);
-    assert.equal(a.opts.port, undefined); // env-resolves each connect; not pinned (re-resolution preserved)
-    assert.equal(created.length, 1);
-  });
-
   // ADR 0006: no default instance — requireConnection resolves an EXPLICIT ref or throws.
   it('requireConnection throws a clear error on a missing/empty/whitespace ref', () => {
     const { mgr } = makeManager();
@@ -68,12 +59,10 @@ describe('UnityConnectionManager', () => {
     assert.throws(() => mgr.requireConnection('C:/missing'), /No Unity instance found/);
   });
 
-  it('requireConnection returns the PINNED connection for a port ref (never the active default)', () => {
+  it('requireConnection returns the PINNED connection for a port ref', () => {
     const { mgr } = makeManager();
-    const active = mgr.getActiveConnection();
     const conn = mgr.requireConnection('7200');
-    assert.equal(conn.opts.port, 7200);
-    assert.notEqual(conn, active);
+    assert.equal(conn.opts.port, 7200); // pinned to the named port (no env-resolved default exists)
   });
 
   it('requireConnection resolves a project-path ref via the registry to the pinned connection', () => {
@@ -91,7 +80,7 @@ describe('UnityConnectionManager', () => {
     assert.equal(conn.editorInfo.commands[0].name, 'ping');
   });
 
-  it('resolveInstance handles a port, a project path, the active default, and the unknown case', () => {
+  it('resolveInstance handles a port, a project path, null, and the unknown case', () => {
     const { mgr } = makeManager({
       instances: [{ projectPath: 'C:/proj/A', port: 7100, host: 'localhost' }],
       resolvePort: 6400,
@@ -99,24 +88,8 @@ describe('UnityConnectionManager', () => {
     assert.deepEqual(mgr.resolveInstance(7100), { host: 'localhost', port: 7100 });
     assert.deepEqual(mgr.resolveInstance('7100'), { host: 'localhost', port: 7100 });
     assert.deepEqual(mgr.resolveInstance('C:/proj/A'), { host: 'localhost', port: 7100 });
-    assert.deepEqual(mgr.resolveInstance(null), { host: 'localhost', port: 6400 }); // active default
+    assert.equal(mgr.resolveInstance(null), null); // no default instance (ADR 0006)
     assert.equal(mgr.resolveInstance('C:/proj/missing'), null);
-  });
-
-  it('getConnectionForInstance routes to the resolved instance, null when unresolved', () => {
-    const { mgr } = makeManager({ instances: [{ projectPath: 'C:/proj/A', port: 7100 }] });
-    assert.equal(mgr.getConnectionForInstance('C:/proj/A').opts.port, 7100);
-    assert.equal(mgr.getConnectionForInstance('C:/proj/missing'), null);
-  });
-
-  it('setActiveInstance pins the default, and null clears it back to env-resolving', () => {
-    const { mgr } = makeManager({ resolvePort: 6400 });
-    mgr.setActiveInstance(7200);
-    assert.equal(mgr.getActiveConnection().opts.port, 7200); // pinned
-    assert.deepEqual(mgr.activeTarget(), { host: 'localhost', port: 7200 });
-    mgr.setActiveInstance(null);
-    assert.equal(mgr.activeOverride, null);
-    assert.equal(mgr.getActiveConnection().opts.port, undefined); // back to env-resolving
   });
 
   it('prune closes + drops connections whose editor is no longer live', () => {
@@ -157,16 +130,6 @@ describe('UnityConnectionManager', () => {
     const { mgr } = makeManager();
     const conn = mgr.getConnection('localhost', 7000);
     assert.ok(conn.listenerCount('error') >= 1);
-  });
-
-  it('prune never closes the active-override connection even when its editor is not live', () => {
-    const { mgr } = makeManager({ instances: [] }); // registry empty -> nothing "live"
-    mgr.setActiveInstance(7000);
-    const overrideConn = mgr.getActiveConnection(); // pinned at localhost:7000
-    const pruned = mgr.prune();
-    assert.equal(pruned, 0);
-    assert.equal(mgr.connections.has('localhost:7000'), true);
-    assert.equal(overrideConn.disconnected, false);
   });
 
   it('resets editorInfo to null when the (re)connect handshake fails', async () => {

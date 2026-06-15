@@ -9,7 +9,7 @@ import { mergeNodeLogicSurface } from '../../core/nodeLogicTools.js';
  * names-only (schemasAvailable:false) for an editor running an older package build.
  */
 export class ListUnityToolsToolHandler extends BaseToolHandler {
-  constructor(unityConnection, manager) {
+  constructor(manager) {
     super(
       'list_unity_tools',
       'List the tools a connected Unity editor actually supports, with their schemas (learned from the editor at runtime). Discover what call_unity_tool can invoke on a given instance. Returns names + descriptions by default; pass "name" for one tool\'s full parameter schema, or "category" to filter.',
@@ -23,7 +23,6 @@ export class ListUnityToolsToolHandler extends BaseToolHandler {
         required: ['instance'],
       },
     );
-    this.unityConnection = unityConnection;
     this.manager = manager;
   }
 

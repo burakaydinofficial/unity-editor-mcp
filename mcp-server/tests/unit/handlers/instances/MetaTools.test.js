@@ -29,7 +29,7 @@ const throwingManager = (msg) => ({
 
 describe('list_unity_tools', () => {
   it('returns name/category/description by default (no extra params — lazy)', async () => {
-    const h = new ListUnityToolsToolHandler({}, fakeManager());
+    const h = new ListUnityToolsToolHandler(fakeManager());
     const r = await h.execute({ instance: '7000' });
     assert.equal(r.count, 2);
     assert.deepEqual(r.tools.map((t) => t.name).sort(), ['create_gameobject', 'ping']);
@@ -38,35 +38,35 @@ describe('list_unity_tools', () => {
   });
 
   it('filters by category', async () => {
-    const h = new ListUnityToolsToolHandler({}, fakeManager());
+    const h = new ListUnityToolsToolHandler(fakeManager());
     const r = await h.execute({ instance: '7000', category: 'gameobject' });
     assert.equal(r.count, 1);
     assert.equal(r.tools[0].name, 'create_gameobject');
   });
 
   it('returns one tool full schema when name is given', async () => {
-    const h = new ListUnityToolsToolHandler({}, fakeManager());
+    const h = new ListUnityToolsToolHandler(fakeManager());
     const r = await h.execute({ instance: '7000', name: 'create_gameobject' });
     assert.equal(r.tool.name, 'create_gameobject');
     assert.deepEqual(r.tool.params.required, ['name']);
   });
 
   it('requires an instance (no default — ADR 0006)', async () => {
-    const h = new ListUnityToolsToolHandler({}, fakeManager());
+    const h = new ListUnityToolsToolHandler(fakeManager());
     const res = await h.handle({});
     assert.equal(res.status, 'error');
     assert.match(res.error, /instance/i);
   });
 
   it('errors on an unresolved instance', async () => {
-    const h = new ListUnityToolsToolHandler({}, throwingManager('No Unity instance found for "C:/missing".'));
+    const h = new ListUnityToolsToolHandler(throwingManager('No Unity instance found for "C:/missing".'));
     const res = await h.handle({ instance: 'C:/missing' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /No Unity instance/);
   });
 
   it('errors on an unknown tool name', async () => {
-    const h = new ListUnityToolsToolHandler({}, fakeManager());
+    const h = new ListUnityToolsToolHandler(fakeManager());
     const res = await h.handle({ instance: '7000', name: 'nope' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /not available/);
@@ -77,7 +77,7 @@ describe('call_unity_tool', () => {
   it('validates params then routes to sendCommand', async () => {
     let sent;
     const conn = fakeConn(async (type, p) => { sent = { type, p }; return { created: true }; });
-    const h = new CallUnityToolToolHandler({}, fakeManager({ conn }));
+    const h = new CallUnityToolToolHandler(fakeManager({ conn }));
     const r = await h.execute({ instance: '7000', tool: 'create_gameobject', params: { name: 'Cube' } });
     assert.deepEqual(sent, { type: 'create_gameobject', p: { name: 'Cube' } });
     assert.deepEqual(r, { created: true });
@@ -86,7 +86,7 @@ describe('call_unity_tool', () => {
   it('rejects invalid params with a field-pathed error and never calls sendCommand', async () => {
     let called = false;
     const conn = fakeConn(async () => { called = true; return {}; });
-    const h = new CallUnityToolToolHandler({}, fakeManager({ conn }));
+    const h = new CallUnityToolToolHandler(fakeManager({ conn }));
     const res = await h.handle({ instance: '7000', tool: 'create_gameobject', params: {} }); // missing required "name"
     assert.equal(res.status, 'error');
     assert.match(res.error, /params.*required.*name/i);
@@ -94,34 +94,34 @@ describe('call_unity_tool', () => {
   });
 
   it('errors on an unknown tool', async () => {
-    const h = new CallUnityToolToolHandler({}, fakeManager());
+    const h = new CallUnityToolToolHandler(fakeManager());
     const res = await h.handle({ instance: '7000', tool: 'nope' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /not available/);
   });
 
   it('requires the instance param (no default — ADR 0006)', async () => {
-    const h = new CallUnityToolToolHandler({}, fakeManager());
+    const h = new CallUnityToolToolHandler(fakeManager());
     const res = await h.handle({ tool: 'ping' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /instance/i);
   });
 
   it('requires the tool param', async () => {
-    const h = new CallUnityToolToolHandler({}, fakeManager());
+    const h = new CallUnityToolToolHandler(fakeManager());
     const res = await h.handle({ instance: '7000' });
     assert.equal(res.status, 'error');
   });
 
   it('rejects an empty/whitespace tool name', async () => {
-    const h = new CallUnityToolToolHandler({}, fakeManager());
+    const h = new CallUnityToolToolHandler(fakeManager());
     const res = await h.handle({ instance: '7000', tool: '   ' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /non-empty/);
   });
 
   it('errors on an unresolved instance', async () => {
-    const h = new CallUnityToolToolHandler({}, throwingManager('No Unity instance found for "C:/missing".'));
+    const h = new CallUnityToolToolHandler(throwingManager('No Unity instance found for "C:/missing".'));
     const res = await h.handle({ tool: 'ping', instance: 'C:/missing' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /No Unity instance/);
@@ -137,7 +137,7 @@ describe('graceful degradation (editor without a rich manifest)', () => {
   });
 
   it('list_unity_tools falls back to names with schemasAvailable:false', async () => {
-    const h = new ListUnityToolsToolHandler({}, fakeManager({ conn: degradedConn() }));
+    const h = new ListUnityToolsToolHandler(fakeManager({ conn: degradedConn() }));
     const r = await h.execute({ instance: '7000' });
     assert.equal(r.schemasAvailable, false);
     assert.deepEqual(r.tools.map((t) => t.name).sort(), ['get_editor_state', 'ping']);
@@ -147,14 +147,14 @@ describe('graceful degradation (editor without a rich manifest)', () => {
   it('call_unity_tool invokes a names-only tool, passing params through without schema validation', async () => {
     let sent;
     const conn = degradedConn(async (type, p) => { sent = { type, p }; return { state: {} }; });
-    const h = new CallUnityToolToolHandler({}, fakeManager({ conn }));
+    const h = new CallUnityToolToolHandler(fakeManager({ conn }));
     const r = await h.execute({ instance: '7000', tool: 'get_editor_state', params: { anything: 123 } }); // would fail a schema; no schema here
     assert.deepEqual(sent, { type: 'get_editor_state', p: { anything: 123 } });
     assert.deepEqual(r, { state: {} });
   });
 
   it('call_unity_tool still rejects a tool the editor does not advertise', async () => {
-    const h = new CallUnityToolToolHandler({}, fakeManager({ conn: degradedConn() }));
+    const h = new CallUnityToolToolHandler(fakeManager({ conn: degradedConn() }));
     const res = await h.handle({ instance: '7000', tool: 'not_a_real_tool' });
     assert.equal(res.status, 'error');
     assert.match(res.error, /not available/);
@@ -168,7 +168,7 @@ describe('Node-logic routing (ADR 0006)', () => {
       isConnected: () => true,
       sendCommand: async () => ({}),
     };
-    const h = new ListUnityToolsToolHandler({}, fakeManager({ conn }));
+    const h = new ListUnityToolsToolHandler(fakeManager({ conn }));
     const r = await h.execute({ instance: '7000', name: 'create_script' });
     const nodeDef = new CreateScriptToolHandler(null).getDefinition();
     assert.equal(r.tool.description, nodeDef.description);
@@ -178,7 +178,7 @@ describe('Node-logic routing (ADR 0006)', () => {
   it('call_unity_tool dispatches a Node-logic tool to its Node handler (not a raw passthrough)', async () => {
     let sent;
     const conn = fakeConn(async (type, p) => { sent = { type, p }; return { success: true }; });
-    const h = new CallUnityToolToolHandler({}, fakeManager({ conn }));
+    const h = new CallUnityToolToolHandler(fakeManager({ conn }));
     await h.execute({ instance: '7000', tool: 'execute_menu_item', params: { menuPath: 'GameObject/Create Empty' } });
     assert.equal(sent.type, 'execute_menu_item'); // the Node handler ran and forwarded after normalization
     assert.equal(sent.p.menuPath, 'GameObject/Create Empty');

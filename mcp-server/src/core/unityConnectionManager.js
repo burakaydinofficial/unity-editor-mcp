@@ -3,16 +3,12 @@ import { UnityConnection } from './unityConnection.js';
 import { performHandshake } from './handshake.js';
 import * as discovery from './discovery.js';
 
-// Reserved key for the default connection. It env-resolves its port on every connect (so a
-// restarted editor on a new ephemeral port is re-discovered — the v0.2.0 behavior) and is never
-// pruned. Explicit per-instance connections, by contrast, are pinned to a fixed host:port.
-const ACTIVE_KEY = '__active__';
-
 /**
  * Manages a pool of UnityConnections — one per editor instance — so a single MCP server can drive
- * several Unity editors concurrently (ADR 0005, "one server -> many editors"). The default ("active")
- * connection env-resolves its target; explicit instance connections are pinned and keyed by host:port.
- * Each connection handshakes on connect and caches its editor manifest on `conn.editorInfo`.
+ * several Unity editors concurrently (ADR 0005, "one server -> many editors"). Every connection is a
+ * PINNED instance keyed by host:port, opened lazily on first use; there is NO default/active
+ * connection (ADR 0006 — every call names its instance). Each connection handshakes on connect and
+ * caches its editor manifest on `conn.editorInfo`.
  *
  * The connection factory, handshake, discovery, env, and host are all injectable so the manager is
  * unit-tested deterministically with neither real sockets nor a real registry.
@@ -24,8 +20,7 @@ export class UnityConnectionManager {
     this.discovery = options.discovery || discovery;
     this.env = options.env || process.env;
     this.host = options.host || config.unity.host;
-    this.connections = new Map(); // key -> UnityConnection ("__active__" or "host:port")
-    this.activeOverride = null;   // { host, port } | null
+    this.connections = new Map(); // key "host:port" -> pinned UnityConnection
   }
 
   key(host, port) {
@@ -48,9 +43,8 @@ export class UnityConnectionManager {
       // set by the time the caller's `await connect()` returns.
       conn.handshakePromise = (async () => {
         try {
-          // The active connection is checked against UNITY_PROJECT_PATH (env default); a pinned
-          // instance was targeted explicitly, so skip the project-path check (audit #11).
-          const r = await this.performHandshake(conn, k === ACTIVE_KEY ? {} : { expectedProjectPath: null });
+          // Every connection is a pinned instance targeted explicitly, so skip the env project-path check.
+          const r = await this.performHandshake(conn, { expectedProjectPath: null });
           conn.editorInfo = r.handshake ?? null;
           if (r.performed && !r.compatible) logger.warn(`[Manager ${k}] ${r.code}: ${r.message}`);
           return r;
@@ -86,35 +80,13 @@ export class UnityConnectionManager {
   }
 
   /**
-   * The default connection. With an explicit active override it is the pinned connection for that
-   * instance; otherwise a single env-resolving connection (re-resolves its port each connect).
-   */
-  getActiveConnection() {
-    if (this.activeOverride) return this.getConnection(this.activeOverride.host, this.activeOverride.port);
-    const existing = this.connections.get(ACTIVE_KEY);
-    if (existing) return existing;
-    // No target port -> UnityConnection.resolveTargetPort() env-resolves on each connect.
-    const conn = this.wireHandshake(this.createConnection({ host: this.host }), ACTIVE_KEY);
-    this.connections.set(ACTIVE_KEY, conn);
-    return conn;
-  }
-
-  /** The default target {host, port} (override, else env/registry-resolved). For display/diagnostics. */
-  activeTarget() {
-    if (this.activeOverride) return this.activeOverride;
-    let port;
-    try { port = this.discovery.resolveUnityPort(this.env); } catch { port = config.unity.port; }
-    return { host: this.host, port };
-  }
-
-  /**
    * Resolves an instance reference to {host, port}, or null if unresolved.
-   * - null/empty -> the active target;
+   * - null/empty -> null (there is no default instance — ADR 0006);
    * - a port number (or numeric string) -> that port on the default host;
    * - any other string -> a project path looked up in the registry.
    */
   resolveInstance(ref) {
-    if (ref == null || ref === '') return this.activeTarget();
+    if (ref == null || ref === '') return null;
     const asPort = Number(ref);
     if (Number.isInteger(asPort) && asPort > 0 && asPort < 65536) {
       return { host: this.host, port: asPort };
@@ -125,13 +97,6 @@ export class UnityConnectionManager {
       if (desc && Number.isFinite(desc.port)) return { host: desc.host || this.host, port: desc.port };
     } catch { /* unreadable registry -> unresolved */ }
     return null;
-  }
-
-  /** The connection for an instance ref (the active default when ref is null/empty), or null if unresolved. */
-  getConnectionForInstance(ref) {
-    if (ref == null || ref === '') return this.getActiveConnection();
-    const t = this.resolveInstance(ref);
-    return t ? this.getConnection(t.host, t.port) : null;
   }
 
   /**
@@ -150,15 +115,7 @@ export class UnityConnectionManager {
     return this.getConnection(t.host, t.port);
   }
 
-  /** Sets the default target. null/empty clears the override (back to env-resolving). Returns {host,port}|null. */
-  setActiveInstance(ref) {
-    if (ref == null || ref === '') { this.activeOverride = null; return null; }
-    const t = this.resolveInstance(ref);
-    if (t) this.activeOverride = t;
-    return t;
-  }
-
-  /** Closes + drops PINNED connections whose editor is no longer live in the registry (the active default is kept). */
+  /** Closes + drops connections whose editor is no longer live in the registry. */
   prune() {
     let live;
     try {
@@ -171,13 +128,8 @@ export class UnityConnectionManager {
     } catch {
       return 0;
     }
-    // Never prune the default connections — the env-resolving active OR the pinned active override.
-    // Pruning the override's connection would leave activeOverride dangling, so getActiveConnection
-    // would silently vend a fresh, manifest-free connection. (Audit finding.)
-    const overrideKey = this.activeOverride ? this.key(this.activeOverride.host, this.activeOverride.port) : null;
     let pruned = 0;
     for (const [k, conn] of this.connections) {
-      if (k === ACTIVE_KEY || k === overrideKey) continue;
       if (!live.has(k)) {
         try { conn.disconnect(); } catch { /* ignore */ }
         this.connections.delete(k);
