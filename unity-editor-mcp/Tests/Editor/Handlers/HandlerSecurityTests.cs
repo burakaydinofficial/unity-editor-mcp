@@ -80,5 +80,23 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
             StringAssert.Contains("project root", outcome.Error);
         }
+
+        [Test]
+        public void CreateScene_WithTraversalPath_IsRejected()
+        {
+            var outcome = SceneHandler.CreateScene(new JObject { ["sceneName"] = "Probe", ["path"] = "Assets/../../evil/" });
+            Assert.IsTrue(outcome.IsError, "a traversal scene path must be rejected (write scene outside project)");
+            Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
+            StringAssert.Contains("project root", outcome.Error);
+        }
+
+        [Test]
+        public void LoadScene_WithTraversalPath_IsRejected()
+        {
+            var outcome = SceneHandler.LoadScene(new JObject { ["scenePath"] = "Assets/../../secrets.unity" });
+            Assert.IsTrue(outcome.IsError, "a traversal scenePath must be rejected (open scene outside project)");
+            Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
+            StringAssert.Contains("project root", outcome.Error);
+        }
     }
 }

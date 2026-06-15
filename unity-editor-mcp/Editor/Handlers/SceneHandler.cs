@@ -56,6 +56,13 @@ namespace UnityEditorMCP.Handlers
                 // Create full scene path
                 var scenePath = path + sceneName + ".unity";
 
+                // Containment: a `..` in `path` resolves OUTSIDE the project (StartsWith("Assets/") alone
+                // does not block it). No Node-side handler guards this, so the editor is the sole gate.
+                if (!PathSafety.IsWithinProject(scenePath))
+                {
+                    return HandlerOutcome.Fail("path must stay within the project root", "VALIDATION_ERROR");
+                }
+
                 // Check if scene already exists
                 if (File.Exists(scenePath))
                 {
@@ -186,14 +193,20 @@ namespace UnityEditorMCP.Handlers
                 // Load by path
                 if (!string.IsNullOrEmpty(scenePath))
                 {
+                    // Containment: scenePath is wholly caller-controlled and otherwise unchecked — block a
+                    // `..`/absolute path from reading or opening a .unity file outside the project.
+                    if (!PathSafety.IsWithinProject(scenePath))
+                    {
+                        return HandlerOutcome.Fail("scenePath must stay within the project root", "VALIDATION_ERROR");
+                    }
                     // Check if file exists
                     if (!File.Exists(scenePath))
                     {
                         return HandlerOutcome.Fail($"Scene file not found: {scenePath}", "NOT_FOUND");
                     }
-                    
+
                     // Load the scene
-                    loadedScene = EditorSceneManager.OpenScene(scenePath, loadMode == LoadSceneMode.Single ? 
+                    loadedScene = EditorSceneManager.OpenScene(scenePath, loadMode == LoadSceneMode.Single ?
                         OpenSceneMode.Single : OpenSceneMode.Additive);
                 }
                 else // Load by name
@@ -303,6 +316,13 @@ namespace UnityEditorMCP.Handlers
                     if (!savePath.StartsWith("Assets/"))
                     {
                         return HandlerOutcome.Fail("Invalid path: Path must be within Assets folder", "VALIDATION_ERROR");
+                    }
+
+                    // Containment: StartsWith("Assets/") doesn't block `..`; a traversal scenePath would
+                    // write the scene outside the project.
+                    if (!PathSafety.IsWithinProject(savePath))
+                    {
+                        return HandlerOutcome.Fail("scenePath must stay within the project root", "VALIDATION_ERROR");
                     }
 
                     if (!savePath.EndsWith(".unity"))
@@ -553,7 +573,14 @@ namespace UnityEditorMCP.Handlers
                 {
                     return HandlerOutcome.Fail("Provide either scenePath or sceneName, not both", "VALIDATION_ERROR");
                 }
-                
+
+                // Containment: a caller scenePath with `..` would let File.Exists/FileInfo probe a file
+                // outside the project (metadata disclosure).
+                if (!string.IsNullOrEmpty(scenePath) && !PathSafety.IsWithinProject(scenePath))
+                {
+                    return HandlerOutcome.Fail("scenePath must stay within the project root", "VALIDATION_ERROR");
+                }
+
                 Scene targetScene;
                 string targetScenePath = scenePath;
                 
