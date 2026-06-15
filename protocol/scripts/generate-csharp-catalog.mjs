@@ -49,7 +49,7 @@ export async function buildCatalogSource() {
       category: c.category,
       description: c.description,
       params: c.params ?? { type: 'object' },
-      ...(c.result ? { result: c.result } : {}),
+      ...(c.result !== undefined ? { result: c.result } : {}),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const manifestCs = JSON.stringify(manifest).replace(/"/g, '""');

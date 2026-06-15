@@ -30,7 +30,9 @@ export function isNodeLogicTool(name) {
 function descriptorFor(name) {
   const { handler: HandlerClass, category } = NODE_LOGIC_TOOLS[name];
   const def = new HandlerClass(null).getDefinition(); // definition only — no connection needed
-  return { name: def.name, category, description: def.description, params: def.inputSchema ?? null };
+  // result: null — Node-logic tools are Node-side handlers, not editor commands with a handshake-
+  // advertised result schema; null keeps the surface shape uniform with editorToolSurface entries.
+  return { name: def.name, category, description: def.description, params: def.inputSchema ?? null, result: null };
 }
 
 /**

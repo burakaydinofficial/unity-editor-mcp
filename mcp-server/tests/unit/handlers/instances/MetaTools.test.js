@@ -173,6 +173,7 @@ describe('Node-logic routing (ADR 0006)', () => {
     const nodeDef = new CreateScriptToolHandler(null).getDefinition();
     assert.equal(r.tool.description, nodeDef.description);
     assert.deepEqual(r.tool.params, nodeDef.inputSchema);
+    assert.equal(r.tool.result, null); // Node-logic tools carry no editor result schema — uniform null
   });
 
   it('list_unity_tools(name) surfaces the editor result-field hint (ADR 0006)', async () => {
