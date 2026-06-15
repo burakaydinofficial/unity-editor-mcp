@@ -1,6 +1,6 @@
 # ADR 0003 — Instance discovery and addressing
 
-Status: Accepted (implemented; editor side pending in-editor verification) · Date: 2026-06
+Status: Accepted — implemented and verified live (three LTS editors coexisting on per-project derived ports, discovered through the registry and driven via the bridge) · Date: 2026-06
 
 ## Context
 

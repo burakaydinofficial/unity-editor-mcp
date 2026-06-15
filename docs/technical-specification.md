@@ -1,5 +1,13 @@
 # Unity Editor MCP Technical Specification
 
+> ⚠️ **Historical / superseded — does not reflect the current implementation.** This is an early design
+> sketch that predates the protocol contract, the Core/Editor assembly split, instance discovery, and the
+> v0.3.0 generic surface; it also describes things that were never built (e.g. Python tool wrappers,
+> `UNITY_001`-style error codes, a fixed port 6400, an auto-installer UI). For the authoritative current
+> architecture see the **[ADRs](adr/)**, the root **[README](../README.md)**,
+> **[protocol/README.md](../protocol/README.md)**, and **[CLAUDE.md](../CLAUDE.md)**. Retained only as a
+> historical record.
+
 ## System Architecture
 
 ### Component Overview

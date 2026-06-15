@@ -10,9 +10,10 @@
 
 ## A. Identity & Governance — "well-maintained" as a structural property
 
-- **A1 (P0).** Rename the Unity package off the reserved namespace: `com.unity.editor-mcp` → own scope
-  (e.g. `com.<org>.unity-bridge`); npm under a matching scope (`@<org>/unity-bridge`). Preserve upstream MIT
-  license + attribution. Document the migration from both upstream names.
+- **A1 (P0). ✅ DONE** (commit `0480fa9`). Renamed off the reserved namespace: UPM `com.unity.editor-mcp` →
+  `com.burakk.unity-editor-mcp`; npm `unity-editor-mcp` → `@burakaydinofficial/unity-editor-mcp`. Upstream MIT
+  license + Ozan Kasıkçı's copyright preserved; author metadata updated to Burak Aydın. Validated live on fresh
+  editor restarts (2021.3 / 2022.3 re-resolve the new id cleanly).
 - **A2 (P0).** **One source of truth for support claims.** The README support table is GENERATED from CI
   matrix results; a CI check FAILS the build if the package.json `unity` field, the README table, and the
   matrix config disagree. (The exact failure that killed the predecessors: README said 2020.3 for a year

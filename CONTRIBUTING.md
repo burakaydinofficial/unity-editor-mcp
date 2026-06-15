@@ -33,12 +33,13 @@ Thank you for your interest in contributing to Unity Editor MCP! This document p
 
 ## Code Guidelines
 
-### TypeScript/JavaScript
+### JavaScript (Node, ESM)
 
-- Use ES6+ features
+- Pure ES modules, no TypeScript and no native modules
 - Follow the existing code style
 - Add JSDoc comments for public functions
 - Keep functions focused and single-purpose
+- All logging goes to **stderr** (`console.error` / the logger) — stdout is reserved for the MCP JSON-RPC stream
 
 ### Unity C#
 
@@ -74,7 +75,7 @@ Add GameObject search by component type
 
 1. Update documentation if needed
 2. Ensure all tests pass
-3. Update README.md if you've added new tools
+3. **Adding or changing a command/tool?** Edit `protocol/catalog/commands.json` first (the contract is the source of truth), implement both halves, and make sure `node protocol/scripts/check-drift.mjs` passes — see [`protocol/README.md`](protocol/README.md) and [`CLAUDE.md`](CLAUDE.md). Update the README tool list too.
 4. Submit PR with clear description
 5. Address review feedback promptly
 

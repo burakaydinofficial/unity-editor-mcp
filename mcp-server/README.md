@@ -4,14 +4,10 @@ MCP (Model Context Protocol) server for Unity Editor integration. Enables AI ass
 
 ## Features
 
-- **33 comprehensive tools** for Unity Editor automation
-- **GameObject management** - Create, find, modify, delete GameObjects
-- **Scene management** - Create, load, save, list scenes  
-- **Scene analysis** - Deep inspection and component analysis
-- **UI interactions** - Find, click, and interact with UI elements
-- **Asset management** - Create and modify prefabs and materials
-- **Play mode controls** - Start, pause, stop Unity play mode
-- **System tools** - Console logs, asset refresh, connection testing
+- **Version-agnostic generic surface** - the server learns each connected editor's tools (with schemas, at runtime) and exposes them through four meta-tools, so one server works with **any Unity version** and **several editors at once**
+- **~66 editor tools** spanning GameObjects, components, scenes, scene analysis, assets (prefabs/materials/import settings), scripts, play mode, UI automation, the Test Runner, and editor operations
+- **Multi-instance routing** - discover every running editor and target any of them by project path or port
+- **Pure ESM, zero native modules** - `npx`-friendly; the only runtime dependency is the MCP SDK
 
 ## Quick Start
 
@@ -39,7 +35,7 @@ npx @burakaydinofficial/unity-editor-mcp
 
 1. Install the Unity package from: `https://github.com/burakaydinofficial/unity-editor-mcp.git?path=unity-editor-mcp`
 2. Open Unity Package Manager → Add package from git URL
-3. The package will automatically start a TCP server on port 6402
+3. The package automatically starts a loopback TCP bridge on a **per-project derived port** (range 6400–7423) and publishes it to a local discovery registry, so the server finds it automatically — no fixed port to configure
 
 ## MCP Client Configuration
 
@@ -70,53 +66,18 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-## Available Tools
+## Tool surface
 
-### System & Core (3 tools)
-- `ping` - Test Unity Editor connection
-- `read_logs` - Read Unity console logs 
-- `refresh_assets` - Trigger asset recompilation
+**By default the server advertises a small generic surface (v0.3.0):**
 
-### GameObject Management (5 tools)
-- `create_gameobject` - Create GameObjects with primitives and transforms
-- `find_gameobject` - Find GameObjects by name, tag, layer
-- `modify_gameobject` - Modify GameObject properties
-- `delete_gameobject` - Delete GameObjects
-- `get_hierarchy` - Get scene hierarchy
+- **`list_unity_instances`** — list the running, discoverable editors (project, version, port, active target); works even when none is connected
+- **`list_unity_tools`** — list the tools a connected editor supports, with schemas learned at runtime
+- **`call_unity_tool`** — invoke any of those tools by name (params validated against the editor's advertised schema before the call), routed to any instance
+- **`set_active_unity_instance`** — choose the default editor for calls that don't name one
 
-### Scene Management (5 tools)
-- `create_scene` - Create new scenes
-- `load_scene` - Load scenes (Single/Additive)
-- `save_scene` - Save current scene
-- `list_scenes` - List project scenes
-- `get_scene_info` - Get scene details
+This is what lets one server drive **any Unity version** and **several editors at once**. To re-advertise the full typed catalog as individual MCP tools instead, set `UNITY_MCP_TYPED_TOOLS=true`.
 
-### Scene Analysis (5 tools)  
-- `get_gameobject_details` - Deep GameObject inspection
-- `analyze_scene_contents` - Scene statistics and analysis
-- `get_component_values` - Component property inspection
-- `find_by_component` - Find objects by component type
-- `get_object_references` - Analyze object relationships
-
-### Play Mode Controls (4 tools)
-- `play_game` - Start Unity play mode
-- `pause_game` - Pause/resume play mode  
-- `stop_game` - Stop play mode
-- `get_editor_state` - Get editor state
-
-### UI Interactions (5 tools)
-- `find_ui_elements` - Find UI elements by type, tag, or name
-- `click_ui_element` - Click on UI buttons and interactive elements
-- `get_ui_element_state` - Get UI element properties and state
-- `set_ui_element_value` - Set values for input fields and sliders
-- `simulate_ui_input` - Simulate keyboard and mouse input on UI
-
-### Asset Management (5 tools)
-- `create_prefab` - Create prefabs from GameObjects
-- `modify_prefab` - Modify existing prefab properties
-- `instantiate_prefab` - Instantiate prefabs in the scene
-- `create_material` - Create new materials with shaders
-- `modify_material` - Modify material properties and textures
+The editor exposes ~66 tools spanning GameObjects, components, scenes, scene analysis, assets (prefabs / materials / import settings), scripts, play mode, UI automation, the Test Runner, and editor operations. The complete, categorized catalog lives in the [project README](https://github.com/burakaydinofficial/unity-editor-mcp#available-tools).
 
 ## Requirements
 
@@ -128,8 +89,8 @@ Add to your `claude_desktop_config.json`:
 
 ### Connection Issues
 1. Ensure Unity Editor is running with the Unity package installed
-2. Check Unity console for connection messages
-3. Verify port 6402 is not blocked by firewall
+2. Check Unity console for connection messages (it logs the port it bound)
+3. The bridge is loopback-only (localhost) on a per-project port in 6400–7423 — make sure local TCP connections aren't blocked. Run `list_unity_instances` to confirm the server can see the editor
 
 ### Installation Issues
 ```bash

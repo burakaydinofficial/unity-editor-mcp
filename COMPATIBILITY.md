@@ -28,10 +28,10 @@ in sync when you add or remove a guard.
 
 | File : line | Guard | API (newer ⇄ older) | Notes |
 | --- | --- | --- | --- |
-| `unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs:13` | `UNITY_2021_2_OR_NEWER` | `UnityEditor.SceneManagement.PrefabStageUtility` ⇄ `UnityEditor.Experimental.SceneManagement.PrefabStageUtility` | `using`-alias; call sites at 743, 756, 814, 873. `StageUtility` (843) is non-experimental in all versions. |
-| `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:592` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping` ⇄ `Rigidbody.drag` (write) | |
-| `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:603` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.angularDamping` ⇄ `Rigidbody.angularDrag` (write) | |
-| `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:721` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping`/`angularDamping` ⇄ `drag`/`angularDrag` (read) | |
+| `unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs:13` | `UNITY_2021_2_OR_NEWER` | `UnityEditor.SceneManagement.PrefabStageUtility` ⇄ `UnityEditor.Experimental.SceneManagement.PrefabStageUtility` | `using`-alias; call sites at 743, 759, 817, 876. `StageUtility` (846) is non-experimental in all versions. |
+| `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:607` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping` ⇄ `Rigidbody.drag` (write) | |
+| `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:618` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.angularDamping` ⇄ `Rigidbody.angularDrag` (write) | |
+| `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:736` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping`/`angularDamping` ⇄ `drag`/`angularDrag` (read) | |
 | `unity-editor-mcp/Editor/Handlers/SceneAnalysisHandler.cs:249` | `UNITY_6000_0_OR_NEWER` | `Rigidbody` damping ⇄ drag (read) | |
 | `unity-editor-mcp/Editor/Handlers/SceneAnalysisHandler.cs:554` | `UNITY_6000_0_OR_NEWER` | `LightType.Rectangle` ⇄ `LightType.Area` | Area-light enum rename. |
 | `unity-editor-mcp/Tests/Editor/Handlers/ComponentHandlerTests.cs:239` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping` ⇄ `drag` | Test mirror of the write guard. |
@@ -48,14 +48,15 @@ Tracked openly so the list is the work list:
    a full game-ci matrix on 2020.3 / 2021.3 / 2022.3 / 6000 (requirement A3)
    remains the gold standard — heavyweight (Unity license + minutes), a deliberate
    later step, with local in-editor checks in the interim.
-2. **Test Runner wiring — fixed, pending in-editor verification.** Added the
+2. **Test Runner wiring — fixed and verified live.** Added the
    `UnityEditor.TestRunner` assembly reference to `UnityEditorMCP.Editor.asmdef`,
    declared `com.unity.test-framework` (>= 1.1.33; UPM resolves higher on newer
    editors) in `unity-editor-mcp/package.json`, and added the missing
    `TestRunnerHandler.cs.meta`. Note: the test handler lives in the core editor
    assembly, so the bridge now depends on the test framework (a default package);
-   isolating it into its own assembly is a possible later refinement. Confirm
-   compilation across the version matrix.
+   isolating it into its own assembly is a possible later refinement. Verified live:
+   the EditMode suite (71 tests) compiles and passes on **2020.3, 2021.3, and
+   2022.3**, each driven through the bridge (see `docs/floor-testing.md`).
 3. **`get_component_types`** is now implemented on the Core `CommandDispatcher` rail
    (`ComponentHandler.GetComponentTypes`); `protocol/catalog/commands.json` →
    `knownGaps` is empty and the drift gate reports zero gaps. (Previously a registered

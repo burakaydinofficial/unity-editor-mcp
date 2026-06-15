@@ -1,194 +1,146 @@
-# Unity Editor MCP - Setup Guide
+# Unity Editor MCP — Setup Guide
 
-This guide will help you set up and run the Unity Editor MCP (Model Context Protocol) integration.
+This guide walks through installing and running the Unity Editor MCP (Model Context
+Protocol) bridge. For the architecture see the [ADRs](adr/) and the root
+[README](../README.md); for multi-version floor testing see
+[floor-testing.md](floor-testing.md).
 
 ## Prerequisites
 
-- Unity 2020.3 LTS or later
-- Node.js 18+ and npm
-- A Claude Desktop or MCP-compatible client
+- Unity **2020.3 LTS** or newer (the bridge is floor-true down to 2020.3)
+- Node.js **18+** and npm
+- Claude Desktop, Cursor, or another MCP-compatible client
 
 ## Installation
 
-### Step 1: Unity Package Setup
+### 1. Unity package (the editor bridge)
 
-1. Copy the `unity-editor-mcp` folder into your Unity project's `Packages` directory
-2. Open Unity and wait for it to compile
-3. The package will automatically start a TCP server on port 6400 when Unity loads
+Install via Unity Package Manager → **Add package from git URL**:
 
-### Step 2: Node.js Server Setup
+```
+https://github.com/burakaydinofficial/unity-editor-mcp.git?path=unity-editor-mcp
+```
 
-1. Navigate to the `mcp-server` directory:
-   ```bash
-   cd mcp-server
-   ```
+(Equivalently, add `"com.burakk.unity-editor-mcp"` to `Packages/manifest.json`
+pointing at that git URL. For local development you can reference a checkout via a
+`file:` path instead.)
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+On load the package starts a loopback TCP bridge on a **per-project derived port**
+(FNV-1a over the project path, range 6400–7423, with an ephemeral fallback if the
+derived port is taken) and publishes a descriptor to a per-user discovery registry.
+There is **no fixed port to configure** — the server discovers the editor
+automatically (ADR 0003).
 
-3. Start the MCP server:
-   ```bash
-   npm start
-   ```
+### 2. MCP server (the adapter)
 
-## Configuration
+The published npm package runs straight from `npx` — no clone required:
 
-### Unity Configuration
+```bash
+npx @burakaydinofficial/unity-editor-mcp
+```
 
-The Unity package uses these default settings:
-- TCP Port: 6400
-- Host: localhost
+For development against this repo:
 
-Currently, these are hardcoded but will be configurable in future phases.
+```bash
+cd mcp-server
+npm install
+npm start          # or: npm run dev  (watch mode)
+```
 
-### Node.js Configuration
+## MCP client configuration
 
-The MCP server configuration is in `mcp-server/src/config.js`:
+Point your client at the server. For Claude Desktop (`claude_desktop_config.json`):
 
-```javascript
-export const config = {
-  unity: {
-    host: 'localhost',
-    port: 6400,
-    reconnectDelay: 1000,
-    maxReconnectDelay: 30000,
-    commandTimeout: 5000
-  },
-  server: {
-    name: 'unity-editor-mcp-server',
-    version: '0.1.0'
+```json
+{
+  "mcpServers": {
+    "unity-editor-mcp": {
+      "command": "npx",
+      "args": ["@burakaydinofficial/unity-editor-mcp@latest"]
+    }
   }
-};
+}
 ```
 
-## Running the System
+Cursor and other clients take the same `command` / `args`.
 
-### Start Order
+### Optional environment variables
 
-1. **Start Unity First**: Open your Unity project. The TCP server will start automatically.
-2. **Start Node.js Server**: Run `npm start` in the `mcp-server` directory
-3. **Connect Your MCP Client**: Configure your client to connect to the Node.js server
+The server resolves the editor automatically, but you can override:
 
-### Verifying Connection
+| Variable | Effect |
+| --- | --- |
+| `UNITY_PROJECT_PATH` | Resolve the target editor by project path (via the registry / derived port) |
+| `UNITY_PORT` | Connect to an explicit port (wins over discovery) |
+| `UNITY_HOST` | Host to connect to (default `localhost`) |
+| `UNITY_MCP_REGISTRY_DIR` | Override the discovery registry directory |
+| `UNITY_MCP_TYPED_TOOLS` | `true` re-advertises the full typed catalog as individual MCP tools (default off — only the generic meta-tools are listed) |
+| `LOG_LEVEL` | `info` (default) or `debug` |
 
-When everything is connected properly, you'll see:
+Editor side: `UNITY_MCP_PORT` overrides the derived port. Server config defaults
+live in `mcp-server/src/core/config.js`.
 
-In Unity Console:
+## The tool surface
+
+By default the server exposes a small **generic surface**: `list_unity_instances`,
+`list_unity_tools`, `call_unity_tool`, and `set_active_unity_instance`. The agent
+discovers each editor's real tools (with schemas, learned at runtime) and invokes
+them by name — so one server works with any Unity version and several editors at
+once. Set `UNITY_MCP_TYPED_TOOLS=true` to list the ~66 typed tools individually.
+
+## Verifying the connection
+
+1. Start Unity (the bridge starts automatically) and the MCP server.
+2. From your client, call **`list_unity_instances`** — every running editor shows
+   up with its project, version, port, and which one is the active target.
+3. Call **`call_unity_tool`** with `{ "tool": "ping" }` (or set
+   `UNITY_MCP_TYPED_TOOLS=true` and call `ping` directly) — you should get a `pong`.
+
+## Testing
+
+Node server (from `mcp-server/`):
+
+```bash
+npm test           # unit + integration
+npm run test:ci    # the curated CI gate
 ```
-[Unity Editor MCP] Initializing...
-[Unity Editor MCP] TCP listener started on port 6400
-[Unity Editor MCP] Status changed to: Disconnected
-[Unity Editor MCP] Client connected
-[Unity Editor MCP] Status changed to: Connected
-```
 
-In Node.js Terminal:
-```
-[Unity Editor MCP] Starting Unity Editor MCP Server...
-[Unity Editor MCP] Registering tools...
-[Unity Editor MCP] MCP server started successfully
-[Unity Editor MCP] Connecting to Unity at localhost:6400...
-[Unity Editor MCP] Connected to Unity Editor
-```
-
-## Testing the Connection
-
-### Using the Ping Tool
-
-The ping tool is available to test the connection:
-
-1. In your MCP client, list available tools
-2. You should see a `ping` tool with description "Test connection to Unity Editor"
-3. Call the ping tool with an optional message:
-   ```json
-   {
-     "tool": "ping",
-     "arguments": {
-       "message": "Hello Unity!"
-     }
-   }
-   ```
-4. You should receive a response like:
-   ```
-   Unity responded: pong (echo: Hello Unity!)
-   ```
+Unity EditMode tests: open the project and run **Window → General → Test Runner →
+EditMode → Run All**. See [floor-testing.md](floor-testing.md) for the
+multi-version (2020.3 / 2021.3 / 2022.3) floor matrix.
 
 ## Troubleshooting
 
-### Unity TCP Server Not Starting
+**Server can't find the editor**
+- Confirm Unity is running with the package installed; the console logs the port it bound.
+- Run `list_unity_instances` — if the editor isn't listed, pass `includeStale: true` to diagnose.
+- The bridge is loopback-only; ensure local TCP connections aren't blocked.
 
-- Check Unity Console for error messages
-- Ensure no other application is using port 6400
-- Try restarting Unity
+**Connection drops**
+- The server reconnects automatically with exponential backoff (capped at 30s).
+- A domain reload (recompile) briefly drops the bridge; it reconnects on its own.
 
-### Node.js Cannot Connect to Unity
+**Commands time out**
+- The per-command timeout is **30 seconds**. A blocked editor main thread — e.g. a
+  modal dialog raised by a running test — stalls command processing until dismissed.
 
-- Verify Unity is running and the TCP server is active
-- Check firewall settings allow local TCP connections
-- Look for connection errors in the Node.js console
-
-### Connection Drops Frequently
-
-The system includes automatic reconnection:
-- Node.js will attempt to reconnect with exponential backoff
-- Maximum retry delay is 30 seconds
-- Check network stability and Unity performance
-
-### Commands Timeout
-
-- Default command timeout is 5 seconds
-- Check if Unity is processing commands (not frozen)
-- Look for errors in Unity Console
-
-## Development Setup
-
-### Running Tests
-
-Unity Tests:
-1. Open Unity Test Runner (Window > General > Test Runner)
-2. Select "EditMode" tests
-3. Run all tests in the UnityEditorMCP assembly
-
-Node.js Tests:
-```bash
-cd mcp-server
-npm test
-```
-
-### Debug Logging
-
-Enable debug logs by setting the log level:
-```javascript
-// In mcp-server/src/config.js
-logLevel: 'debug'  // Change from 'info' to 'debug'
-```
-
-## Architecture Overview
+## Architecture
 
 ```
-┌─────────────────┐     TCP      ┌──────────────────┐     MCP      ┌─────────────┐
-│                 │   Port 6400   │                  │   Protocol    │             │
-│   Unity Editor  │◄─────────────►│  Node.js Server  │◄─────────────►│ MCP Client  │
-│   (TCP Server)  │               │  (MCP Server)    │               │  (Claude)   │
-│                 │               │                  │               │             │
-└─────────────────┘               └──────────────────┘               └─────────────┘
+┌──────────────┐   stdio (MCP)   ┌──────────────────┐  loopback TCP   ┌───────────────┐
+│  MCP client  │◄───────────────►│   Node MCP       │  (derived        │ Unity Editor  │
+│  (Claude/…)  │                 │   server         │   per-project    │ (bridge)      │
+│              │                 │                  │   port)          │               │
+└──────────────┘                 └──────────────────┘                 └───────────────┘
+                  discovers the editor via the per-user registry (ADR 0003)
 ```
 
-1. Unity runs a TCP server that accepts JSON commands
-2. Node.js server connects to Unity and exposes MCP tools
-3. MCP clients can call tools to interact with Unity
+The wire protocol is a 4-byte big-endian length prefix + UTF-8 JSON in both
+directions (see [protocol/README.md](../protocol/README.md)).
 
-## Next Steps
+## More
 
-- Explore Phase 2 features (Scene manipulation)
-- Contribute to the project
-- Report issues on GitHub
-
-## Support
-
-For issues or questions:
-- Check the [Technical Specification](technical-specification.md)
-- Review the [Development Roadmap](development-roadmap.md)
-- Open an issue on the project repository
+- [README](../README.md) — overview, full tool catalog, install
+- [ADRs](adr/) — architecture decisions (protocol, layering, discovery, generic surface, any-to-any)
+- [COMPATIBILITY.md](../COMPATIBILITY.md) — the floor policy and guarded APIs
+- Open an issue on GitHub for bugs or questions
