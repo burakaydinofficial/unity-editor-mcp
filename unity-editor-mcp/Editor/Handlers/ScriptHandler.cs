@@ -44,7 +44,14 @@ namespace UnityEditorMCP.Handlers
 
                 // Normalize path
                 path = NormalizePath(path);
-                string fullDirectory = Path.Combine(Application.dataPath, 
+                // Reject `..` traversal — NormalizePath does not strip it, and Path.Combine below would
+                // resolve it OUTSIDE the project root (arbitrary file write). Defense-in-depth for a
+                // direct (non-Node) caller; the Node handler also rejects it at the input edge.
+                if (System.Array.IndexOf(path.Split('/'), "..") >= 0)
+                {
+                    return HandlerOutcome.Fail("path must not contain '..' traversal segments", "VALIDATION_ERROR");
+                }
+                string fullDirectory = Path.Combine(Application.dataPath,
                     path.StartsWith("Assets/") ? path.Substring(7) : path);
                 string fileName = $"{scriptName}.cs";
                 string fullPath = Path.Combine(fullDirectory, fileName);

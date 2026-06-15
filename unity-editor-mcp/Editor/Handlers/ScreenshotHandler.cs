@@ -313,6 +313,17 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail("imagePath is required", "VALIDATION_ERROR");
                 }
 
+                // Reject path traversal — require the resolved path to stay within the project root, so a
+                // `..` cannot read a file outside the project. Defense-in-depth for a direct (non-Node)
+                // caller; the Node handler also rejects `..` at the input edge.
+                string projectRoot = Path.GetFullPath(Application.dataPath + "/..");
+                string rootWithSep = projectRoot.EndsWith(Path.DirectorySeparatorChar.ToString())
+                    ? projectRoot : projectRoot + Path.DirectorySeparatorChar;
+                if (!Path.GetFullPath(imagePath).StartsWith(rootWithSep, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    return HandlerOutcome.Fail("imagePath must stay within the project root", "VALIDATION_ERROR");
+                }
+
                 if (!File.Exists(imagePath))
                 {
                     return HandlerOutcome.Fail($"Image file not found: {imagePath}", "NOT_FOUND");

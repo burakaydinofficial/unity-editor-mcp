@@ -24,6 +24,25 @@ describe('CreateScriptToolHandler', () => {
     mock.restoreAll();
   });
 
+  describe('path traversal rejection (security)', () => {
+    it('rejects a path with .. traversal segments and never calls sendCommand', async () => {
+      const res = await handler.handle({ scriptName: 'X', path: 'Assets/../../evil' });
+      assert.equal(res.status, 'error');
+      assert.match(res.error, /traversal|\.\./);
+      assert.equal(mockUnityConnection.sendCommand.mock.calls.length, 0);
+    });
+
+    it('rejects a backslash .. traversal too', async () => {
+      const res = await handler.handle({ scriptName: 'X', path: 'Assets/..\\..\\evil' });
+      assert.equal(res.status, 'error');
+      assert.match(res.error, /traversal|\.\./);
+    });
+
+    it('accepts a normal Assets/ subpath', () => {
+      assert.doesNotThrow(() => handler.validate({ scriptName: 'X', path: 'Assets/Scripts/Sub' }));
+    });
+  });
+
   describe('constructor', () => {
     it('should initialize with correct properties', () => {
       assert.equal(handler.name, 'create_script');

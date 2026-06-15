@@ -64,9 +64,15 @@ export class CreateScriptToolHandler extends BaseToolHandler {
       throw new Error('scriptType must be one of: MonoBehaviour, ScriptableObject, Editor, StaticClass, Interface');
     }
 
-    // Validate path
+    // Validate path — inside Assets/ and free of `..` traversal segments. The editor resolves the
+    // path against the project root, so a `..` would escape it and write OUTSIDE the project; reject
+    // it at the input edge (defense-in-depth with the C# NormalizePath guard). Split on both
+    // separators so `Assets/..\\..` is caught too.
     if (path && !path.startsWith('Assets/')) {
       throw new Error('path must start with Assets/');
+    }
+    if (path && path.split(/[\\/]+/).includes('..')) {
+      throw new Error('path must not contain ".." traversal segments');
     }
 
     // Validate namespace

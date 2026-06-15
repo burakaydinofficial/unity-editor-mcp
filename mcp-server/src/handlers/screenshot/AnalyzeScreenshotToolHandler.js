@@ -61,7 +61,12 @@ export class AnalyzeScreenshotToolHandler extends BaseToolHandler {
       if (!imagePath.startsWith('Assets/')) {
         throw new Error('imagePath must be within the Assets folder');
       }
-      
+      // No `..` traversal — the editor reads the path relative to the project root, so a `..` would
+      // escape it and read a file outside the project (defense-in-depth with the C# side).
+      if (imagePath.split(/[\\/]+/).includes('..')) {
+        throw new Error('imagePath must not contain ".." traversal segments');
+      }
+
       const ext = path.extname(imagePath).toLowerCase();
       if (!['.png', '.jpg', '.jpeg'].includes(ext)) {
         throw new Error('imagePath must be a PNG or JPEG file');
