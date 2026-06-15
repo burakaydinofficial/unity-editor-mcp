@@ -75,53 +75,56 @@ namespace UnityEditorMCP.Core
             if (string.IsNullOrEmpty(request.Type))
                 return CommandResult.FromOutcome(request.Id, HandlerOutcome.Fail("Missing command type", "PARSE_ERROR"));
 
+            // GraphQL-style field selection: the reserved "fields" meta-param trims the success payload.
+            // Applied UNIFORMLY to the registered-handler AND fallback paths — handlers never see it
+            // (stripped), and errors are returned unprojected.
+            var fields = ExtractFields(request.Params);
+
+            HandlerOutcome outcome;
             if (!_handlers.TryGetValue(request.Type, out var handler))
             {
-                if (_fallback != null)
+                if (_fallback == null)
                 {
-                    try
-                    {
-                        return CommandResult.FromOutcome(request.Id, _fallback(request));
-                    }
-                    catch (Exception ex)
-                    {
-                        _log.Error($"Fallback for '{request.Type}' threw: {ex}");
-                        return CommandResult.FromOutcome(request.Id,
-                            HandlerOutcome.Fail($"Internal error: {ex.Message}", "INTERNAL_ERROR", details: new { type = request.Type }));
-                    }
+                    _log.Warn($"Unknown command type: {request.Type}");
+                    return CommandResult.FromOutcome(request.Id,
+                        HandlerOutcome.Fail($"Unknown command type: {request.Type}", "UNKNOWN_COMMAND"));
                 }
-
-                _log.Warn($"Unknown command type: {request.Type}");
-                return CommandResult.FromOutcome(request.Id,
-                    HandlerOutcome.Fail($"Unknown command type: {request.Type}", "UNKNOWN_COMMAND"));
-            }
-
-            try
-            {
-                var rawParams = request.Params ?? new JObject();
-                // GraphQL-style field selection: the reserved "fields" meta-param trims the success
-                // payload. Handlers never see it (stripped); errors are returned unprojected.
-                var fields = ExtractFields(rawParams);
-                var outcome = handler(fields == null ? rawParams : StripFields(rawParams));
-                if (fields != null && outcome != null && !outcome.IsError && outcome.Payload != null)
+                try
                 {
-                    outcome = ProjectPayload(outcome, fields);
+                    outcome = _fallback(fields == null ? request : StripFieldsFromRequest(request));
                 }
-                return CommandResult.FromOutcome(request.Id, outcome);
+                catch (Exception ex)
+                {
+                    _log.Error($"Fallback for '{request.Type}' threw: {ex}");
+                    return CommandResult.FromOutcome(request.Id,
+                        HandlerOutcome.Fail($"Internal error: {ex.Message}", "INTERNAL_ERROR", details: new { type = request.Type }));
+                }
             }
-            catch (Exception ex)
+            else
             {
-                _log.Error($"Handler '{request.Type}' threw: {ex}");
-                return CommandResult.FromOutcome(request.Id,
-                    HandlerOutcome.Fail($"Internal error: {ex.Message}", "INTERNAL_ERROR", details: new { type = request.Type }));
+                try
+                {
+                    var rawParams = request.Params ?? new JObject();
+                    outcome = handler(fields == null ? rawParams : StripFields(rawParams));
+                }
+                catch (Exception ex)
+                {
+                    _log.Error($"Handler '{request.Type}' threw: {ex}");
+                    return CommandResult.FromOutcome(request.Id,
+                        HandlerOutcome.Fail($"Internal error: {ex.Message}", "INTERNAL_ERROR", details: new { type = request.Type }));
+                }
             }
+
+            if (fields != null && outcome != null && !outcome.IsError && outcome.Payload != null)
+                outcome = ProjectPayload(outcome, fields);
+            return CommandResult.FromOutcome(request.Id, outcome);
         }
 
         // The reserved "fields" meta-param: a string[] of dot-paths selecting which result fields to
         // return (GraphQL-style). Null when absent or not a non-empty string array (→ full payload).
         private static List<string> ExtractFields(JObject p)
         {
-            if (!(p["fields"] is JArray arr) || arr.Count == 0) return null;
+            if (p == null || !(p["fields"] is JArray arr) || arr.Count == 0) return null;
             var list = new List<string>();
             foreach (var t in arr)
                 if (t.Type == JTokenType.String) list.Add((string)t);
@@ -135,6 +138,10 @@ namespace UnityEditorMCP.Core
             clone.Remove("fields");
             return clone;
         }
+
+        // Same, for the fallback path (which takes a whole CommandRequest).
+        private static CommandRequest StripFieldsFromRequest(CommandRequest r) =>
+            new CommandRequest { Id = r.Id, Type = r.Type, Params = r.Params == null ? null : StripFields(r.Params) };
 
         private static HandlerOutcome ProjectPayload(HandlerOutcome outcome, List<string> fields)
         {

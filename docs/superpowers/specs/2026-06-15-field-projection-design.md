@@ -30,8 +30,12 @@ result schema anywhere, and the projection lives editor-side.
 - **Object** → group paths by head segment; for each `head`: if `head` is missing in the object, skip
   (lenient — free-form means agents may guess); if any path terminates at `head` (leaf selection),
   include the whole subtree; otherwise recurse with the remaining tails.
-- **Scalar** → returned as-is.
+- **Scalar** → returned as-is (so a path that descends *through* a scalar, e.g. `a.b` where `a` is a
+  string, yields the whole scalar at `a`).
 - Missing paths are silently omitted (no error).
+- Segments are **case-sensitive** (matched verbatim against JSON keys).
+- `fields` that is absent, not an array, empty, or an array with **no string elements** → full payload
+  (the non-string tokens are skipped; if none remain, no projection happens).
 
 Example: `fields = ["count", "objects.name", "objects.transform.position"]` on
 `{count, objects:[{name, tag, transform:{position, rotation}}, …]}` →
@@ -45,6 +49,12 @@ Example: `fields = ["count", "objects.name", "objects.transform.position"]` on
 
 ## Out of scope (→ 0.5.0)
 - Advertising available result field names (editor-sourced, via the enriched manifest).
+- **Per-typed-tool schema advertisement of `fields`.** The generic surface (`call_unity_tool`, the
+  default) documents `fields` in its params schema. On the opt-in typed surface
+  (`UNITY_MCP_TYPED_TOOLS=true`) `fields` is still honored (it passes through to the editor) but is
+  not advertised in each tool's inputSchema — that rides the 0.5.0 field-advertisement work (the
+  typed surface is regenerated from the manifest there anyway). The 4 server-side instance meta-tools
+  never project (no editor roundtrip).
 - Any result-schema enforcement/validation.
 
 ## Verification

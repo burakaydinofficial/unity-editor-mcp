@@ -119,5 +119,93 @@ namespace UnityEditorMCP.Core.Tests
             Assert.Equal("x", (string)json["result"]["name"]);
             Assert.Null(json["result"]["tag"]);
         }
+
+        // ---- edge cases (review-driven) ----
+
+        [Fact]
+        public void ScalarUnderDotPath_ReturnsScalarWhole()
+        {
+            var payload = JObject.Parse(@"{""a"":""hello"",""b"":2}");
+            var r = (JObject)FieldProjection.Project(payload, F("a.b")); // "a" is scalar; the tail cannot descend
+            Assert.Equal("hello", (string)r["a"]);
+            Assert.Null(r["b"]);
+        }
+
+        [Fact]
+        public void TopLevelArray_ProjectsEachElement()
+        {
+            var payload = JArray.Parse(@"[{""name"":""A"",""tag"":""t1""},{""name"":""B"",""tag"":""t2""}]");
+            var r = (JArray)FieldProjection.Project(payload, F("name"));
+            Assert.Equal(2, r.Count);
+            Assert.Equal("A", (string)r[0]["name"]);
+            Assert.Null(r[0]["tag"]);
+        }
+
+        [Fact]
+        public void TopLevelScalar_ReturnedUnchanged()
+        {
+            Assert.Equal(42, (int)FieldProjection.Project(new JValue(42), F("anything")));
+        }
+
+        [Fact]
+        public void NullPropertyValue_IsKept()
+        {
+            var payload = JObject.Parse(@"{""a"":null,""b"":1}");
+            var r = (JObject)FieldProjection.Project(payload, F("a"));
+            Assert.True(r.ContainsKey("a"));
+            Assert.Equal(JTokenType.Null, r["a"].Type);
+            Assert.Null(r["b"]);
+        }
+
+        [Fact]
+        public void AllEmptySegmentPaths_ReturnPayloadUnchanged()
+        {
+            var payload = JObject.Parse(@"{""a"":1,""b"":2}");
+            Assert.Same(payload, FieldProjection.Project(payload, F("...", "", ".")));
+        }
+
+        [Fact]
+        public void MixedEmptyAndValidPath_ProjectsValid()
+        {
+            var payload = JObject.Parse(@"{""a"":1,""b"":2}");
+            var r = (JObject)FieldProjection.Project(payload, F("...", "a"));
+            Assert.Equal(1, (int)r["a"]);
+            Assert.Null(r["b"]);
+        }
+
+        [Fact]
+        public void Dispatcher_NonStringFields_FallBackToFullPayload()
+        {
+            var d = new CommandDispatcher();
+            d.Register("get", p => HandlerOutcome.Ok(new JObject { ["a"] = 1, ["b"] = 2 }));
+            var req = new CommandRequest { Id = "5", Type = "get", Params = JObject.Parse(@"{""fields"":[1,true,null]}") };
+            var json = JObject.Parse(d.Dispatch(req).ToJson());
+            Assert.Equal(1, (int)json["result"]["a"]);
+            Assert.Equal(2, (int)json["result"]["b"]); // not a string[] → full payload
+        }
+
+        [Fact]
+        public void Dispatcher_NullPayloadWithFields_DoesNotThrow()
+        {
+            var d = new CommandDispatcher();
+            d.Register("get", p => HandlerOutcome.Ok(null));
+            var req = new CommandRequest { Id = "6", Type = "get", Params = JObject.Parse(@"{""fields"":[""a""]}") };
+            var json = JObject.Parse(d.Dispatch(req).ToJson());
+            Assert.Equal("success", (string)json["status"]);
+        }
+
+        [Fact]
+        public void Dispatcher_FallbackPath_StripsFieldsAndProjects()
+        {
+            CommandRequest seenByFallback = null;
+            var d = new CommandDispatcher();
+            d.SetFallback(req => { seenByFallback = req; return HandlerOutcome.Ok(new JObject { ["a"] = 1, ["b"] = 2 }); });
+            var req = new CommandRequest { Id = "7", Type = "unregistered", Params = JObject.Parse(@"{""fields"":[""a""]}") };
+            var json = JObject.Parse(d.Dispatch(req).ToJson());
+            Assert.Equal(1, (int)json["result"]["a"]);
+            Assert.Null(json["result"]["b"]);              // fallback outcome projected
+            Assert.NotNull(seenByFallback);
+            Assert.Null(seenByFallback.Params["fields"]);  // fallback never saw the meta-param
+        }
     }
 }

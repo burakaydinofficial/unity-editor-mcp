@@ -135,9 +135,9 @@ pending-command map with a 30s timeout and reconnects with exponential backoff.
   **derived per-project port** (`ResolveInitialPort` → `EndpointAddressing.DerivePort`, ADR 0003;
   `UNITY_MCP_PORT` overrides), re-arms after every domain reload (and unbinds the listener on
   `beforeAssemblyReload`). Incoming commands are queued and executed on the **main thread** via
-  `EditorApplication.update` (Unity APIs are not thread-safe). Dispatch tries Core's
-  `CommandDispatcher` first (`_dispatcher.IsRegistered(type)` → `DispatchViaCore`) and falls back to
-  the legacy `switch (command.Type)` in `ProcessCommand` for not-yet-migrated commands.
+  `EditorApplication.update` (Unity APIs are not thread-safe). Every command is dispatched through
+  Core's `CommandDispatcher` (`DispatchViaCore`); the legacy `ProcessCommand` switch was fully retired
+  in v0.4.0 (an unregistered type yields `UNKNOWN_COMMAND`).
 - `Handlers/*Handler.cs` — static classes doing the actual editor work, taking `JObject`
   parameters. Some are one-method-per-command (`GameObjectHandler.CreateGameObject`), others use an
   `action` parameter dispatched through `HandleCommand(action, params)` (tags, layers, selection,
@@ -149,24 +149,25 @@ pending-command map with a 30s timeout and reconnects with exponential backoff.
   dotnet-tested), which turns a handler's `{ error: … }` return into a real `ErrorResult` rather than
   a success envelope.
 
-**Unity-side layering (ADR 0002, migration underway).** A Unity-independent `Core` assembly
-(`unity-editor-mcp/Core/`) holds framing, the command/result models, the dispatcher, and the
-wire-truth classifier — `HandlerOutcome`/`CommandResult` form a discriminated result that *cannot*
-serialize an error as a success, all covered by `dotnet test`. The live transport in
-`Editor/Core/UnityEditorMCP.cs` now runs on Core's `TcpTransport` (slice 1), and Core's
-`CommandDispatcher` is the live dispatch front (slice 2): commands registered on it (`handshake`,
-`get_component_types`) are served by the tested Core path, while the legacy `ProcessCommand` switch
-still handles the rest and is migrated onto the rail incrementally: `ProcessCommand` routes to
-`DispatchViaCore` when `_dispatcher.IsRegistered(command.Type)`, else the legacy switch (the explicit
-strangler check).
+**Unity-side layering (ADR 0002).** A Unity-independent `Core` assembly (`unity-editor-mcp/Core/`)
+holds framing, the command/result models, the dispatcher, and the wire-truth classifier —
+`HandlerOutcome`/`CommandResult` form a discriminated result that *cannot* serialize an error as a
+success, all covered by `dotnet test`. The live transport runs on Core's `TcpTransport`, and Core's
+`CommandDispatcher` is the **sole** dispatch front (v0.4.0): every command is registered on it
+(`BuildDispatcher` in `Editor/Core/UnityEditorMCP.cs`) and served by the tested rail; an unregistered
+type yields `UNKNOWN_COMMAND`. The legacy `ProcessCommand` switch has been fully retired. The
+dispatcher also applies the reserved `fields` meta-param (GraphQL-style result projection) uniformly
+to every command's success payload.
 
 ### Adding a new MCP tool
 
 The command surface is governed by the protocol catalog — edit it first, then implement both halves:
 
 1. Add the command to `protocol/catalog/commands.json` (`name`, `sides`, `params` schema, category).
-2. C# handler method in `unity-editor-mcp/Editor/Handlers/` + a `case "tool_name":` in the
-   `ProcessCommand` switch in `Editor/Core/UnityEditorMCP.cs`.
+2. C# handler method in `unity-editor-mcp/Editor/Handlers/` returning `HandlerOutcome` (`Ok(payload)`
+   / `Fail(message, code)`), registered on the rail in `BuildDispatcher` (`Editor/Core/UnityEditorMCP.cs`):
+   `dispatcher.Register("tool_name", Handler.Method)` (single-method) or a lambda for an
+   action-dispatch handler. (There is no legacy switch — it was retired in v0.4.0.)
 3. A `<Name>ToolHandler.js` in `mcp-server/src/handlers/<category>/` with the JSON Schema and a
    carefully written tool description (agent success depends on it — see requirement I1).
 4. Import + entry in `HANDLER_CLASSES` in `mcp-server/src/handlers/index.js`.
@@ -174,5 +175,5 @@ The command surface is governed by the protocol catalog — edit it first, then 
    `mcp-server/tests/unit/handlers/`.
 
 Tool names are `verb_noun` snake_case and must match across the catalog, the JS handler's `name`,
-the C# switch case, and the `sendCommand` type string. Keep new Unity API usage guarded per
-`COMPATIBILITY.md`.
+the C# dispatcher registration, and the `sendCommand` type string. Keep new Unity API usage guarded
+per `COMPATIBILITY.md`.

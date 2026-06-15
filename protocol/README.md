@@ -126,15 +126,23 @@ gaps are listed under **Remaining**.
   filesystem registry the server resolves through (ADR 0003).
 
 **Remaining:**
-1. **Result schemas are derived, not yet enforced** — `result` is populated best-effort from
-   handler returns and not validated against the catalog at the Node boundary. (Catalog
-   *params* are drift-checked against the JS inputSchema.)
+1. **Result schemas are derived, and not validated on the wire.** `result` is populated best-effort
+   from handler returns. Rather than enforce them, v0.4.0 added a GraphQL-style `fields` meta-param
+   (the agent selects which result fields it wants — see "Result field selection" below); editor-
+   sourced field *advertisement* is planned for 0.5.0. (Catalog *params* are drift-checked against
+   the JS inputSchema.)
 2. **Handshake warns, does not refuse** — a version/project mismatch logs a warning but the
    connection proceeds; refusing (or capability-gating) is the next step.
-3. **Handler contract migration is partial** — only `handshake` + `get_component_types` ride the
-   tested `HandlerOutcome` dispatcher rail; the other ~66 handlers still return anonymous objects
-   through the legacy switch (classified correctly by `Response.Result`, but not yet the typed
-   contract). Strangler hook: `CommandDispatcher.SetFallback`.
+
+**Done (v0.4.0):** the handler-contract migration is complete — **all** editor commands ride the
+tested `HandlerOutcome` dispatcher rail, and the legacy `ProcessCommand` switch has been retired (the
+`CommandDispatcher` is the sole dispatch front; an unregistered type yields `UNKNOWN_COMMAND`).
+
+**Result field selection.** Any command accepts an optional reserved `fields` param — a `string[]`
+of dot-paths (e.g. `["count","objects.name"]`) — that trims the success result to those fields
+(arrays are transparent; absent → full result; errors are never projected, and unknown paths are
+silently omitted). It is a protocol-level meta-param honored by every command (not a per-command
+catalog param), applied once in the dispatcher.
 
 ## Roadmap (specified here, enforced later)
 
