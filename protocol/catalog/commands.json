@@ -4984,95 +4984,7 @@
           "menuPath"
         ]
       },
-      "result": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "oneOf": [
-          {
-            "description": "Successful menu item execution (action='execute')",
-            "type": "object",
-            "properties": {
-              "success": {
-                "type": "boolean",
-                "const": true
-              },
-              "menuPath": {
-                "type": "string",
-                "description": "The menu path that was executed"
-              },
-              "executed": {
-                "type": "boolean",
-                "description": "Whether the menu item was successfully executed (false if disabled or context-dependent)"
-              },
-              "menuExists": {
-                "type": "boolean",
-                "description": "Whether the menu item exists in the editor"
-              },
-              "executionTime": {
-                "type": "number",
-                "description": "Time taken to execute the menu item in milliseconds"
-              },
-              "message": {
-                "type": "string",
-                "description": "Descriptive message about execution status"
-              },
-              "alias": {
-                "type": "string",
-                "description": "Optional alias that was provided in the request"
-              }
-            },
-            "required": [
-              "success",
-              "menuPath",
-              "executed",
-              "menuExists",
-              "executionTime",
-              "message"
-            ]
-          },
-          {
-            "description": "Successful menu enumeration (action='get_available_menus')",
-            "type": "object",
-            "properties": {
-              "success": {
-                "type": "boolean",
-                "const": true
-              },
-              "availableMenus": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "description": "List of available Unity Editor menu items"
-              },
-              "totalMenus": {
-                "type": "number",
-                "description": "Total number of known menu items in the complete list"
-              },
-              "filteredCount": {
-                "type": "number",
-                "description": "Number of menu items returned after applying filter (if any)"
-              },
-              "message": {
-                "type": "string",
-                "description": "Status message"
-              },
-              "note": {
-                "type": "string",
-                "description": "Note that this is a partial list as Unity doesn't provide enumeration API"
-              }
-            },
-            "required": [
-              "success",
-              "availableMenus",
-              "totalMenus",
-              "filteredCount",
-              "message",
-              "note"
-            ]
-          }
-        ]
-      }
+      "result": null
     },
     {
       "name": "get_editor_state",
@@ -5768,110 +5680,7 @@
         },
         "required": []
       },
-      "result": {
-        "type": "object",
-        "oneOf": [
-          {
-            "type": "object",
-            "properties": {
-              "success": {
-                "type": "boolean",
-                "const": true
-              },
-              "imagePath": {
-                "type": "string",
-                "description": "Path to the analyzed image"
-              },
-              "width": {
-                "type": "number",
-                "description": "Image width in pixels"
-              },
-              "height": {
-                "type": "number",
-                "description": "Image height in pixels"
-              },
-              "format": {
-                "type": "string",
-                "description": "Texture format as string"
-              },
-              "fileSize": {
-                "type": "number",
-                "description": "File size in bytes"
-              },
-              "analysisType": {
-                "type": "string",
-                "enum": [
-                  "basic",
-                  "ui",
-                  "content",
-                  "full"
-                ],
-                "description": "Type of analysis performed"
-              },
-              "dominantColors": {
-                "type": "array",
-                "description": "List of dominant colors found in the image",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "r": {
-                      "type": "number"
-                    },
-                    "g": {
-                      "type": "number"
-                    },
-                    "b": {
-                      "type": "number"
-                    },
-                    "hex": {
-                      "type": "string"
-                    },
-                    "percentage": {
-                      "type": "number"
-                    }
-                  }
-                }
-              },
-              "uiElements": {
-                "type": "object",
-                "properties": {
-                  "edgePixelRatio": {
-                    "type": "number"
-                  },
-                  "analysis": {
-                    "type": "string"
-                  }
-                },
-                "description": "Basic UI element analysis results"
-              },
-              "message": {
-                "type": "string",
-                "description": "Success message"
-              }
-            },
-            "required": [
-              "success",
-              "imagePath",
-              "width",
-              "height",
-              "format",
-              "fileSize",
-              "analysisType"
-            ]
-          },
-          {
-            "type": "object",
-            "properties": {
-              "error": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "error"
-            ]
-          }
-        ]
-      }
+      "result": null
     },
     {
       "name": "capture_screenshot",
@@ -6072,24 +5881,7 @@
           "scriptName"
         ]
       },
-      "result": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "scriptPath": {
-            "type": "string",
-            "description": "Relative asset path to the created script (e.g., Assets/Scripts/MyScript.cs)"
-          },
-          "message": {
-            "type": "string",
-            "description": "Success message confirming script creation"
-          }
-        },
-        "required": [
-          "scriptPath",
-          "message"
-        ]
-      }
+      "result": null
     },
     {
       "name": "delete_script",
