@@ -175,6 +175,18 @@ describe('Node-logic routing (ADR 0006)', () => {
     assert.deepEqual(r.tool.params, nodeDef.inputSchema);
   });
 
+  it('list_unity_tools(name) surfaces the editor result-field hint (ADR 0006)', async () => {
+    const resultSchema = { type: 'object', properties: { objects: { type: 'array' }, count: { type: 'number' } } };
+    const conn = {
+      editorInfo: { commands: [{ name: 'get_hierarchy', category: 'gameobject', description: 'h', params: { type: 'object' }, result: resultSchema }] },
+      isConnected: () => true,
+      sendCommand: async () => ({}),
+    };
+    const h = new ListUnityToolsToolHandler(fakeManager({ conn }));
+    const r = await h.execute({ instance: '7000', name: 'get_hierarchy' });
+    assert.deepEqual(r.tool.result, resultSchema); // the agent reads this to drive `fields` projection
+  });
+
   it('call_unity_tool dispatches a Node-logic tool to its Node handler (not a raw passthrough)', async () => {
     let sent;
     const conn = fakeConn(async (type, p) => { sent = { type, p }; return { success: true }; });

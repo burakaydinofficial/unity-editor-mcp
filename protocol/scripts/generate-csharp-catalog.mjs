@@ -34,15 +34,23 @@ export async function buildCatalogSource() {
   const gapEntries = gaps.map((n) => `            "${n}",`).join('\n');
 
   // Capability manifest: for every AVAILABLE editor command (sides includes 'editor',
-  // minus the known editor gaps) emit {name, description, params}. The editor advertises
-  // this in the handshake so the Node server learns each instance's tool surface AND its
-  // schemas at runtime — the version-agnostic surface (ADR 0004). Embedded as a JSON string
-  // const (parsed with JArray.Parse on the editor side); a C# verbatim literal, so only
+  // minus the known editor gaps) emit {name, category, description, params, result}. The editor
+  // advertises this in the handshake so the Node server learns each instance's tool surface, its
+  // param schemas, AND its result-field hints at runtime — the version-agnostic surface (ADR 0004,
+  // 0006). `result` (when the catalog declares one) lets list_unity_tools show the agent the response
+  // shape on demand, so it can drive `fields` projection without a discovery round-trip. Embedded as a
+  // JSON string const (parsed with JArray.Parse on the editor side); a C# verbatim literal, so only
   // double-quotes need doubling (backslashes — JSON escapes — stay literal).
   const gapSet = new Set(gaps);
   const manifest = catalog.commands
     .filter((c) => c.sides.includes('editor') && !gapSet.has(c.name) && !c.internal)
-    .map((c) => ({ name: c.name, category: c.category, description: c.description, params: c.params ?? { type: 'object' } }))
+    .map((c) => ({
+      name: c.name,
+      category: c.category,
+      description: c.description,
+      params: c.params ?? { type: 'object' },
+      ...(c.result ? { result: c.result } : {}),
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const manifestCs = JSON.stringify(manifest).replace(/"/g, '""');
 
@@ -73,8 +81,8 @@ export async function buildCatalogSource() {
     gapEntries,
     '        };',
     '',
-    '        /// <summary>JSON [{name, description, params}] manifest for every available editor',
-    '        /// command — the schemas the editor advertises in the handshake (ADR 0004). Parse',
+    '        /// <summary>JSON [{name, category, description, params, result}] manifest for every available',
+    '        /// editor command — the schemas the editor advertises in the handshake (ADR 0004/0006). Parse',
     '        /// with Newtonsoft JArray.Parse.</summary>',
     `        public const string CommandManifestJson = @"${manifestCs}";`,
     '    }',

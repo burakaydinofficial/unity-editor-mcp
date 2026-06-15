@@ -12,13 +12,13 @@ export class ListUnityToolsToolHandler extends BaseToolHandler {
   constructor(manager) {
     super(
       'list_unity_tools',
-      'List the tools a connected Unity editor actually supports, with their schemas (learned from the editor at runtime). Discover what call_unity_tool can invoke on a given instance. Returns names + descriptions by default; pass "name" for one tool\'s full parameter schema, or "category" to filter.',
+      'List the tools a connected Unity editor actually supports, with their schemas (learned from the editor at runtime). Discover what call_unity_tool can invoke on a given instance. Returns names + descriptions by default; pass "name" for one tool\'s full parameter schema AND result-field hints (its response shape — read these to drive call_unity_tool\'s `fields` projection), or "category" to filter.',
       {
         type: 'object',
         properties: {
           instance: { type: 'string', description: 'REQUIRED — the target editor (a project path or port). There is no default instance: every call must name its editor. Use list_unity_instances to see what is running.' },
           category: { type: 'string', description: 'Only return tools in this category (e.g. "gameobject", "scene").' },
-          name: { type: 'string', description: 'Return the full {name, category, description, params} schema for just this one tool.' },
+          name: { type: 'string', description: 'Return the full {name, category, description, params, result} schema for just this one tool — including its result-field hints (the response shape).' },
         },
         required: ['instance'],
       },

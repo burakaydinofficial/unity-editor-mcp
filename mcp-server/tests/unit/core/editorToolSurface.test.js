@@ -8,7 +8,14 @@ describe('editorToolSurface', () => {
     const r = editorToolSurface(info);
     assert.equal(r.hasSchemas, true);
     assert.equal(r.tools.length, 1);
-    assert.deepEqual(r.tools[0], { name: 'ping', category: 'system', description: 'Test', params: { type: 'object' } });
+    assert.deepEqual(r.tools[0], { name: 'ping', category: 'system', description: 'Test', params: { type: 'object' }, result: null });
+  });
+
+  it('carries the editor-advertised result-field hint when present (ADR 0006)', () => {
+    const resultSchema = { type: 'object', properties: { message: { type: 'string' }, timestamp: { type: 'string' } } };
+    const info = { commands: [{ name: 'ping', category: 'system', description: 'Test', params: { type: 'object' }, result: resultSchema }] };
+    const r = editorToolSurface(info);
+    assert.deepEqual(r.tools[0].result, resultSchema);
   });
 
   it('falls back to availableCommands names when no rich manifest (hasSchemas false, params null)', () => {
@@ -16,6 +23,7 @@ describe('editorToolSurface', () => {
     assert.equal(r.hasSchemas, false);
     assert.deepEqual(r.tools.map((t) => t.name), ['ping', 'get_editor_state']);
     assert.equal(r.tools[0].params, null);
+    assert.equal(r.tools[0].result, null);
     assert.equal(r.tools[0].category, null);
   });
 
