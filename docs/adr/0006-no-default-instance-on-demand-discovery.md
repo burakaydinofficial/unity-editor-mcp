@@ -1,6 +1,8 @@
 # ADR 0006 — No default instance; on-demand tool discovery (the lean client)
 
-Status: Proposed — planned for v0.5.0 (the "lean Adaptive-Node client") · Date: 2026-06
+Status: Accepted — implemented in v0.5.0 (the "lean Adaptive-Node client": the MCP surface is the 3
+generic meta-tools; `instance` is required on every call; the editor advertises params + result-field
+hints, learned at runtime) · Date: 2026-06
 
 ## Context
 
