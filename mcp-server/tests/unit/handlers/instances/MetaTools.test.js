@@ -108,6 +108,12 @@ describe('call_unity_tool', () => {
     assert.equal(res.status, 'error');
     assert.match(res.error, /params must be an object/);
     assert.equal(called, false);
+
+    // The array branch is independently necessary (an array spreads into a char-indexed object).
+    const res2 = await h.handle({ instance: '7000', tool: 'ping', params: ['Cube'] });
+    assert.equal(res2.status, 'error');
+    assert.match(res2.error, /params must be an object/);
+    assert.equal(called, false);
   });
 
   it('requires the instance param (no default — ADR 0006)', async () => {

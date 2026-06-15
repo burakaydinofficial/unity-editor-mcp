@@ -13,7 +13,7 @@ namespace UnityEditorMCP.Tests
     public class HandlerSecurityTests
     {
         [Test]
-        public void CreateScript_WithDotDotTraversal_IsRejectedBeforeAnyWrite()
+        public void CreateScript_WithDotDotTraversal_IsRejected()
         {
             var outcome = ScriptHandler.CreateScript(new JObject
             {

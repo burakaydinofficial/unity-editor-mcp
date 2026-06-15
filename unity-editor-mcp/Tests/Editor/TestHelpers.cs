@@ -8,8 +8,10 @@ namespace UnityEditorMCP.Tests
     /// code } JObject shape from a <see cref="HandlerOutcome"/>. The v0.4.0 dispatch-rail migration changed
     /// the editor handlers to return HandlerOutcome (a discriminated result that cannot serialize an error
     /// as a success); these handler unit tests still assert on the pre-migration JObject shape, so this
-    /// adapter lets them do so without each test unpacking the outcome. It mirrors how the dispatcher
-    /// envelopes an outcome on the wire (success spreads the payload; failure carries error + code).
+    /// adapter lets them do so without each test unpacking the outcome. NOTE: this is a TEST-CONVENIENCE
+    /// shape, not the wire envelope — the dispatcher emits { id, status, result } and the Node client
+    /// unwraps to the payload; here a successful outcome maps to success:true + the spread payload, and a
+    /// failure to { success:false, error, code }, to satisfy the legacy assertions.
     /// </summary>
     public static class TestHelpers
     {

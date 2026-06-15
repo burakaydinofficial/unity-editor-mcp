@@ -52,8 +52,12 @@ export class CallUnityToolToolHandler extends BaseToolHandler {
     if (isNodeLogicTool(params.tool)) {
       const HandlerClass = NODE_LOGIC_TOOLS[params.tool].handler;
       const h = new HandlerClass(conn);
-      h.validate(callParams);
-      return await h.execute(callParams);
+      // `fields` is the editor-dispatch result-projection meta-param; Node-logic handlers don't honor it
+      // (their results are small), so strip it rather than leak it into their param validation. (Audit.)
+      const nodeParams = { ...callParams };
+      delete nodeParams.fields;
+      h.validate(nodeParams);
+      return await h.execute(nodeParams);
     }
 
     const { tools, hasSchemas } = editorToolSurface(conn.editorInfo);
