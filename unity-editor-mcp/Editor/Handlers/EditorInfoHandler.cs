@@ -131,11 +131,21 @@ namespace UnityEditorMCP.Handlers
                     case "companyName": PlayerSettings.companyName = value.ToString(); break;
                     case "bundleVersion": PlayerSettings.bundleVersion = value.ToString(); break;
                     case "defaultScreenWidth":
+                    {
                         if (value.Type != JTokenType.Integer && value.Type != JTokenType.Float) return Err("defaultScreenWidth must be a number");
-                        PlayerSettings.defaultScreenWidth = value.ToObject<int>(); break;
+                        var d = value.ToObject<double>();
+                        if (Math.Abs(d % 1.0) > 1e-9) return Err("defaultScreenWidth must be a whole number");
+                        PlayerSettings.defaultScreenWidth = (int)d;
+                        break;
+                    }
                     case "defaultScreenHeight":
+                    {
                         if (value.Type != JTokenType.Integer && value.Type != JTokenType.Float) return Err("defaultScreenHeight must be a number");
-                        PlayerSettings.defaultScreenHeight = value.ToObject<int>(); break;
+                        var d = value.ToObject<double>();
+                        if (Math.Abs(d % 1.0) > 1e-9) return Err("defaultScreenHeight must be a whole number");
+                        PlayerSettings.defaultScreenHeight = (int)d;
+                        break;
+                    }
                     case "runInBackground":
                         if (value.Type != JTokenType.Boolean) return Err("runInBackground must be a boolean");
                         PlayerSettings.runInBackground = value.ToObject<bool>(); break;
