@@ -21,6 +21,7 @@ describe('mergeRoslynSurface', () => {
     assert.ok(rename);
     assert.equal(rename.requires, 'roslyn');
     assert.equal(rename.available, false);
+    assert.equal(rename.result, null); // uniform tool shape (matches editor/node-logic surface entries)
 
     const on = mergeRoslynSurface([], 'h:1', readyMgr({}));
     assert.equal(on.find((t) => t.name === 'rename_symbol').available, true);
@@ -53,11 +54,11 @@ describe('roslynDispatch', () => {
     );
   });
 
-  it('a gated command proxies to the sidecar client when ready', async () => {
+  it('a gated command proxies to the sidecar client when ready, with the fields meta-param stripped', async () => {
     let got = null;
     const client = { call: async (tool, params) => { got = { tool, params }; return { ok: true }; } };
-    const r = await roslynDispatch('rename_symbol', { path: 'A.cs' }, {}, 'h:1', readyMgr(client));
-    assert.deepEqual(got, { tool: 'rename_symbol', params: { path: 'A.cs' } });
+    const r = await roslynDispatch('rename_symbol', { path: 'A.cs', fields: ['edits'] }, {}, 'h:1', readyMgr(client));
+    assert.deepEqual(got, { tool: 'rename_symbol', params: { path: 'A.cs' } }); // fields stripped (editor-only meta-param)
     assert.deepEqual(r, { ok: true });
   });
 

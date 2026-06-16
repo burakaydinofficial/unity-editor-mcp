@@ -255,4 +255,22 @@ describe('Roslyn capability framework (Plan 2)', () => {
     assert.ok(rename && rename.requires === 'roslyn');
     assert.equal(rename.available, true);
   });
+
+  it('derives the Roslyn instanceKey from the connection host:port (not the caller ref)', async () => {
+    let askedKey = null;
+    const recording = { ...offRoslyn(), isReady: (k) => { askedKey = k; return false; } };
+    const conn = { ...fakeConn(), targetHost: 'localhost', targetPort: 7001 };
+    const h = new ListUnityToolsToolHandler(fakeManager({ conn }), recording);
+    await h.execute({ instance: '/path/to/project' }); // instance is a path; the key must come from the conn
+    assert.equal(askedKey, 'localhost:7001');
+  });
+
+  it('list_unity_tools(name) returns a gated Roslyn command with its requires/available annotation', async () => {
+    const h = new ListUnityToolsToolHandler(fakeManager(), offRoslyn());
+    const r = await h.execute({ instance: '7000', name: 'rename_symbol' });
+    assert.equal(r.tool.name, 'rename_symbol');
+    assert.equal(r.tool.requires, 'roslyn');
+    assert.equal(r.tool.available, false);
+    assert.equal(r.tool.result, null);
+  });
 });

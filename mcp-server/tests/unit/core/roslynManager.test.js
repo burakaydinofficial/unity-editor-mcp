@@ -50,4 +50,17 @@ describe('RoslynManager', () => {
     await m.start('h:1', {});
     assert.equal(calls, 1);
   });
+
+  it('stop() during indexing disposes the late-arriving client instead of stranding it', async () => {
+    let disposed = false;
+    let resolveFactory;
+    const m = new RoslynManager(() => new Promise((r) => { resolveFactory = r; }));
+    const startP = m.start('h:1', {});           // suspends at the factory await (INDEXING)
+    await m.stop('h:1');                          // races: deletes the slot while indexing
+    resolveFactory({ dispose: async () => { disposed = true; } }); // factory now resolves
+    await startP;
+    assert.equal(disposed, true, 'the late client must be disposed, not stranded');
+    assert.equal(m.getState('h:1'), ROSLYN_STATES.OFF);
+    assert.equal(m.client('h:1'), null);
+  });
 });

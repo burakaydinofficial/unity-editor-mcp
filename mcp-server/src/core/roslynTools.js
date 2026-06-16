@@ -9,6 +9,10 @@
 /** Sentinel: this tool is not a Roslyn command (or find_references with no sidecar) — let the caller fall through. */
 export const NOT_HANDLED = Symbol('roslyn:not-handled');
 
+// The reserved `fields` result-projection meta-param is an editor-dispatch concern; the sidecar is not the
+// editor and does not implement it, so strip it from the sidecar RPC (mirrors the Node-logic dispatch path).
+const stripFields = (p) => { const { fields, ...rest } = p; return rest; };
+
 const objSchema = (props = {}, required = []) => ({ type: 'object', properties: props, required });
 
 // Lifecycle — always available (they manage the backend itself).
@@ -51,10 +55,10 @@ export const isRoslynCommand = (name) => isRoslynLifecycle(name) || isRoslynGate
 export function mergeRoslynSurface(surface, instanceKey, roslynMgr) {
   const ready = roslynMgr.isReady(instanceKey);
   const lifecycle = Object.entries(ROSLYN_LIFECYCLE).map(([name, d]) => ({
-    name, category: 'roslyn', description: d.description, params: d.inputSchema, available: true,
+    name, category: 'roslyn', description: d.description, params: d.inputSchema, result: null, available: true,
   }));
   const gated = Object.entries(ROSLYN_GATED).map(([name, d]) => ({
-    name, category: 'roslyn', description: d.description, params: d.inputSchema, requires: 'roslyn', available: ready,
+    name, category: 'roslyn', description: d.description, params: d.inputSchema, result: null, requires: 'roslyn', available: ready,
   }));
   return [...surface, ...lifecycle, ...gated];
 }
@@ -79,10 +83,10 @@ export async function roslynDispatch(tool, params, conn, instanceKey, roslynMgr)
       err.code = 'ROSLYN_NOT_READY';
       throw err;
     }
-    return await roslynMgr.client(instanceKey).call(tool, params);
+    return await roslynMgr.client(instanceKey).call(tool, stripFields(params));
   }
   if (tool === 'find_references' && roslynMgr.isReady(instanceKey)) {
-    return await roslynMgr.client(instanceKey).call('find_references', params); // semantic upgrade
+    return await roslynMgr.client(instanceKey).call('find_references', stripFields(params)); // semantic upgrade
   }
   return NOT_HANDLED; // not ours (or find_references with no sidecar → editor syntactic)
 }

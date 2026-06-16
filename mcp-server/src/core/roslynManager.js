@@ -29,17 +29,26 @@ export class RoslynManager {
     if (existing && (existing.state === ROSLYN_STATES.READY || existing.state === ROSLYN_STATES.INDEXING)) {
       return existing.state; // idempotent
     }
-    this._byKey.set(key, { state: ROSLYN_STATES.INDEXING, client: null });
+    const token = Symbol('roslyn-start'); // detect a stop()/restart that races during the async factory
+    this._byKey.set(key, { state: ROSLYN_STATES.INDEXING, client: null, token });
     try {
       const client = await this._clientFactory(conn);
+      // If stop() (or a newer start()) ran during the await, this slot is gone or replaced — dispose the
+      // freshly-built client instead of stranding it (the Plan-3 sidecar is a real OS process).
+      if (this._byKey.get(key)?.token !== token) {
+        if (client?.dispose) { try { await client.dispose(); } catch { /* ignore */ } }
+        return ROSLYN_STATES.OFF;
+      }
       if (!client) {
-        this._byKey.set(key, { state: ROSLYN_STATES.UNAVAILABLE, client: null, error: 'Roslyn backend is not installed' });
+        this._byKey.set(key, { state: ROSLYN_STATES.UNAVAILABLE, client: null, error: 'Roslyn backend is not installed', token });
         return ROSLYN_STATES.UNAVAILABLE;
       }
-      this._byKey.set(key, { state: ROSLYN_STATES.READY, client });
+      this._byKey.set(key, { state: ROSLYN_STATES.READY, client, token });
       return ROSLYN_STATES.READY;
     } catch (e) {
-      this._byKey.set(key, { state: ROSLYN_STATES.UNAVAILABLE, client: null, error: e.message });
+      if (this._byKey.get(key)?.token === token) {
+        this._byKey.set(key, { state: ROSLYN_STATES.UNAVAILABLE, client: null, error: e.message, token });
+      }
       return ROSLYN_STATES.UNAVAILABLE;
     }
   }
