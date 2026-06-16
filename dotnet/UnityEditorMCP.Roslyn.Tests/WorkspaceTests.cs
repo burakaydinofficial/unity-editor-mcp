@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using UnityEditorMCP.Roslyn;
 using Xunit;
 
@@ -17,12 +18,12 @@ public class WorkspaceTests
     }
 
     [Fact]
-    public void LoadModel_BuildsCompilationWithTheSource()
+    public async Task LoadModel_BuildsCompilationWithTheSource()
     {
         var json = WriteFixture(out _);
         var solution = WorkspaceBuilder.Build(json);
         Assert.Single(solution.Projects);
-        var comp = solution.Projects.First().GetCompilationAsync().GetAwaiter().GetResult()!;
+        var comp = (await solution.Projects.First().GetCompilationAsync())!;
         var type = comp.GetTypeByMetadataName("G.Player");
         Assert.NotNull(type);
     }
