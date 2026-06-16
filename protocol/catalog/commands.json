@@ -259,6 +259,11 @@
           "truncated": {
             "type": "boolean"
           },
+          "resolution": {
+            "type": "string",
+            "enum": ["syntactic", "semantic"],
+            "description": "How references were computed: \"syntactic\" (textual, lite) or \"semantic\" (Roslyn sidecar). Lite always returns \"syntactic\"."
+          },
           "references": {
             "type": "array",
             "items": {
@@ -326,6 +331,139 @@
           },
           "source": {
             "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "resolve_symbol",
+      "category": "code",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Resolve a C# identifier NAME to its declaring type(s) and member(s) using Unity's compiled assemblies (reflection/TypeCache). Name-based: returns a ranked candidate list — same-named symbols across types are NOT disambiguated (that needs the Roslyn sidecar). Pass \"name\", or \"path\"+\"position\" to extract the token name at that source location.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Identifier name to resolve. Optional if path+position are given."
+          },
+          "path": {
+            "type": "string",
+            "description": "A .cs file under the project, used with position to extract the token name."
+          },
+          "position": {
+            "type": "object",
+            "description": "{ line, column } (1-based) of the token in path.",
+            "properties": {
+              "line": { "type": "number" },
+              "column": { "type": "number" }
+            }
+          },
+          "maxResults": {
+            "type": "number",
+            "description": "Cap on candidates (default 50)."
+          }
+        },
+        "required": []
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "count": { "type": "number" },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "member": { "type": "string" },
+                "kind": { "type": "string" },
+                "signature": { "type": "string" },
+                "visibility": { "type": "string" },
+                "assembly": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "get_type_members",
+      "category": "code",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "List the members (fields, properties, methods, events) of a named C# type from Unity's compiled assemblies, with signatures, visibility, and attributes.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "typeName": {
+            "type": "string",
+            "description": "Simple or full type name (e.g. \"Player\" or \"MyGame.Player\")."
+          },
+          "includeInherited": {
+            "type": "boolean",
+            "description": "Include inherited members (default false — declared-only)."
+          }
+        },
+        "required": ["typeName"]
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "count": { "type": "number" },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "kind": { "type": "string" },
+                "signature": { "type": "string" },
+                "visibility": { "type": "string" },
+                "attributes": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "find_implementations",
+      "category": "code",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Find subtypes of a named class or implementors of a named interface, via UnityEditor.TypeCache (fast, indexed over the compiled assemblies).",
+      "params": {
+        "type": "object",
+        "properties": {
+          "typeName": {
+            "type": "string",
+            "description": "Simple or full class/interface name."
+          }
+        },
+        "required": ["typeName"]
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "count": { "type": "number" },
+          "implementors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string" },
+                "assembly": { "type": "string" },
+                "kind": { "type": "string" }
+              }
+            }
           }
         }
       }

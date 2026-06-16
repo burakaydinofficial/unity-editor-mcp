@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
+using UnityEditor;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
 using UnityEditorMCP.Core;
@@ -125,6 +127,7 @@ namespace UnityEditorMCP.Handlers
                     ["name"] = name,
                     ["count"] = total,
                     ["truncated"] = total > refs.Count,
+                    ["resolution"] = "syntactic",
                     ["references"] = refs,
                     ["note"] = "Textual (syntactic) identifier matches in code; comments and string literals are excluded, but there is no semantic resolution (same-named members across types/overloads are not disambiguated)."
                 });
@@ -163,6 +166,185 @@ namespace UnityEditorMCP.Handlers
                 });
             }
             catch (Exception e) { return Err($"Error getting symbol body: {e.Message}"); }
+        }
+
+        // ---- semantic-lite resolution (reflection + TypeCache over the compiled assemblies) ----
+        // NAME-based: resolves identifiers/types to their compiled metadata. It does NOT bind by source
+        // position (reflection has no source-location index) — same-named symbols are returned as a ranked
+        // candidate list. Source-level binding is the Roslyn sidecar's job (a later milestone).
+
+        public static HandlerOutcome ResolveSymbol(JObject p)
+        {
+            try
+            {
+                var name = p["name"]?.ToString();
+                // path+position only EXTRACT the token name (the syntactic layer); they do not disambiguate.
+                if (string.IsNullOrEmpty(name))
+                {
+                    var path = p["path"]?.ToString();
+                    var pos = p["position"] as JObject;
+                    if (!string.IsNullOrEmpty(path) && pos != null)
+                    {
+                        var full = ResolveScript(path);
+                        if (full != null && File.Exists(full))
+                            name = IdentifierAt(File.ReadAllText(full), pos["line"]?.ToObject<int>() ?? 0, pos["column"]?.ToObject<int>() ?? 0);
+                    }
+                }
+                if (string.IsNullOrEmpty(name))
+                    return Err("Provide `name`, or `path`+`position` resolving to an identifier", "VALIDATION_ERROR");
+
+                var max = Math.Max(1, Math.Min(p["maxResults"]?.ToObject<int?>() ?? 50, MaxResultsCeiling));
+                var candidates = new JArray();
+                foreach (var t in EnumerateLoadedTypes())
+                {
+                    if (candidates.Count >= max) break;
+                    if (t.Name == name)
+                        candidates.Add(new JObject {
+                            ["type"] = t.FullName, ["kind"] = "type",
+                            ["signature"] = t.FullName, ["visibility"] = t.IsPublic ? "public" : "internal",
+                            ["assembly"] = t.Assembly.GetName().Name });
+                    MemberInfo[] members;
+                    try { members = t.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly); }
+                    catch { continue; } // skip types whose members can't be reflected
+                    foreach (var m in members)
+                    {
+                        if (candidates.Count >= max) break;
+                        if (m.Name != name) continue;
+                        candidates.Add(new JObject {
+                            ["type"] = t.FullName, ["member"] = m.Name, ["kind"] = MemberKind(m),
+                            ["signature"] = MemberSignature(m), ["visibility"] = MemberVisibility(m),
+                            ["assembly"] = t.Assembly.GetName().Name });
+                    }
+                }
+                return HandlerOutcome.Ok(new JObject { ["name"] = name, ["count"] = candidates.Count, ["candidates"] = candidates });
+            }
+            catch (Exception e) { return Err($"Error resolving symbol: {e.Message}"); }
+        }
+
+        public static HandlerOutcome GetTypeMembers(JObject p)
+        {
+            try
+            {
+                var typeName = p["typeName"]?.ToString();
+                if (string.IsNullOrEmpty(typeName)) return Err("Missing required parameter: typeName", "VALIDATION_ERROR");
+                var type = FindTypeByName(typeName);
+                if (type == null) return Err($"Type not found: {typeName}", "NOT_FOUND");
+                var includeInherited = p["includeInherited"]?.ToObject<bool?>() ?? false;
+                var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+                if (!includeInherited) flags |= BindingFlags.DeclaredOnly;
+
+                var members = new JArray();
+                foreach (var m in type.GetMembers(flags))
+                {
+                    if (m is MethodInfo mi && mi.IsSpecialName) continue; // skip property get_/set_ accessors
+                    var attrs = new JArray();
+                    foreach (var a in m.GetCustomAttributes(false)) attrs.Add(a.GetType().Name);
+                    members.Add(new JObject {
+                        ["name"] = m.Name, ["kind"] = MemberKind(m), ["signature"] = MemberSignature(m),
+                        ["visibility"] = MemberVisibility(m), ["attributes"] = attrs });
+                }
+                return HandlerOutcome.Ok(new JObject { ["type"] = type.FullName, ["count"] = members.Count, ["members"] = members });
+            }
+            catch (Exception e) { return Err($"Error reading type members: {e.Message}"); }
+        }
+
+        public static HandlerOutcome FindImplementations(JObject p)
+        {
+            try
+            {
+                var typeName = p["typeName"]?.ToString();
+                if (string.IsNullOrEmpty(typeName)) return Err("Missing required parameter: typeName", "VALIDATION_ERROR");
+                var type = FindTypeByName(typeName);
+                if (type == null) return Err($"Type not found: {typeName}", "NOT_FOUND");
+
+                var implementors = new JArray();
+                // TypeCache.GetTypesDerivedFrom covers both subclasses and interface implementors.
+                foreach (var t in TypeCache.GetTypesDerivedFrom(type))
+                    implementors.Add(new JObject {
+                        ["type"] = t.FullName, ["assembly"] = t.Assembly.GetName().Name,
+                        ["kind"] = t.IsInterface ? "interface" : (t.IsAbstract ? "abstract" : "class") });
+                return HandlerOutcome.Ok(new JObject { ["type"] = type.FullName, ["count"] = implementors.Count, ["implementors"] = implementors });
+            }
+            catch (Exception e) { return Err($"Error finding implementations: {e.Message}"); }
+        }
+
+        private static IEnumerable<Type> EnumerateLoadedTypes()
+        {
+            // No global type cap: user/project assemblies enumerate AFTER the framework ones, so a count
+            // ceiling would truncate before reaching them. Result size is bounded by each command's caps.
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type[] types;
+                try { types = asm.GetTypes(); }
+                catch (ReflectionTypeLoadException ex) { types = ex.Types; } // tolerate partially-loadable assemblies
+                catch { continue; }
+                foreach (var t in types)
+                {
+                    if (t == null) continue;
+                    yield return t;
+                }
+            }
+        }
+
+        private static Type FindTypeByName(string typeName)
+        {
+            Type firstSimple = null;
+            foreach (var t in EnumerateLoadedTypes())
+            {
+                if (t.FullName == typeName) return t;
+                if (firstSimple == null && t.Name == typeName) firstSimple = t;
+            }
+            return firstSimple;
+        }
+
+        private static string MemberKind(MemberInfo m)
+        {
+            switch (m)
+            {
+                case MethodInfo _: return "method";
+                case PropertyInfo _: return "property";
+                case FieldInfo _: return "field";
+                case EventInfo _: return "event";
+                case ConstructorInfo _: return "constructor";
+                case Type _: return "type";
+                default: return "member";
+            }
+        }
+
+        private static string MemberSignature(MemberInfo m)
+        {
+            if (m is MethodInfo mi)
+                return $"{mi.ReturnType.Name} {mi.Name}({string.Join(", ", Array.ConvertAll(mi.GetParameters(), x => x.ParameterType.Name + " " + x.Name))})";
+            if (m is PropertyInfo pi) return $"{pi.PropertyType.Name} {pi.Name}";
+            if (m is FieldInfo fi) return $"{fi.FieldType.Name} {fi.Name}";
+            return m.Name;
+        }
+
+        private static string MemberVisibility(MemberInfo m)
+        {
+            switch (m)
+            {
+                case MethodInfo mi: return mi.IsPublic ? "public" : (mi.IsPrivate ? "private" : "internal");
+                case FieldInfo fi: return fi.IsPublic ? "public" : (fi.IsPrivate ? "private" : "internal");
+                default: return "n/a";
+            }
+        }
+
+        // Extract the identifier token covering (line, column); both 1-based.
+        private static string IdentifierAt(string src, int line, int column)
+        {
+            if (line < 1 || column < 1) return null;
+            var lines = src.Replace("\r\n", "\n").Split('\n');
+            if (line > lines.Length) return null;
+            var text = lines[line - 1];
+            int i = column - 1;
+            if (i < 0 || i >= text.Length) return null;
+            bool IsIdent(char c) => char.IsLetterOrDigit(c) || c == '_';
+            if (!IsIdent(text[i])) return null;
+            int start = i, end = i;
+            while (start > 0 && IsIdent(text[start - 1])) start--;
+            while (end + 1 < text.Length && IsIdent(text[end + 1])) end++;
+            return text.Substring(start, end - start + 1);
         }
 
         // ---- core extraction ----

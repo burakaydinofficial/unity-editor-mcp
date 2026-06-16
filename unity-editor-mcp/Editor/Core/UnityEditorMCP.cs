@@ -90,6 +90,9 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("find_symbol", CodeIntelligenceHandler.FindSymbol);
             dispatcher.Register("find_references", CodeIntelligenceHandler.FindReferences);
             dispatcher.Register("get_symbol_body", CodeIntelligenceHandler.GetSymbolBody);
+            dispatcher.Register("resolve_symbol", CodeIntelligenceHandler.ResolveSymbol);
+            dispatcher.Register("get_type_members", CodeIntelligenceHandler.GetTypeMembers);
+            dispatcher.Register("find_implementations", CodeIntelligenceHandler.FindImplementations);
             dispatcher.Register("find_ui_elements", UIInteractionHandler.FindUIElements);
             dispatcher.Register("click_ui_element", UIInteractionHandler.ClickUIElement);
             dispatcher.Register("get_ui_element_state", UIInteractionHandler.GetUIElementState);
