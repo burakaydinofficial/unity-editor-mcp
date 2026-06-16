@@ -474,6 +474,23 @@
       }
     },
     {
+      "name": "export_roslyn_model",
+      "category": "code",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Export Unity's CompilationPipeline project model (per-assembly source paths, reference dll paths, defines) to Library/UnityEditorMCP/roslyn-model.json for the out-of-process Roslyn sidecar. Returns the written path + a generation id.",
+      "params": { "type": "object", "properties": {} },
+      "result": {
+        "type": "object",
+        "properties": {
+          "modelPath": { "type": "string" },
+          "generation": { "type": "number" },
+          "assemblies": { "type": "number" }
+        }
+      }
+    },
+    {
       "name": "get_editor_info",
       "category": "system",
       "sides": ["editor"],
