@@ -230,7 +230,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": false,
-      "description": "Find textual references to an identifier across the project Assets scripts (comments and string literals excluded). Syntactic: same-named members across types/overloads are not disambiguated. Returns file, line, and the matching line text.",
+      "description": "Find textual references to an identifier across the project Assets scripts (comments and string literals excluded). Syntactic: same-named members across types/overloads are not disambiguated. Returns file, line, the matching line text, and resolution=\"syntactic\".",
       "params": {
         "type": "object",
         "properties": {
@@ -373,6 +373,7 @@
         "properties": {
           "name": { "type": "string" },
           "count": { "type": "number" },
+          "truncated": { "type": "boolean", "description": "True if the type scan hit its ceiling before exhausting all loaded types." },
           "candidates": {
             "type": "array",
             "items": {
@@ -402,7 +403,7 @@
         "properties": {
           "typeName": {
             "type": "string",
-            "description": "Simple or full type name (e.g. \"Player\" or \"MyGame.Player\")."
+            "description": "Simple or full type name (e.g. \"Player\" or \"MyGame.Player\"). A simple name resolves to the FIRST match; the result flags \"ambiguous\" when several types share it — pass a full name to disambiguate."
           },
           "includeInherited": {
             "type": "boolean",
@@ -416,6 +417,8 @@
         "properties": {
           "type": { "type": "string" },
           "count": { "type": "number" },
+          "ambiguous": { "type": "boolean", "description": "True if the simple typeName matched several types; \"type\" is the first match." },
+          "ambiguousMatches": { "type": "number" },
           "members": {
             "type": "array",
             "items": {
@@ -444,7 +447,7 @@
         "properties": {
           "typeName": {
             "type": "string",
-            "description": "Simple or full class/interface name."
+            "description": "Simple or full class/interface name. A simple name resolves to the FIRST match; the result flags \"ambiguous\" when several types share it — pass a full name to disambiguate."
           }
         },
         "required": ["typeName"]
@@ -454,6 +457,8 @@
         "properties": {
           "type": { "type": "string" },
           "count": { "type": "number" },
+          "ambiguous": { "type": "boolean", "description": "True if the simple typeName matched several types; \"type\" is the first match." },
+          "ambiguousMatches": { "type": "number" },
           "implementors": {
             "type": "array",
             "items": {

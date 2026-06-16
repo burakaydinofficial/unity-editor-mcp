@@ -8,6 +8,7 @@ namespace UnityEditorMCP.Tests
     public interface ICodeIntelFixture { void Ping(); }
     public class CodeIntelFixtureBase : ICodeIntelFixture { public int Health; public void Ping() { } }
     public class CodeIntelFixtureDerived : CodeIntelFixtureBase { public void Attack(int power) { } }
+    public class CodeIntelFixtureOther { public void Attack() { } protected void Guard() { } } // shares "Attack"; has a protected member
 
     /// <summary>
     /// Lite (name-based) semantic resolution over Unity's compiled assemblies (reflection + TypeCache).
@@ -35,9 +36,15 @@ namespace UnityEditorMCP.Tests
             Assert.IsFalse(outcome.IsError, outcome.Error);
             var data = JObject.FromObject(outcome.Payload);
             var found = false;
+            var attackCount = 0;
             foreach (var c in (JArray)data["candidates"])
-                if ((string)c["member"] == "Attack" && (string)c["type"] == "UnityEditorMCP.Tests.CodeIntelFixtureDerived") found = true;
+                if ((string)c["member"] == "Attack")
+                {
+                    attackCount++;
+                    if ((string)c["type"] == "UnityEditorMCP.Tests.CodeIntelFixtureDerived") found = true;
+                }
             Assert.IsTrue(found, "Attack must resolve to its declaring type");
+            Assert.GreaterOrEqual(attackCount, 2, "Attack is on two fixture types — name-based resolution returns both (ambiguous)");
         }
 
         [Test]
@@ -74,10 +81,14 @@ namespace UnityEditorMCP.Tests
             var outcome = CodeIntelligenceHandler.FindImplementations(new JObject { ["typeName"] = "ICodeIntelFixture" });
             Assert.IsFalse(outcome.IsError, outcome.Error);
             var data = JObject.FromObject(outcome.Payload);
-            var found = false;
+            var foundBase = false; var foundDerived = false;
             foreach (var x in (JArray)data["implementors"])
-                if ((string)x["type"] == "UnityEditorMCP.Tests.CodeIntelFixtureBase") found = true;
-            Assert.IsTrue(found, "CodeIntelFixtureBase implements ICodeIntelFixture");
+            {
+                if ((string)x["type"] == "UnityEditorMCP.Tests.CodeIntelFixtureBase") foundBase = true;
+                if ((string)x["type"] == "UnityEditorMCP.Tests.CodeIntelFixtureDerived") foundDerived = true;
+            }
+            Assert.IsTrue(foundBase, "CodeIntelFixtureBase implements ICodeIntelFixture");
+            Assert.IsTrue(foundDerived, "CodeIntelFixtureDerived (subclass) also implements ICodeIntelFixture");
         }
 
         [Test]
@@ -87,6 +98,39 @@ namespace UnityEditorMCP.Tests
             Assert.IsFalse(outcome.IsError, outcome.Error);
             var data = JObject.FromObject(outcome.Payload);
             Assert.AreEqual("syntactic", (string)data["resolution"]);
+            Assert.IsNotNull(data["references"], "references array must be present");
+        }
+
+        [Test]
+        public void ResolveSymbol_MaxResults_CapsCandidates()
+        {
+            var outcome = CodeIntelligenceHandler.ResolveSymbol(new JObject { ["name"] = "Update", ["maxResults"] = 1 });
+            Assert.IsFalse(outcome.IsError, outcome.Error);
+            var data = JObject.FromObject(outcome.Payload);
+            Assert.LessOrEqual((int)data["count"], 1, "maxResults must cap the candidate count");
+        }
+
+        [Test]
+        public void GetTypeMembers_ReportsProtectedVisibility()
+        {
+            var outcome = CodeIntelligenceHandler.GetTypeMembers(new JObject { ["typeName"] = "CodeIntelFixtureOther" });
+            Assert.IsFalse(outcome.IsError, outcome.Error);
+            var data = JObject.FromObject(outcome.Payload);
+            var guardIsProtected = false;
+            foreach (var m in (JArray)data["members"])
+                if ((string)m["name"] == "Guard" && (string)m["visibility"] == "protected") guardIsProtected = true;
+            Assert.IsTrue(guardIsProtected, "a protected method must report visibility \"protected\", not \"internal\"");
+        }
+
+        [Test]
+        public void GetTypeMembers_SimpleNameCollision_FlagsAmbiguous()
+        {
+            // "Object" exists as System.Object, UnityEngine.Object, ... — a simple-name collision.
+            var outcome = CodeIntelligenceHandler.GetTypeMembers(new JObject { ["typeName"] = "Object" });
+            Assert.IsFalse(outcome.IsError, outcome.Error);
+            var data = JObject.FromObject(outcome.Payload);
+            Assert.IsTrue(data["ambiguous"] != null && (bool)data["ambiguous"], "\"Object\" collides across namespaces -> ambiguous");
+            Assert.GreaterOrEqual((int)data["ambiguousMatches"], 2);
         }
     }
 }

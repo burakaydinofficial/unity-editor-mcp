@@ -186,7 +186,7 @@ namespace UnityEditorMCP.Handlers
                     if (!string.IsNullOrEmpty(path) && pos != null)
                     {
                         var full = ResolveScript(path);
-                        if (full != null && File.Exists(full))
+                        if (full != null && File.Exists(full) && new FileInfo(full).Length <= MaxFileBytes)
                             name = IdentifierAt(File.ReadAllText(full), pos["line"]?.ToObject<int>() ?? 0, pos["column"]?.ToObject<int>() ?? 0);
                     }
                 }
@@ -194,10 +194,14 @@ namespace UnityEditorMCP.Handlers
                     return Err("Provide `name`, or `path`+`position` resolving to an identifier", "VALIDATION_ERROR");
 
                 var max = Math.Max(1, Math.Min(p["maxResults"]?.ToObject<int?>() ?? 50, MaxResultsCeiling));
+                const int scanCeiling = 50000; // bound the absent/rare-name scan (separate from the result cap)
                 var candidates = new JArray();
+                int scanned = 0;
+                bool truncated = false;
                 foreach (var t in EnumerateLoadedTypes())
                 {
                     if (candidates.Count >= max) break;
+                    if (++scanned > scanCeiling) { truncated = true; break; }
                     if (t.Name == name)
                         candidates.Add(new JObject {
                             ["type"] = t.FullName, ["kind"] = "type",
@@ -216,7 +220,7 @@ namespace UnityEditorMCP.Handlers
                             ["assembly"] = t.Assembly.GetName().Name });
                     }
                 }
-                return HandlerOutcome.Ok(new JObject { ["name"] = name, ["count"] = candidates.Count, ["candidates"] = candidates });
+                return HandlerOutcome.Ok(new JObject { ["name"] = name, ["count"] = candidates.Count, ["truncated"] = truncated, ["candidates"] = candidates });
             }
             catch (Exception e) { return Err($"Error resolving symbol: {e.Message}"); }
         }
@@ -227,7 +231,7 @@ namespace UnityEditorMCP.Handlers
             {
                 var typeName = p["typeName"]?.ToString();
                 if (string.IsNullOrEmpty(typeName)) return Err("Missing required parameter: typeName", "VALIDATION_ERROR");
-                var type = FindTypeByName(typeName);
+                var type = FindTypeByName(typeName, out int matchCount);
                 if (type == null) return Err($"Type not found: {typeName}", "NOT_FOUND");
                 var includeInherited = p["includeInherited"]?.ToObject<bool?>() ?? false;
                 var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
@@ -238,12 +242,15 @@ namespace UnityEditorMCP.Handlers
                 {
                     if (m is MethodInfo mi && mi.IsSpecialName) continue; // skip property get_/set_ accessors
                     var attrs = new JArray();
-                    foreach (var a in m.GetCustomAttributes(false)) attrs.Add(a.GetType().Name);
+                    try { foreach (var a in m.GetCustomAttributes(false)) attrs.Add(a.GetType().Name); }
+                    catch { /* skip attributes whose type can't be loaded */ }
                     members.Add(new JObject {
                         ["name"] = m.Name, ["kind"] = MemberKind(m), ["signature"] = MemberSignature(m),
                         ["visibility"] = MemberVisibility(m), ["attributes"] = attrs });
                 }
-                return HandlerOutcome.Ok(new JObject { ["type"] = type.FullName, ["count"] = members.Count, ["members"] = members });
+                var result = new JObject { ["type"] = type.FullName, ["count"] = members.Count, ["members"] = members };
+                if (matchCount > 1) { result["ambiguous"] = true; result["ambiguousMatches"] = matchCount; }
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception e) { return Err($"Error reading type members: {e.Message}"); }
         }
@@ -254,25 +261,39 @@ namespace UnityEditorMCP.Handlers
             {
                 var typeName = p["typeName"]?.ToString();
                 if (string.IsNullOrEmpty(typeName)) return Err("Missing required parameter: typeName", "VALIDATION_ERROR");
-                var type = FindTypeByName(typeName);
+                var type = FindTypeByName(typeName, out int matchCount);
                 if (type == null) return Err($"Type not found: {typeName}", "NOT_FOUND");
 
                 var implementors = new JArray();
                 // TypeCache.GetTypesDerivedFrom covers both subclasses and interface implementors.
                 foreach (var t in TypeCache.GetTypesDerivedFrom(type))
+                {
+                    if (t.FullName == null) continue;
                     implementors.Add(new JObject {
                         ["type"] = t.FullName, ["assembly"] = t.Assembly.GetName().Name,
                         ["kind"] = t.IsInterface ? "interface" : (t.IsAbstract ? "abstract" : "class") });
-                return HandlerOutcome.Ok(new JObject { ["type"] = type.FullName, ["count"] = implementors.Count, ["implementors"] = implementors });
+                }
+                var result = new JObject { ["type"] = type.FullName, ["count"] = implementors.Count, ["implementors"] = implementors };
+                if (matchCount > 1) { result["ambiguous"] = true; result["ambiguousMatches"] = matchCount; }
+                return HandlerOutcome.Ok(result);
             }
             catch (Exception e) { return Err($"Error finding implementations: {e.Message}"); }
         }
 
+        // BCL/framework assemblies are huge and rarely the search target — order them LAST so name lookups
+        // hit user/Unity/package types first (the scan ceiling then caps the framework tail, not user code).
+        private static bool IsFrameworkAssembly(string name) =>
+            name == "mscorlib" || name == "netstandard" ||
+            name.StartsWith("System", StringComparison.Ordinal) ||
+            name.StartsWith("Mono.", StringComparison.Ordinal) ||
+            name.StartsWith("Microsoft.", StringComparison.Ordinal) ||
+            name.StartsWith("nunit", StringComparison.Ordinal);
+
         private static IEnumerable<Type> EnumerateLoadedTypes()
         {
-            // No global type cap: user/project assemblies enumerate AFTER the framework ones, so a count
-            // ceiling would truncate before reaching them. Result size is bounded by each command's caps.
-            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            var ordered = AppDomain.CurrentDomain.GetAssemblies()
+                .OrderBy(a => IsFrameworkAssembly(a.GetName().Name) ? 1 : 0);
+            foreach (var asm in ordered)
             {
                 Type[] types;
                 try { types = asm.GetTypes(); }
@@ -280,21 +301,25 @@ namespace UnityEditorMCP.Handlers
                 catch { continue; }
                 foreach (var t in types)
                 {
-                    if (t == null) continue;
+                    if (t == null || t.FullName == null) continue; // skip generic-parameter / unnamed types
                     yield return t;
                 }
             }
         }
 
-        private static Type FindTypeByName(string typeName)
+        // Resolve a simple or full type name; an exact FullName match wins, else the first simple-name match.
+        // simpleMatchCount > 1 signals an undisclosed collision the caller should disambiguate with a full name.
+        private static Type FindTypeByName(string typeName, out int simpleMatchCount)
         {
-            Type firstSimple = null;
+            Type exact = null, firstSimple = null;
+            int simple = 0;
             foreach (var t in EnumerateLoadedTypes())
             {
-                if (t.FullName == typeName) return t;
-                if (firstSimple == null && t.Name == typeName) firstSimple = t;
+                if (exact == null && t.FullName == typeName) exact = t;
+                if (t.Name == typeName) { simple++; if (firstSimple == null) firstSimple = t; }
             }
-            return firstSimple;
+            simpleMatchCount = exact != null ? 1 : simple; // an exact full-name match is unambiguous
+            return exact ?? firstSimple;
         }
 
         private static string MemberKind(MemberInfo m)
@@ -324,10 +349,24 @@ namespace UnityEditorMCP.Handlers
         {
             switch (m)
             {
-                case MethodInfo mi: return mi.IsPublic ? "public" : (mi.IsPrivate ? "private" : "internal");
-                case FieldInfo fi: return fi.IsPublic ? "public" : (fi.IsPrivate ? "private" : "internal");
+                case MethodBase mb: return AccessLevel(mb.IsPublic, mb.IsPrivate, mb.IsFamily, mb.IsFamilyOrAssembly, mb.IsFamilyAndAssembly);
+                case FieldInfo fi: return AccessLevel(fi.IsPublic, fi.IsPrivate, fi.IsFamily, fi.IsFamilyOrAssembly, fi.IsFamilyAndAssembly);
+                case PropertyInfo pi:
+                    var acc = pi.GetMethod ?? pi.SetMethod;
+                    return acc != null ? AccessLevel(acc.IsPublic, acc.IsPrivate, acc.IsFamily, acc.IsFamilyOrAssembly, acc.IsFamilyAndAssembly) : "n/a";
                 default: return "n/a";
             }
+        }
+
+        // Map the reflection access flags to the C# keyword. Exactly one flag is set per member.
+        private static string AccessLevel(bool pub, bool priv, bool fam, bool famOrAsm, bool famAndAsm)
+        {
+            if (pub) return "public";
+            if (priv) return "private";
+            if (famAndAsm) return "private protected";
+            if (famOrAsm) return "protected internal";
+            if (fam) return "protected";
+            return "internal";
         }
 
         // Extract the identifier token covering (line, column); both 1-based.
