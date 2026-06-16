@@ -90,12 +90,16 @@ function httpsGetJson(url) {
 function defaultDownload(url, dest) {
   return new Promise((resolve, reject) => {
     const file = createWriteStream(dest);
+    let settled = false;
+    const fail = (e) => { if (settled) return; settled = true; file.destroy(); fs.rm(dest, { force: true }).catch(() => {}).finally(() => reject(e)); };
     const go = (u) => https.get(u, { headers: { 'User-Agent': 'unity-editor-mcp' } }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) { go(res.headers.location); return; }
-      if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
+      if (res.statusCode !== 200) { fail(new Error(`HTTP ${res.statusCode}`)); return; }
+      res.on('error', fail);
       res.pipe(file);
-      file.on('finish', () => file.close(() => resolve()));
-    }).on('error', reject);
+      file.on('finish', () => { if (settled) return; settled = true; file.close(() => resolve()); });
+    }).on('error', fail);
+    file.on('error', fail);
     go(url);
   });
 }
@@ -116,15 +120,13 @@ export async function ensureBinary({ version = SIDECAR_VERSION, fetchManifest = 
     await fs.mkdir(path.dirname(binPath), { recursive: true });
     const manifest = await fetchManifest(version);
     const asset = manifest && manifest.assets && manifest.assets[rid];
-    if (!asset || !asset.url) return null;
+    if (!asset || !asset.url || !asset.sha256) return null; // refuse an asset with no integrity hash — never spawn unverified
     await download(asset.url, binPath);
-    if (asset.sha256) {
-      const sha = createHash('sha256').update(await fs.readFile(binPath)).digest('hex');
-      if (sha.toLowerCase() !== String(asset.sha256).toLowerCase()) { await fs.rm(binPath, { force: true }); return null; }
-    }
+    const sha = createHash('sha256').update(await fs.readFile(binPath)).digest('hex');
+    if (sha.toLowerCase() !== String(asset.sha256).toLowerCase()) { await fs.rm(binPath, { force: true }); return null; }
     if (process.platform !== 'win32') await fs.chmod(binPath, 0o755);
     return binPath;
-  } catch { return null; } // network/hash/fs failure → unavailable
+  } catch { try { await fs.rm(binPath, { force: true }); } catch { /* ignore */ } return null; } // clean up any partial download
 }
 
 /**
@@ -136,6 +138,7 @@ export function makeRoslynClientFactory(deps = {}) {
   const spawnFn = deps.spawn || cpSpawn;
   const readModel = deps.readModel || ((p) => fs.readFile(p, 'utf8'));
   return async (conn) => {
+    let client = null, child = null;
     try {
       const exportRes = await conn.sendCommand('export_roslyn_model', {});
       const modelPath = exportRes && exportRes.modelPath;
@@ -143,12 +146,15 @@ export function makeRoslynClientFactory(deps = {}) {
       const modelJson = await readModel(modelPath);
       const binPath = await ensure();
       if (!binPath) return null;
-      const child = spawnFn(binPath, [], { stdio: ['pipe', 'pipe', 'pipe'] });
-      const client = new RoslynSidecarClient(child);
+      child = spawnFn(binPath, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+      client = new RoslynSidecarClient(child);
       await client.call('load_model', { modelJson });
       return client; // satisfies the RoslynManager client contract: call(tool, params) + dispose()
     } catch {
-      return null; // export failed / spawn failed / load failed → unavailable (lite still works)
+      // export/spawn/load failed → unavailable; dispose any spawned child so no zombie sidecar is left running
+      if (client) { try { await client.dispose(); } catch { /* ignore */ } }
+      else if (child && child.kill) { try { child.kill(); } catch { /* ignore */ } }
+      return null;
     }
   };
 }

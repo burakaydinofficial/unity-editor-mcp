@@ -51,6 +51,7 @@ public sealed class RpcServer
             return JsonSerializer.Serialize(new RpcOk(id, result));
         }
         catch (RpcException re) { return ErrorEnvelope(id, re.Code, re.Message); }
+        catch (Exception e) { return ErrorEnvelope(id, "INTERNAL", e.Message); } // any other failure keeps the id correlated
     }
 
     internal void SetSolution(Microsoft.CodeAnalysis.Solution s) => _solution = s;

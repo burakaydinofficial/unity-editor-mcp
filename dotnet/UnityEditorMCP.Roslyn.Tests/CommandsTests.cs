@@ -103,4 +103,38 @@ public class CommandsTests
         Assert.Contains(res.GetProperty("derived").EnumerateArray().Select(d => d.GetString()), s => s!.Contains("Boss"));
         Assert.Contains(res.GetProperty("interfaces").EnumerateArray().Select(d => d.GetString()), s => s!.Contains("IDamageable"));
     }
+
+    [Fact]
+    public async Task RenameSymbol_InvalidNewName_ThrowsBadParams()
+    {
+        var (json, srcPath) = WriteModel(Source);
+        var sol = WorkspaceBuilder.Build(json);
+        var (l, c) = PosOf(Source, "Health", 1);
+        var ex = await Assert.ThrowsAsync<RpcException>(() =>
+            Commands.RenameSymbolAsync(sol, Pars(new { path = srcPath, position = new { line = l, column = c }, newName = "1bad", dryRun = true })));
+        Assert.Equal("BAD_PARAMS", ex.Code);
+    }
+
+    [Fact]
+    public async Task RenameSymbol_Apply_WritesTheRenamedFileAndCleansTemp()
+    {
+        var (json, srcPath) = WriteModel(Source);
+        var sol = WorkspaceBuilder.Build(json);
+        var (l, c) = PosOf(Source, "Health", 1);
+        var res = Json(await Commands.RenameSymbolAsync(sol, Pars(new { path = srcPath, position = new { line = l, column = c }, newName = "Hp", dryRun = false })));
+        Assert.True(res.GetProperty("applied").GetBoolean());
+        var written = File.ReadAllText(srcPath);
+        Assert.Contains("Hp", written);
+        Assert.DoesNotContain("Health", written);
+        Assert.False(File.Exists(srcPath + ".uemcp.tmp")); // staged temp replaced atomically, not left behind
+    }
+
+    [Fact]
+    public async Task GotoDefinition_OutOfRangePosition_ReturnsNullNotCrash()
+    {
+        var (json, srcPath) = WriteModel(Source);
+        var sol = WorkspaceBuilder.Build(json);
+        var res = Json(await Commands.GotoDefinitionAsync(sol, Pars(new { path = srcPath, position = new { line = 0, column = 0 } })));
+        Assert.Equal(JsonValueKind.Null, res.GetProperty("definition").ValueKind);
+    }
 }

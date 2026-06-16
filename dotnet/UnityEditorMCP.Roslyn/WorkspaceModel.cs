@@ -27,7 +27,7 @@ public static class WorkspaceBuilder
                     ?? throw new RpcException("BAD_MODEL", "model json did not deserialize");
         var workspace = new AdhocWorkspace();
         var solution = workspace.CurrentSolution;
-        foreach (var asm in model.Assemblies)
+        foreach (var asm in model.Assemblies ?? Array.Empty<ProjectModel>())
         {
             var projectId = ProjectId.CreateNewId(asm.Name);
             var langVersion = LanguageVersion.CSharp8;
@@ -39,7 +39,11 @@ public static class WorkspaceBuilder
                 compilationOptions: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary),
                 metadataReferences: (asm.References ?? Array.Empty<string>()).Where(File.Exists).Select(r => (MetadataReference)MetadataReference.CreateFromFile(r))));
             foreach (var src in (asm.SourceFiles ?? Array.Empty<string>()).Where(File.Exists))
-                solution = solution.AddDocument(DocumentId.CreateNewId(projectId), Path.GetFileName(src), SourceText.From(File.ReadAllText(src)), filePath: src);
+            {
+                SourceText sourceText;
+                using (var stream = File.OpenRead(src)) sourceText = SourceText.From(stream); // detect BOM/encoding for round-trip
+                solution = solution.AddDocument(DocumentId.CreateNewId(projectId), Path.GetFileName(src), sourceText, filePath: src);
+            }
         }
         return solution;
     }

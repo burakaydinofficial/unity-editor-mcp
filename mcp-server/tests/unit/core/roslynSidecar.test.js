@@ -79,6 +79,22 @@ describe('makeRoslynClientFactory', () => {
     assert.equal(await factory(conn), null);
   });
 
+  it('disposes the spawned child if load_model fails (no zombie sidecar)', async () => {
+    const child = fakeChild();
+    const origWrite = child.stdin.write.bind(child.stdin);
+    child.stdin.write = (s) => {
+      origWrite(s);
+      const req = JSON.parse(s);
+      if (req.method === 'load_model') queueMicrotask(() => child.stdout.emit('data', JSON.stringify({ id: req.id, error: { code: 'BAD_MODEL', message: 'bad' } }) + '\n'));
+      return true;
+    };
+    const factory = makeRoslynClientFactory({ ensureBinary: async () => '/fake/bin', readModel: async () => '{}', spawn: () => child });
+    const conn = { sendCommand: async () => ({ modelPath: '/x/model.json' }) };
+    const result = await factory(conn);
+    assert.equal(result, null);        // load failure -> unavailable
+    assert.equal(child.killed, true);  // and the child was disposed
+  });
+
   it('exports the model, spawns, loads, and returns the client when the binary is present', async () => {
     const child = fakeChild();
     let loaded = null;

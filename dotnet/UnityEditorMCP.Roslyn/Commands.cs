@@ -1,7 +1,10 @@
+using System.Text;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Rename;
+using Microsoft.CodeAnalysis.Text;
 
 namespace UnityEditorMCP.Roslyn;
 
@@ -24,6 +27,7 @@ public static partial class Commands
         if (solution == null) throw new RpcException("NO_MODEL", "call load_model first");
         var name = pars.GetProperty("name").GetString()!;
         var refs = new List<object>();
+        var seen = new HashSet<string>();
         foreach (var project in solution.Projects)
         {
             var comp = await project.GetCompilationAsync();
@@ -34,7 +38,9 @@ public static partial class Commands
                     foreach (var loc in r.Locations)
                     {
                         var span = loc.Location.GetLineSpan();
-                        refs.Add(new { path = span.Path, line = span.StartLinePosition.Line + 1, column = span.StartLinePosition.Character + 1 });
+                        int line = span.StartLinePosition.Line + 1, col = span.StartLinePosition.Character + 1;
+                        if (seen.Add($"{span.Path}:{line}:{col}")) // a symbol surfaces in every project that references it — dedupe
+                            refs.Add(new { path = span.Path, line, column = col });
                     }
             }
         }
@@ -84,24 +90,55 @@ public static partial class Commands
         var newName = pars.GetProperty("newName").GetString()!;
         var dryRun = pars.TryGetProperty("dryRun", out var dr) && dr.GetBoolean();
 
+        if (!SyntaxFacts.IsValidIdentifier(newName))
+            throw new RpcException("BAD_PARAMS", $"'{newName}' is not a valid C# identifier");
+
         var (_, symbol) = await ResolveSymbolAt(solution, path, pos.GetProperty("line").GetInt32(), pos.GetProperty("column").GetInt32());
         if (symbol == null) throw new RpcException("NO_SYMBOL", "no renameable symbol at the position");
+        if (!symbol.Locations.Any(l => l.IsInSource))
+            throw new RpcException("NO_SYMBOL", "symbol is defined in metadata (not source) — cannot rename");
 
         var newSolution = await Renamer.RenameSymbolAsync(solution, symbol, new SymbolRenameOptions(), newName);
 
         var edits = new List<object>();
-        var changed = new List<(string path, string text)>();
+        var writes = new List<(string path, SourceText text)>();
         foreach (var projChange in newSolution.GetChanges(solution).GetProjectChanges())
             foreach (var docId in projChange.GetChangedDocuments())
             {
                 var newDoc = newSolution.GetDocument(docId)!;
-                var text = (await newDoc.GetTextAsync()).ToString();
-                edits.Add(new { path = newDoc.FilePath ?? newDoc.Name, newText = text });
-                if (newDoc.FilePath != null) changed.Add((newDoc.FilePath, text));
+                var sourceText = await newDoc.GetTextAsync();
+                edits.Add(new { path = newDoc.FilePath ?? newDoc.Name, newText = sourceText.ToString() });
+                if (newDoc.FilePath != null) writes.Add((newDoc.FilePath, sourceText)); // bounded to loaded model sources
             }
 
-        if (!dryRun) foreach (var (p, t) in changed) File.WriteAllText(p, t);
+        if (!dryRun) WriteEditsAtomically(writes);
         return new { applied = !dryRun, count = edits.Count, edits };
+    }
+
+    // Write renamed documents preserving each file's detected encoding (BOM-aware), staging to temp files
+    // first so a disk/permission failure modifies NO originals; then replacing atomically per file.
+    private static void WriteEditsAtomically(List<(string path, SourceText text)> writes)
+    {
+        var staged = new List<(string tmp, string dest)>();
+        try
+        {
+            foreach (var (dest, text) in writes)
+            {
+                var tmp = dest + ".uemcp.tmp";
+                File.WriteAllText(tmp, text.ToString(), text.Encoding ?? new UTF8Encoding(false));
+                staged.Add((tmp, dest));
+            }
+        }
+        catch
+        {
+            foreach (var (tmp, _) in staged) { try { File.Delete(tmp); } catch { /* ignore */ } }
+            throw new RpcException("WRITE_FAILED", "failed to stage renamed files; no originals were modified");
+        }
+        foreach (var (tmp, dest) in staged)
+        {
+            if (File.Exists(dest)) File.Replace(tmp, dest, null);
+            else File.Move(tmp, dest);
+        }
     }
 
     public static async Task<object> GetTypeHierarchyAsync(Solution? solution, JsonElement pars)
@@ -126,13 +163,16 @@ public static partial class Commands
     // Resolve the symbol referenced (or declared) at a 1-indexed line/column in a document.
     private static async Task<(Document? doc, ISymbol? symbol)> ResolveSymbolAt(Solution solution, string path, int line, int col)
     {
+        if (line < 1 || col < 1) return (null, null); // 1-indexed; reject 0/negative before indexing
         foreach (var project in solution.Projects)
         {
             var doc = project.Documents.FirstOrDefault(d => string.Equals(d.FilePath, path, StringComparison.OrdinalIgnoreCase));
             if (doc == null) continue;
             var text = await doc.GetTextAsync();
             if (line - 1 >= text.Lines.Count) continue;
-            var position = text.Lines[line - 1].Start + (col - 1);
+            var lineSpan = text.Lines[line - 1];
+            var position = lineSpan.Start + (col - 1);
+            if (position > lineSpan.End) continue; // column past end of line → not a valid position
             var model = await doc.GetSemanticModelAsync();
             var root = await doc.GetSyntaxRootAsync();
             if (model == null || root == null) continue;
