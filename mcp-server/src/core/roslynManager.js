@@ -5,10 +5,13 @@
  * sidecar backend is installed. Keyed by the resolved connection key (host:port) — Roslyn state is
  * per-editor.
  */
+import { makeRoslynClientFactory } from './roslynSidecar.js';
+
 export const ROSLYN_STATES = Object.freeze({ OFF: 'off', INDEXING: 'indexing', READY: 'ready', UNAVAILABLE: 'unavailable' });
 
-// Default: no sidecar backend present. Plan 3 swaps in a factory that spawns + connects the .NET process.
-async function defaultClientFactory() { return null; }
+// The real factory (Plan 3): export the editor model, ensure + spawn the sidecar, load the model. Returns
+// null on any failure (no binary / no network / unsupported platform) → start() reports 'unavailable'.
+const defaultClientFactory = makeRoslynClientFactory();
 
 export class RoslynManager {
   constructor(clientFactory = defaultClientFactory) {
