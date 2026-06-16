@@ -31,10 +31,13 @@ describe('list_unity_tools', () => {
   it('returns name/category/description by default (no extra params — lazy)', async () => {
     const h = new ListUnityToolsToolHandler(fakeManager());
     const r = await h.execute({ instance: '7000' });
-    assert.equal(r.count, 2);
-    assert.deepEqual(r.tools.map((t) => t.name).sort(), ['create_gameobject', 'ping']);
+    const names = r.tools.map((t) => t.name);
+    assert.ok(names.includes('create_gameobject') && names.includes('ping'), 'editor tools present');
     assert.equal(r.tools.find((t) => t.name === 'ping').category, 'system');
-    assert.ok(!('params' in r.tools[0]));
+    assert.ok(!('params' in r.tools.find((t) => t.name === 'ping')));
+    // Roslyn capability commands are advertised dynamically (Plan 2); gated ones carry requires + available.
+    const rename = r.tools.find((t) => t.name === 'rename_symbol');
+    assert.ok(rename && rename.requires === 'roslyn' && rename.available === false);
   });
 
   it('filters by category', async () => {
@@ -156,8 +159,10 @@ describe('graceful degradation (editor without a rich manifest)', () => {
     const h = new ListUnityToolsToolHandler(fakeManager({ conn: degradedConn() }));
     const r = await h.execute({ instance: '7000' });
     assert.equal(r.schemasAvailable, false);
-    assert.deepEqual(r.tools.map((t) => t.name).sort(), ['get_editor_state', 'ping']);
-    assert.equal(r.tools[0].category, null);
+    const names = r.tools.map((t) => t.name);
+    assert.ok(names.includes('get_editor_state') && names.includes('ping'), 'editor names present');
+    assert.equal(r.tools.find((t) => t.name === 'ping').category, null);
+    assert.ok(names.includes('start_roslyn'), 'Roslyn lifecycle is advertised even in degraded mode');
   });
 
   it('call_unity_tool invokes a names-only tool, passing params through without schema validation', async () => {
@@ -211,5 +216,43 @@ describe('Node-logic routing (ADR 0006)', () => {
     await h.execute({ instance: '7000', tool: 'execute_menu_item', params: { menuPath: 'GameObject/Create Empty' } });
     assert.equal(sent.type, 'execute_menu_item'); // the Node handler ran and forwarded after normalization
     assert.equal(sent.p.menuPath, 'GameObject/Create Empty');
+  });
+});
+
+describe('Roslyn capability framework (Plan 2)', () => {
+  const offRoslyn = () => ({ isReady: () => false, client: () => null, start: async () => 'unavailable', stop: async () => {}, statusOf: () => ({ state: 'off', error: null }) });
+  const readyRoslyn = (client) => ({ isReady: () => true, client: () => client, start: async () => 'ready', stop: async () => {}, statusOf: () => ({ state: 'ready', error: null }) });
+
+  it('call_unity_tool routes a gated Roslyn command to ROSLYN_NOT_READY when the backend is off', async () => {
+    const h = new CallUnityToolToolHandler(fakeManager(), offRoslyn());
+    const res = await h.handle({ instance: '7000', tool: 'rename_symbol', params: { path: 'A.cs', position: {}, newName: 'B' } });
+    assert.equal(res.status, 'error');
+    assert.match(res.error, /ROSLYN_NOT_READY|start_roslyn/);
+  });
+
+  it('call_unity_tool runs start_roslyn through the manager', async () => {
+    let started = false;
+    const roslyn = { ...offRoslyn(), start: async () => { started = true; return 'unavailable'; }, statusOf: () => ({ state: 'unavailable', error: 'Roslyn backend is not installed' }) };
+    const h = new CallUnityToolToolHandler(fakeManager(), roslyn);
+    const res = await h.handle({ instance: '7000', tool: 'start_roslyn' });
+    assert.equal(started, true);
+    assert.equal(res.status, 'success');
+    assert.equal(res.result.state, 'unavailable');
+  });
+
+  it('call_unity_tool proxies a gated command to the sidecar when ready', async () => {
+    const client = { call: async (tool, p) => ({ tool, p }) };
+    const h = new CallUnityToolToolHandler(fakeManager(), readyRoslyn(client));
+    const res = await h.handle({ instance: '7000', tool: 'rename_symbol', params: { path: 'A.cs', position: {}, newName: 'B' } });
+    assert.equal(res.status, 'success');
+    assert.equal(res.result.tool, 'rename_symbol');
+  });
+
+  it('list_unity_tools marks gated commands available when the backend is ready', async () => {
+    const h = new ListUnityToolsToolHandler(fakeManager(), readyRoslyn({}));
+    const r = await h.execute({ instance: '7000' });
+    const rename = r.tools.find((t) => t.name === 'rename_symbol');
+    assert.ok(rename && rename.requires === 'roslyn');
+    assert.equal(rename.available, true);
   });
 });

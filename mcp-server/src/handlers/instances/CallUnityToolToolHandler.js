@@ -2,6 +2,8 @@ import { BaseToolHandler } from '../base/BaseToolHandler.js';
 import { validateAgainstSchema } from '../../core/schemaValidator.js';
 import { editorToolSurface } from '../../core/editorToolSurface.js';
 import { NODE_LOGIC_TOOLS, isNodeLogicTool } from '../../core/nodeLogicTools.js';
+import { roslynManager } from '../../core/roslynManager.js';
+import { roslynDispatch, NOT_HANDLED } from '../../core/roslynTools.js';
 
 /**
  * Invokes any tool a connected Unity editor supports, by name — the generic dispatch half of the
@@ -10,7 +12,7 @@ import { NODE_LOGIC_TOOLS, isNodeLogicTool } from '../../core/nodeLogicTools.js'
  * the editor-advertised schema before the call, with precise field-pathed errors for self-correction.
  */
 export class CallUnityToolToolHandler extends BaseToolHandler {
-  constructor(manager) {
+  constructor(manager, roslynMgr = roslynManager) {
     super(
       'call_unity_tool',
       'Invoke any tool a connected Unity editor supports, by name (discover names + schemas with list_unity_tools). Params are validated against the editor-advertised schema before the call, so a validation error tells you exactly what to fix. The "instance" (a project path or port) is required — there is no default editor, so every call names its target. To trim the response, pass params.fields — an array of dot-paths (GraphQL-style); omit for the full result.',
@@ -25,6 +27,7 @@ export class CallUnityToolToolHandler extends BaseToolHandler {
       },
     );
     this.manager = manager;
+    this.roslynMgr = roslynMgr;
   }
 
   validate(params) {
@@ -44,6 +47,13 @@ export class CallUnityToolToolHandler extends BaseToolHandler {
     if (typeof callParams !== 'object' || Array.isArray(callParams)) {
       throw new Error('params must be an object (a map of the tool\'s parameters)');
     }
+
+    // Roslyn capability layer (ADR 0006): lifecycle commands drive the per-instance backend; gated
+    // semantic commands proxy to the sidecar (or ROSLYN_NOT_READY); find_references upgrades to semantic
+    // when the sidecar is ready, else returns NOT_HANDLED and falls through to the editor (syntactic).
+    const instanceKey = (conn.targetPort != null) ? `${conn.targetHost || 'localhost'}:${conn.targetPort}` : String(params.instance);
+    const roslynResult = await roslynDispatch(params.tool, callParams, conn, instanceKey, this.roslynMgr);
+    if (roslynResult !== NOT_HANDLED) return roslynResult;
 
     // Node-logic tools (security normalization / template generation / base64 analysis — ADR 0006) are
     // dispatched to a Node handler BOUND TO THE RESOLVED CONNECTION rather than forwarded raw to the

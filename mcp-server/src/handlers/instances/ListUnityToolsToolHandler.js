@@ -1,6 +1,8 @@
 import { BaseToolHandler } from '../base/BaseToolHandler.js';
 import { editorToolSurface } from '../../core/editorToolSurface.js';
 import { mergeNodeLogicSurface } from '../../core/nodeLogicTools.js';
+import { roslynManager } from '../../core/roslynManager.js';
+import { mergeRoslynSurface } from '../../core/roslynTools.js';
 
 /**
  * Lists the tools a connected Unity editor actually supports, with their schemas — learned from the
@@ -9,7 +11,7 @@ import { mergeNodeLogicSurface } from '../../core/nodeLogicTools.js';
  * names-only (schemasAvailable:false) for an editor running an older package build.
  */
 export class ListUnityToolsToolHandler extends BaseToolHandler {
-  constructor(manager) {
+  constructor(manager, roslynMgr = roslynManager) {
     super(
       'list_unity_tools',
       'List the tools a connected Unity editor actually supports, with their schemas (learned from the editor at runtime). Discover what call_unity_tool can invoke on a given instance. Returns names + descriptions by default; pass "name" for one tool\'s full parameter schema AND result-field hints (its response shape — read these to drive call_unity_tool\'s `fields` projection), or "category" to filter.',
@@ -24,6 +26,7 @@ export class ListUnityToolsToolHandler extends BaseToolHandler {
       },
     );
     this.manager = manager;
+    this.roslynMgr = roslynMgr;
   }
 
   async execute(params = {}) {
@@ -32,7 +35,10 @@ export class ListUnityToolsToolHandler extends BaseToolHandler {
     // The editor manifest surface, with the Node-logic tools (execute_menu_item/create_script/
     // analyze_screenshot) overridden by their Node handler's schema — the agent-facing contract (ADR 0006).
     const { tools: raw, hasSchemas } = editorToolSurface(conn.editorInfo);
-    const surface = mergeNodeLogicSurface(raw);
+    // + the Roslyn capability commands (lifecycle always-available; gated annotated requires/available
+    // per the per-instance backend state) — advertised here, never in the static catalog (ADR 0006).
+    const instanceKey = (conn.targetPort != null) ? `${conn.targetHost || 'localhost'}:${conn.targetPort}` : String(params.instance);
+    const surface = mergeRoslynSurface(mergeNodeLogicSurface(raw), instanceKey, this.roslynMgr);
 
     if (params.name) {
       const tool = surface.find((t) => t.name === params.name);
@@ -45,7 +51,7 @@ export class ListUnityToolsToolHandler extends BaseToolHandler {
     return {
       instance: params.instance ?? null,
       count: tools.length,
-      tools: tools.map((t) => ({ name: t.name, category: t.category ?? null, description: t.description ?? '' })),
+      tools: tools.map((t) => ({ name: t.name, category: t.category ?? null, description: t.description ?? '', ...(t.requires ? { requires: t.requires, available: t.available !== false } : {}) })),
       schemasAvailable: hasSchemas,
     };
   }
