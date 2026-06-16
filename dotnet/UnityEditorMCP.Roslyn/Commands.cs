@@ -65,6 +65,10 @@ public static partial class Commands
             foreach (var d in comp.GetDiagnostics())
             {
                 if (d.Severity < DiagnosticSeverity.Warning) continue;
+                // CS1701/CS1702 are assembly version binding-redirect warnings — pure noise from the
+                // reconstructed Unity reference set (engine dlls bind to different System.* versions than the
+                // netstandard facade). They dominate (~96%) and never reflect a user-code issue, so drop them.
+                if (d.Id == "CS1701" || d.Id == "CS1702") continue;
                 var span = d.Location.GetLineSpan();
                 diags.Add(new { severity = d.Severity.ToString(), id = d.Id, message = d.GetMessage(), path = span.Path, line = span.StartLinePosition.Line + 1 });
             }
