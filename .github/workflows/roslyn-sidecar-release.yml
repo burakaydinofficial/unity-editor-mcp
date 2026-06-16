@@ -1,0 +1,87 @@
+name: Roslyn Sidecar Release
+
+# Builds the self-contained Roslyn sidecar for every supported platform and publishes the binaries +
+# a manifest.json as GitHub release assets (free on a public repo). The Node client lazy-downloads the
+# matching binary on first start_roslyn. Runs ONLY when the maintainer pushes a `roslyn-v*` tag — the
+# release tag MUST match the client's SIDECAR_VERSION (mcp-server/src/core/roslynSidecar.js).
+
+on:
+  push:
+    tags: ['roslyn-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+            ext: '.exe'
+          - rid: linux-x64
+            os: ubuntu-latest
+            ext: ''
+          - rid: osx-x64
+            os: macos-13
+            ext: ''
+          - rid: osx-arm64
+            os: macos-latest
+            ext: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Publish self-contained single file
+        shell: bash
+        run: |
+          dotnet publish dotnet/UnityEditorMCP.Roslyn/UnityEditorMCP.Roslyn.csproj \
+            -c Release -r ${{ matrix.rid }} --self-contained \
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+            -o out
+          ASSET="unity-editor-mcp-roslyn-${{ matrix.rid }}${{ matrix.ext }}"
+          mv "out/unity-editor-mcp-roslyn${{ matrix.ext }}" "$ASSET"
+          if command -v sha256sum >/dev/null 2>&1; then sha256sum "$ASSET" | awk '{print $1}' > "$ASSET.sha256";
+          else shasum -a 256 "$ASSET" | awk '{print $1}' > "$ASSET.sha256"; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.rid }}
+          path: unity-editor-mcp-roslyn-${{ matrix.rid }}*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Assemble release dir + manifest.json
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          mkdir -p release
+          node -e '
+            const fs = require("fs"), path = require("path");
+            const tag = process.env.TAG, repo = process.env.REPO;
+            const assets = {};
+            for (const rid of fs.readdirSync("dist")) {
+              const dir = path.join("dist", rid);
+              const files = fs.readdirSync(dir);
+              const bin = files.find((f) => !f.endsWith(".sha256"));
+              const sha = fs.readFileSync(path.join(dir, bin + ".sha256"), "utf8").trim();
+              fs.copyFileSync(path.join(dir, bin), path.join("release", bin));
+              assets[rid] = { url: `https://github.com/${repo}/releases/download/${tag}/${bin}`, sha256: sha };
+            }
+            const manifest = { version: tag, assets };
+            fs.writeFileSync("release/manifest.json", JSON.stringify(manifest, null, 2));
+            console.log(JSON.stringify(manifest, null, 2));
+          '
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*

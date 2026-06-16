@@ -78,6 +78,14 @@ This is what lets one server drive **any Unity version** and **several editors a
 
 The editor exposes ~78 tools spanning GameObjects, components, scenes, scene analysis, assets (prefabs / materials / import settings), scripts, code intelligence, play mode, UI automation, the Test Runner, and editor operations. The complete, categorized catalog lives in the [project README](https://github.com/burakaydinofficial/unity-editor-mcp#available-tools).
 
+### Roslyn backend (optional)
+
+Name-based code intelligence (`resolve_symbol`, `get_type_members`, `find_implementations`, syntactic `find_references`) works out of the box with **no extra dependencies**. For *semantic* analysis — overload-resolved `goto_definition`, cross-file `rename_symbol`, compiler `get_diagnostics`, `get_type_hierarchy`, and semantic `find_references` — there is an **opt-in** Roslyn sidecar:
+
+- Activate it per instance with `start_roslyn` (poll `roslyn_status` until `ready`); the gated commands then appear in `list_unity_tools` as available, and `find_references` upgrades to `resolution: "semantic"`.
+- The base install ships **no .NET**. On first `start_roslyn` the server lazy-downloads a small self-contained binary for your platform from the GitHub release, caches it under `~/.cache/unity-editor-mcp-roslyn/`, and spawns it — verified against a published SHA-256.
+- It is fully **removable**: delete the cache directory. If the binary can't be fetched (offline / unsupported platform), `start_roslyn` reports `unavailable` and the name-based layer keeps working.
+
 ## Requirements
 
 - **Unity**: 2020.3 LTS or newer
