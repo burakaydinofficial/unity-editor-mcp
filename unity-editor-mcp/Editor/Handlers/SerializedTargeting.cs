@@ -30,7 +30,7 @@ namespace UnityEditorMCP.Handlers
             if (obj is GameObject go && compName != null)
             {
                 var idx = parent?["componentIndex"]?.Value<int>() ?? 0;
-                var comp = go.GetComponents<Component>().Where(c => c != null && c.GetType().Name == compName).Skip(idx).FirstOrDefault();
+                var comp = go.GetComponents<Component>().Where(c => c != null && (c.GetType().Name == compName || c.GetType().FullName == compName)).Skip(idx).FirstOrDefault();
                 if (comp == null) { code = "COMPONENT_NOT_FOUND"; message = $"component {compName}[{idx}] not found"; return false; }
                 result = new ResolvedTarget { Obj = comp, Component = comp, Describe = $"{ScenePath(go)}::{compName}[{idx}]" };
                 return true;
@@ -49,7 +49,7 @@ namespace UnityEditorMCP.Handlers
             if (match?["scenePaths"] is JArray paths) gos = paths.Select(p => FindByScenePath(p.Value<string>())).Where(g => g != null);
             else if (match?["selection"]?.Value<bool>() == true) gos = Selection.gameObjects;
             else if (match?["tag"] != null) gos = AllGameObjects(roots).Where(g => g.CompareTag(match["tag"].Value<string>()));
-            else if (match?["componentType"] != null) gos = AllGameObjects(roots).Where(g => g.GetComponents<Component>().Any(c => c != null && c.GetType().Name == match["componentType"].Value<string>()));
+            else if (match?["componentType"] != null) { var ct = match["componentType"].Value<string>(); gos = AllGameObjects(roots).Where(g => g.GetComponents<Component>().Any(c => c != null && (c.GetType().Name == ct || c.GetType().FullName == ct))); }
             else if (match?["prefab"] != null) { var src = LoadPrefab(match["prefab"].Value<string>()); gos = AllGameObjects(roots).Where(g => MatchesPrefab(g, src)); }
             else { code = "VALIDATION_ERROR"; message = "match needs one of prefab/componentType/tag/selection/scenePaths"; return list; }
 

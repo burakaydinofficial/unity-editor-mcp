@@ -153,6 +153,40 @@ namespace UnityEditorMCP.Tests
             finally { Object.DestroyImmediate(instance); AssetDatabase.DeleteAsset(prefabPath); }
         }
 
+        [Test] public void Set_NonObjectSpec_SkipsValidationError()
+        {
+            var outcome = SerializedMemberHandler.Set(new JObject { ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["IntField"] = 42 } } } }); // bare value, not {value,expected}
+            Assert.AreEqual("VALIDATION_ERROR", (string)((JArray)JObject.FromObject(outcome.Payload)["skipped"])[0]["code"]);
+            Assert.AreEqual(7, _asset.IntField); // unchanged
+        }
+
+        [Test] public void Set_ObjectReferenceNotFound_TypeMismatchNotSilentNull()
+        {
+            var outcome = SerializedMemberHandler.Set(new JObject { ["force"] = true, ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["RefField"] = new JObject { ["value"] = new JObject { ["guid"] = "ffffffffffffffffffffffffffffffff" } } } } } });
+            var data = JObject.FromObject(outcome.Payload);
+            Assert.AreEqual(0, ((JArray)data["changed"]).Count, "an unresolved reference must not write (no silent null)");
+            Assert.AreEqual("TYPE_MISMATCH", (string)((JArray)data["skipped"])[0]["code"]);
+        }
+
+        [Test] public void SetBySelector_TypeMismatch_SurfacedNotSilent()
+        {
+            var a = new GameObject("A", typeof(BoxCollider));
+            try
+            {
+                var outcome = SerializedMemberHandler.Set(new JObject { ["force"] = true,
+                    ["match"] = new JObject { ["componentType"] = "BoxCollider" }, ["component"] = "BoxCollider",
+                    ["set"] = new JObject { ["m_IsTrigger"] = "not-a-bool" } }); // bool field, string value
+                var data = JObject.FromObject(outcome.Payload);
+                Assert.AreEqual(0, ((JArray)data["changed"]).Count);
+                Assert.AreEqual("TYPE_MISMATCH", (string)((JArray)data["skipped"])[0]["code"]);
+            }
+            finally { Object.DestroyImmediate(a); }
+        }
+
         internal static JToken FindProp(JArray props, string path)
         {
             foreach (var p in props) if ((string)p["propertyPath"] == path) return p;

@@ -37,6 +37,13 @@ namespace UnityEditorMCP.Tests
             Assert.IsNotNull(err);
         }
 
+        [Test] public void Enum_OutOfRangeIndex_FailsTypeMismatch()
+        {
+            var p = _so.FindProperty("EnumField");
+            Assert.IsFalse(SerializedValue.Write(p, JToken.FromObject(99), out var err)); // index 99 has no enum member
+            Assert.IsNotNull(err);
+        }
+
         [Test] public void Enum_WritableByNameAndIndex()
         {
             var p = _so.FindProperty("EnumField");

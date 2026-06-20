@@ -75,7 +75,7 @@ namespace UnityEditorMCP.Handlers
             if (a == null || b == null) return (a == null) == (b == null);
             bool aNum = a.Type == JTokenType.Integer || a.Type == JTokenType.Float;
             bool bNum = b.Type == JTokenType.Integer || b.Type == JTokenType.Float;
-            if (aNum && bNum) return a.Value<double>() == b.Value<double>();
+            if (aNum && bNum) { double av = a.Value<double>(), bv = b.Value<double>(); return av == bv || (double.IsNaN(av) && double.IsNaN(bv)); }
             if (a.Type == JTokenType.Object && b.Type == JTokenType.Object)
             {
                 var ao = (JObject)a; var bo = (JObject)b;
@@ -122,7 +122,7 @@ namespace UnityEditorMCP.Handlers
                 var withoutUndo = p["withoutUndo"]?.ToObject<bool?>() ?? false;
                 var undoLabel = p["undoLabel"]?.ToString() ?? "MCP Set Serialized Properties";
 
-                if (p["match"] is JObject) return SetBySelector(p, force, dryRun, withoutUndo, undoLabel);
+                if (p["match"] is JObject) return SetBySelector(p, force, dryRun, allOrNothing, withoutUndo, undoLabel);
 
                 if (!(p["edits"] is JArray edits)) return HandlerOutcome.Fail("provide edits[] or match", "VALIDATION_ERROR");
 
@@ -142,6 +142,7 @@ namespace UnityEditorMCP.Handlers
                     {
                         var path = prop.Name;
                         var spec = prop.Value as JObject;
+                        if (spec == null) { skipped.Add(Skip(rt.Describe, path, "VALIDATION_ERROR", "set entry must be an object {value, expected}")); if (allOrNothing) return Abort(skipped); continue; }
                         var sp = so.FindProperty(path);
                         if (sp == null) { skipped.Add(Skip(rt.Describe, path, "PROPERTY_NOT_FOUND", "no such property")); if (allOrNothing) return Abort(skipped); continue; }
 
@@ -165,8 +166,8 @@ namespace UnityEditorMCP.Handlers
                 if (!dryRun)
                 {
                     if (!withoutUndo) Undo.IncrementCurrentGroup();
-                    foreach (var a in planned) a();
-                    if (!withoutUndo) { Undo.SetCurrentGroupName(undoLabel); Undo.CollapseUndoOperations(Undo.GetCurrentGroup()); }
+                    try { foreach (var a in planned) a(); }
+                    finally { if (!withoutUndo) { Undo.SetCurrentGroupName(undoLabel); Undo.CollapseUndoOperations(Undo.GetCurrentGroup()); } }
                     foreach (var o in dirtyObjects.Distinct()) EditorUtility.SetDirty(o);
                 }
                 return HandlerOutcome.Ok(new JObject { ["applied"] = !dryRun, ["changed"] = changed, ["skipped"] = skipped });
@@ -191,7 +192,7 @@ namespace UnityEditorMCP.Handlers
 
         // Mode 2: selector write — preview (no token → matched set + current values + token, no mutation),
         // then commit with the token (re-verified against live state; STALE_MATCH if it drifted). force skips.
-        private static HandlerOutcome SetBySelector(JObject p, bool force, bool dryRun, bool withoutUndo, string undoLabel)
+        private static HandlerOutcome SetBySelector(JObject p, bool force, bool dryRun, bool allOrNothing, bool withoutUndo, string undoLabel)
         {
             var match = (JObject)p["match"];
             var set = p["set"] as JObject;
@@ -217,24 +218,34 @@ namespace UnityEditorMCP.Handlers
 
             if (!force && providedToken != liveToken) return HandlerOutcome.Fail("matched set or values changed since preview", "STALE_MATCH");
 
+            // Play-mode guard (spec §9): scene-object writes refuse in play mode — even under force.
+            foreach (var t in targets)
+                if (PlayModeBlocks(t.Obj)) return HandlerOutcome.Fail("scene writes refuse in play mode", "PLAY_MODE");
+
             var changed = new JArray();
-            if (!dryRun && !withoutUndo) Undo.IncrementCurrentGroup();
-            var dirty = new List<Object>();
+            var skipped = new JArray();
+            var plan = new List<(Object obj, string path, JToken value)>();
+            // Validate every write up front (probe) so a TYPE_MISMATCH is surfaced (not silently dropped) and
+            // allOrNothing is honored before any mutation.
             foreach (var t in targets)
                 foreach (var path in paths)
                 {
                     var probe = new SerializedObject(t.Obj); var sp = probe.FindProperty(path);
-                    if (sp == null) continue;
-                    var from = SerializedValue.Read(sp);
-                    if (!dryRun) ApplyOne(t.Obj, path, set[path], withoutUndo, undoLabel, dirty);
-                    changed.Add(new JObject { ["target"] = t.Describe, ["propertyPath"] = path, ["from"] = from, ["to"] = set[path] });
+                    if (sp == null) { skipped.Add(Skip(t.Describe, path, "PROPERTY_NOT_FOUND", "no such property")); if (allOrNothing) return Abort(skipped); continue; }
+                    if (!SerializedValue.Write(sp, set[path], out var werr)) { skipped.Add(Skip(t.Describe, path, "TYPE_MISMATCH", werr)); if (allOrNothing) return Abort(skipped); continue; }
+                    changed.Add(new JObject { ["target"] = t.Describe, ["propertyPath"] = path, ["from"] = SerializedValue.Read(new SerializedObject(t.Obj).FindProperty(path)), ["to"] = set[path] });
+                    plan.Add((t.Obj, path, set[path]));
                 }
+
             if (!dryRun)
             {
-                if (!withoutUndo) { Undo.SetCurrentGroupName(undoLabel); Undo.CollapseUndoOperations(Undo.GetCurrentGroup()); }
+                var dirty = new List<Object>();
+                if (!withoutUndo) Undo.IncrementCurrentGroup();
+                try { foreach (var (obj, path, value) in plan) ApplyOne(obj, path, value, withoutUndo, undoLabel, dirty); }
+                finally { if (!withoutUndo) { Undo.SetCurrentGroupName(undoLabel); Undo.CollapseUndoOperations(Undo.GetCurrentGroup()); } }
                 foreach (var o in dirty.Distinct()) EditorUtility.SetDirty(o);
             }
-            return HandlerOutcome.Ok(new JObject { ["applied"] = !dryRun, ["forced"] = force, ["changed"] = changed });
+            return HandlerOutcome.Ok(new JObject { ["applied"] = !dryRun, ["forced"] = force, ["changed"] = changed, ["skipped"] = skipped });
         }
 
         // Stateless token: SHA-256 over (sorted instanceId + current canonical value at each touched path).

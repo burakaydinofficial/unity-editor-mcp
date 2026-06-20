@@ -77,7 +77,12 @@ namespace UnityEditorMCP.Handlers
         private static bool WriteEnum(SerializedProperty p, JToken v, out string error)
         {
             error = null;
-            if (v.Type == JTokenType.Integer) { p.enumValueIndex = v.Value<int>(); return true; }
+            if (v.Type == JTokenType.Integer)
+            {
+                var i = v.Value<int>();
+                if (i < 0 || i >= p.enumNames.Length) { error = $"TYPE_MISMATCH: enum index {i} out of range [0,{p.enumNames.Length})"; return false; }
+                p.enumValueIndex = i; return true;
+            }
             var name = v.Value<string>();
             var idx = Array.IndexOf(p.enumNames, name);
             if (idx < 0) { error = $"TYPE_MISMATCH: '{name}' is not a member of the enum"; return false; }
@@ -87,9 +92,10 @@ namespace UnityEditorMCP.Handlers
         private static bool WriteRef(SerializedProperty p, JToken v, out string error)
         {
             error = null;
-            if (v == null || v.Type == JTokenType.Null) { p.objectReferenceValue = null; return true; }
+            if (v == null || v.Type == JTokenType.Null) { p.objectReferenceValue = null; return true; } // explicit clear
             var obj = SerializedTargeting.ResolveObjectReference(v as JObject, out error);
-            if (obj == null && error != null) return false;
+            // A provided (non-null) reference that does NOT resolve is an error — never silently clear the field.
+            if (obj == null) { if (error == null) error = "TYPE_MISMATCH: object reference did not resolve (pass JSON null to clear)"; return false; }
             p.objectReferenceValue = obj; return true;
         }
 
