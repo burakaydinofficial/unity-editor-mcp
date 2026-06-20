@@ -18,6 +18,7 @@ namespace UnityEditorMCP.Tests
         public SerFixtureEnum EnumField = SerFixtureEnum.Beta;
         public Object RefField;            // ObjectReference
         public int[] IntArray = { 1, 2, 3 };
+        public Object[] RefArray;          // object-reference array (the double-delete quirk)
         public Vector2 Vec2Field = new Vector2(1, 2);
         public Vector4 Vec4Field = new Vector4(1, 2, 3, 4);
         public Vector2Int Vec2IntField = new Vector2Int(1, 2);

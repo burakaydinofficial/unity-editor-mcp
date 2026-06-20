@@ -356,6 +356,44 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual(3, _asset.IntArray.Length);
         }
 
+        [Test] public void Array_MultiOpSameArray_Rejected()
+        {
+            var r = SerializedMemberHandler.ModifyArray(new JObject { ["ops"] = new JArray {
+                Op("insert", new JObject { ["index"] = 0, ["value"] = 9 }),
+                Op("remove", new JObject { ["index"] = 2 }) } });
+            var skipped = (JArray)JObject.FromObject(r.Payload)["skipped"];
+            Assert.AreEqual("VALIDATION_ERROR", (string)skipped[0]["code"]); // the 2nd op on the same array is rejected (no index-shift corruption)
+        }
+
+        [Test] public void Array_InsertBadValue_TypeMismatch()
+        {
+            Assert.AreEqual("TYPE_MISMATCH", FirstSkipCode(Arr(Op("insert", new JObject { ["index"] = 0, ["value"] = "not-an-int" }))));
+            Assert.AreEqual(3, _asset.IntArray.Length); // not inserted
+        }
+
+        [Test] public void Array_AllOrNothing_Aborts()
+        {
+            var o = Op("remove", new JObject { ["index"] = 0 }); o["expectedSize"] = 99; // STALE_SIZE
+            Assert.IsTrue(SerializedMemberHandler.ModifyArray(new JObject { ["allOrNothing"] = true, ["ops"] = new JArray { o } }).IsError);
+            Assert.AreEqual(3, _asset.IntArray.Length);
+        }
+
+        [Test] public void Array_ObjectRefRemove_DoubleDeleteHandled()
+        {
+            var o1 = ScriptableObject.CreateInstance<SerFixtureAsset>();
+            var o2 = ScriptableObject.CreateInstance<SerFixtureAsset>();
+            try
+            {
+                _asset.RefArray = new Object[] { o1, o2 };
+                var r = SerializedMemberHandler.ModifyArray(new JObject { ["ops"] = new JArray {
+                    new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath }, ["arrayPath"] = "RefArray", ["op"] = "remove", ["index"] = 0, ["expectedSize"] = 2 } } });
+                Assert.IsFalse(r.IsError, r.Error);
+                Assert.AreEqual(1, _asset.RefArray.Length); // actually removed, not just nulled
+                Assert.AreEqual(o2, _asset.RefArray[0]);    // the correct element remains
+            }
+            finally { Object.DestroyImmediate(o1); Object.DestroyImmediate(o2); }
+        }
+
         internal static JToken FindProp(JArray props, string path)
         {
             foreach (var p in props) if ((string)p["propertyPath"] == path) return p;

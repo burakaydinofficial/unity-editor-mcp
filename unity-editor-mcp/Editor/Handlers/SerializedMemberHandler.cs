@@ -293,6 +293,7 @@ namespace UnityEditorMCP.Handlers
                 var skipped = new JArray();
                 var plan = new List<System.Action>();
                 var dirty = new List<Object>();
+                var seenArrays = new HashSet<string>();
 
                 foreach (var op in ops.OfType<JObject>())
                 {
@@ -305,6 +306,10 @@ namespace UnityEditorMCP.Handlers
                     var sp = new SerializedObject(rt.Obj).FindProperty(arrayPath);
                     if (sp == null) { skipped.Add(Skip(rt.Describe, arrayPath, "PROPERTY_NOT_FOUND", "no such property")); if (allOrNothing) return Abort(skipped); continue; }
                     if (!sp.isArray || sp.propertyType == SerializedPropertyType.String) { skipped.Add(Skip(rt.Describe, arrayPath, "NOT_AN_ARRAY", "property is not an array")); if (allOrNothing) return Abort(skipped); continue; }
+                    // Reject 2+ ops on the SAME array in one batch: ops apply sequentially, so a later op's index
+                    // (validated against the pre-batch size) would land on a shifted element — silent corruption.
+                    // Each call is its own Undo group, so this is no loss: send separate calls.
+                    if (!seenArrays.Add(rt.Obj.GetInstanceID() + ":" + arrayPath)) { skipped.Add(Skip(rt.Describe, arrayPath, "VALIDATION_ERROR", "multiple ops on the same array in one batch are unsupported — send separate calls")); if (allOrNothing) return Abort(skipped); continue; }
 
                     var size = sp.arraySize;
                     var hasExpected = op["expectedSize"] != null;
@@ -313,6 +318,17 @@ namespace UnityEditorMCP.Handlers
 
                     if (!ValidateArrayOp(opName, op, size, out var newSize, out var verr, out var vcode))
                     { skipped.Add(Skip(rt.Describe, arrayPath, vcode, verr)); if (allOrNothing) return Abort(skipped); continue; }
+
+                    // Probe an insert value's type up front (no mutation) so a TYPE_MISMATCH is surfaced — not
+                    // silently dropped at apply time — and allOrNothing is honored.
+                    if (opName == "insert" && op["value"] != null)
+                    {
+                        var pso = new SerializedObject(rt.Obj); var parr = pso.FindProperty(arrayPath);
+                        var iidx = op["index"]?.ToObject<int?>() ?? size;
+                        parr.InsertArrayElementAtIndex(iidx);
+                        if (!SerializedValue.Write(parr.GetArrayElementAtIndex(iidx), op["value"], out var iverr))
+                        { skipped.Add(Skip(rt.Describe, arrayPath, "TYPE_MISMATCH", iverr)); if (allOrNothing) return Abort(skipped); continue; }
+                    }
 
                     changed.Add(new JObject { ["target"] = rt.Describe, ["arrayPath"] = arrayPath, ["op"] = opName, ["fromSize"] = size, ["toSize"] = newSize });
                     var capObj = rt.Obj; var capPath = arrayPath; var capOp = op;
@@ -372,10 +388,12 @@ namespace UnityEditorMCP.Handlers
                     break;
                 case "remove":
                     var ri = o["index"].Value<int>();
-                    var el = sp.GetArrayElementAtIndex(ri);
-                    bool nonNullRef = el.propertyType == SerializedPropertyType.ObjectReference && el.objectReferenceValue != null;
+                    var before = sp.arraySize;
                     sp.DeleteArrayElementAtIndex(ri);
-                    if (nonNullRef) sp.DeleteArrayElementAtIndex(ri); // object-ref arrays: first delete nulls, second removes
+                    // object-reference array quirk: a non-null element is NULLED (size unchanged) by the first
+                    // delete and needs a second to actually remove. Detect by whether the size dropped — don't
+                    // assume (it's version/context-dependent), or a double-delete would remove TWO elements.
+                    if (sp.arraySize == before) sp.DeleteArrayElementAtIndex(ri);
                     break;
                 case "move": sp.MoveArrayElement(o["index"].Value<int>(), o["toIndex"].Value<int>()); break;
                 case "clear": sp.ClearArray(); break;
