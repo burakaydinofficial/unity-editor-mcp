@@ -65,6 +65,70 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual(5, _asset.IntField);
         }
 
+        // Selector + prefab tests use a built-in runtime component (BoxCollider) — a custom MonoBehaviour in the
+        // Editor test assembly is an "editor script" and cannot be attached to a GameObject.
+
+        [Test] public void SetBySelector_PreviewThenCommit_AppliesToAllMatched()
+        {
+            var a = new GameObject("A", typeof(BoxCollider));
+            var b = new GameObject("B", typeof(BoxCollider));
+            try
+            {
+                var match = new JObject { ["match"] = new JObject { ["componentType"] = "BoxCollider" },
+                                          ["component"] = "BoxCollider",
+                                          ["set"] = new JObject { ["m_IsTrigger"] = true } };
+                var preview = JObject.FromObject(SerializedMemberHandler.Set((JObject)match.DeepClone()).Payload);
+                Assert.IsFalse((bool)preview["applied"]);
+                Assert.IsNotNull(preview["token"]);
+                Assert.AreEqual(2, ((JArray)preview["objects"]).Count);
+
+                var commit = (JObject)match.DeepClone(); commit["token"] = preview["token"];
+                var done = SerializedMemberHandler.Set(commit);
+                Assert.IsFalse(done.IsError, done.Error);
+                Assert.IsTrue(a.GetComponent<BoxCollider>().isTrigger);
+                Assert.IsTrue(b.GetComponent<BoxCollider>().isTrigger);
+            }
+            finally { Object.DestroyImmediate(a); Object.DestroyImmediate(b); }
+        }
+
+        [Test] public void SetBySelector_StaleToken_Rejected()
+        {
+            var a = new GameObject("A", typeof(BoxCollider));
+            try
+            {
+                var match = new JObject { ["match"] = new JObject { ["componentType"] = "BoxCollider" }, ["component"] = "BoxCollider", ["set"] = new JObject { ["m_IsTrigger"] = true } };
+                var preview = JObject.FromObject(SerializedMemberHandler.Set((JObject)match.DeepClone()).Payload);
+                a.GetComponent<BoxCollider>().isTrigger = true; // state changes after preview
+                var commit = (JObject)match.DeepClone(); commit["token"] = preview["token"];
+                var done = SerializedMemberHandler.Set(commit);
+                Assert.IsTrue(done.IsError);
+                Assert.AreEqual("STALE_MATCH", done.Code);
+            }
+            finally { Object.DestroyImmediate(a); }
+        }
+
+        [Test] public void Set_PrefabInstance_RecordsOverrideAndKeepsLink()
+        {
+            var src = new GameObject("PfxSrc", typeof(BoxCollider));
+            var prefabPath = "Assets/__serpfx__.prefab";
+            var prefab = PrefabUtility.SaveAsPrefabAsset(src, prefabPath);
+            Object.DestroyImmediate(src);
+            var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            try
+            {
+                var comp = instance.GetComponent<BoxCollider>();
+                var outcome = SerializedMemberHandler.Set(new JObject { ["force"] = true, ["edits"] = new JArray {
+                    new JObject { ["target"] = new JObject { ["instanceId"] = comp.GetInstanceID() },
+                                  ["set"] = new JObject { ["m_IsTrigger"] = new JObject { ["value"] = true } } } } });
+                Assert.IsFalse(outcome.IsError, outcome.Error);
+                Assert.IsTrue(comp.isTrigger);
+                Assert.IsTrue(PrefabUtility.IsPartOfPrefabInstance(comp), "prefab link preserved");
+                var mods = PrefabUtility.GetPropertyModifications(instance);
+                Assert.IsTrue(mods != null && System.Array.Exists(mods, m => m.propertyPath == "m_IsTrigger"), "m_IsTrigger recorded as a prefab override");
+            }
+            finally { Object.DestroyImmediate(instance); AssetDatabase.DeleteAsset(prefabPath); }
+        }
+
         internal static JToken FindProp(JArray props, string path)
         {
             foreach (var p in props) if ((string)p["propertyPath"] == path) return p;

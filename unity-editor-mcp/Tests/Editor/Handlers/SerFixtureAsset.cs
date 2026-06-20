@@ -5,6 +5,7 @@ namespace UnityEditorMCP.Tests
     public enum SerFixtureEnum { Alpha, Beta, Gamma }
 
     // Drives the serialized-property tests. The PRIVATE [SerializeField] is the headline (D6).
+    // Must be in a file named SerFixtureAsset.cs so Unity creates its MonoScript (needed to serialize to assets).
     public class SerFixtureAsset : ScriptableObject
     {
         public int IntField = 7;
@@ -19,12 +20,5 @@ namespace UnityEditorMCP.Tests
         public int[] IntArray = { 1, 2, 3 };
 
         public float ReadPrivateFloat() => privateFloat; // test-only proof the private write landed
-    }
-
-    public class SerFixtureComponent : MonoBehaviour
-    {
-        public int Hp = 100;
-        [SerializeField] private float speed = 5f;
-        public float ReadSpeed() => speed;
     }
 }

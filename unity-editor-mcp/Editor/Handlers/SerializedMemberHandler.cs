@@ -74,7 +74,7 @@ namespace UnityEditorMCP.Handlers
                 var withoutUndo = p["withoutUndo"]?.ToObject<bool?>() ?? false;
                 var undoLabel = p["undoLabel"]?.ToString() ?? "MCP Set Serialized Properties";
 
-                if (p["match"] is JObject) return HandlerOutcome.Fail("selector writes are implemented in task 4", "VALIDATION_ERROR"); // placeholder
+                if (p["match"] is JObject) return SetBySelector(p, force, dryRun, withoutUndo, undoLabel);
 
                 if (!(p["edits"] is JArray edits)) return HandlerOutcome.Fail("provide edits[] or match", "VALIDATION_ERROR");
 
@@ -140,5 +140,68 @@ namespace UnityEditorMCP.Handlers
         private static JObject Skip(string target, string path, string code, string msg, JToken actual = null, JToken expected = null)
         { var o = new JObject { ["target"] = target, ["propertyPath"] = path, ["code"] = code, ["message"] = msg }; if (actual != null) o["actual"] = actual; if (expected != null) o["expected"] = expected; return o; }
         private static HandlerOutcome Abort(JArray skipped) => HandlerOutcome.Fail($"aborted (allOrNothing): {skipped.Count} precondition failure(s)", ((JObject)skipped.Last)["code"].ToString());
+
+        // Mode 2: selector write — preview (no token → matched set + current values + token, no mutation),
+        // then commit with the token (re-verified against live state; STALE_MATCH if it drifted). force skips.
+        private static HandlerOutcome SetBySelector(JObject p, bool force, bool dryRun, bool withoutUndo, string undoLabel)
+        {
+            var match = (JObject)p["match"];
+            var set = p["set"] as JObject;
+            if (set == null) return HandlerOutcome.Fail("match write needs set{}", "VALIDATION_ERROR");
+            var paths = set.Properties().Select(x => x.Name).ToList();
+            var targets = SerializedTargeting.ResolveMatch(match, p, MaxObjectsCeiling, out var code, out var msg);
+            if (code != null) return HandlerOutcome.Fail(msg, code);
+
+            var liveToken = MatchToken(targets, paths);
+            var providedToken = p["token"]?.ToString();
+
+            if (providedToken == null && !force)
+            {
+                var objects = new JArray();
+                foreach (var t in targets)
+                {
+                    var so = new SerializedObject(t.Obj); var cur = new JObject();
+                    foreach (var path in paths) { var sp = so.FindProperty(path); cur[path] = sp != null ? SerializedValue.Read(sp) : JValue.CreateNull(); }
+                    objects.Add(new JObject { ["target"] = t.Describe, ["current"] = cur });
+                }
+                return HandlerOutcome.Ok(new JObject { ["applied"] = false, ["count"] = targets.Count, ["objects"] = objects, ["token"] = liveToken });
+            }
+
+            if (!force && providedToken != liveToken) return HandlerOutcome.Fail("matched set or values changed since preview", "STALE_MATCH");
+
+            var changed = new JArray();
+            if (!dryRun && !withoutUndo) Undo.IncrementCurrentGroup();
+            var dirty = new List<Object>();
+            foreach (var t in targets)
+                foreach (var path in paths)
+                {
+                    var probe = new SerializedObject(t.Obj); var sp = probe.FindProperty(path);
+                    if (sp == null) continue;
+                    var from = SerializedValue.Read(sp);
+                    if (!dryRun) ApplyOne(t.Obj, path, set[path], withoutUndo, undoLabel, dirty);
+                    changed.Add(new JObject { ["target"] = t.Describe, ["propertyPath"] = path, ["from"] = from, ["to"] = set[path] });
+                }
+            if (!dryRun)
+            {
+                if (!withoutUndo) { Undo.SetCurrentGroupName(undoLabel); Undo.CollapseUndoOperations(Undo.GetCurrentGroup()); }
+                foreach (var o in dirty.Distinct()) EditorUtility.SetDirty(o);
+            }
+            return HandlerOutcome.Ok(new JObject { ["applied"] = !dryRun, ["forced"] = force, ["changed"] = changed });
+        }
+
+        // Stateless token: SHA-256 over (sorted instanceId + current canonical value at each touched path).
+        private static string MatchToken(List<ResolvedTarget> targets, List<string> paths)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (var t in targets.OrderBy(x => x.Obj.GetInstanceID()))
+            {
+                sb.Append(t.Obj.GetInstanceID()).Append('|');
+                var so = new SerializedObject(t.Obj);
+                foreach (var path in paths) { var sp = so.FindProperty(path); sb.Append(path).Append('=').Append(sp != null ? SerializedValue.Read(sp).ToString(Newtonsoft.Json.Formatting.None) : "(null)").Append(';'); }
+                sb.Append('\n');
+            }
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+                return System.BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(sb.ToString()))).Replace("-", "").ToLowerInvariant();
+        }
     }
 }
