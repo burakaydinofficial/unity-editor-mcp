@@ -63,5 +63,82 @@ namespace UnityEditorMCP.Handlers
             }
             return arr;
         }
+
+        public static HandlerOutcome Set(JObject p)
+        {
+            try
+            {
+                var force = p["force"]?.ToObject<bool?>() ?? false;
+                var dryRun = p["dryRun"]?.ToObject<bool?>() ?? false;
+                var allOrNothing = p["allOrNothing"]?.ToObject<bool?>() ?? false;
+                var withoutUndo = p["withoutUndo"]?.ToObject<bool?>() ?? false;
+                var undoLabel = p["undoLabel"]?.ToString() ?? "MCP Set Serialized Properties";
+
+                if (p["match"] is JObject) return HandlerOutcome.Fail("selector writes are implemented in task 4", "VALIDATION_ERROR"); // placeholder
+
+                if (!(p["edits"] is JArray edits)) return HandlerOutcome.Fail("provide edits[] or match", "VALIDATION_ERROR");
+
+                var changed = new JArray();
+                var skipped = new JArray();
+                var planned = new List<System.Action>();
+                var dirtyObjects = new List<Object>();
+
+                foreach (var edit in edits.OfType<JObject>())
+                {
+                    if (!SerializedTargeting.ResolveSingle(edit["target"] as JObject, edit, out var rt, out var code, out var msg))
+                    { skipped.Add(Skip(null, null, code, msg)); if (allOrNothing) return Abort(skipped); continue; }
+                    if (PlayModeBlocks(rt.Obj)) { skipped.Add(Skip(rt.Describe, null, "PLAY_MODE", "scene writes refuse in play mode")); if (allOrNothing) return Abort(skipped); continue; }
+
+                    var so = new SerializedObject(rt.Obj);
+                    foreach (var prop in ((JObject)edit["set"]).Properties())
+                    {
+                        var path = prop.Name;
+                        var spec = prop.Value as JObject;
+                        var sp = so.FindProperty(path);
+                        if (sp == null) { skipped.Add(Skip(rt.Describe, path, "PROPERTY_NOT_FOUND", "no such property")); if (allOrNothing) return Abort(skipped); continue; }
+
+                        var hasExpected = spec["expected"] != null;
+                        if (!hasExpected && !force) { skipped.Add(Skip(rt.Describe, path, "MISSING_PRECONDITION", "expected required (or force)")); if (allOrNothing) return Abort(skipped); continue; }
+                        var current = SerializedValue.Read(sp);
+                        if (hasExpected && !JToken.DeepEquals(current, spec["expected"]))
+                        { skipped.Add(Skip(rt.Describe, path, "STALE", "value changed", current, spec["expected"])); if (allOrNothing) return Abort(skipped); continue; }
+
+                        var probe = new SerializedObject(rt.Obj);
+                        if (!SerializedValue.Write(probe.FindProperty(path), spec["value"], out var werr))
+                        { skipped.Add(Skip(rt.Describe, path, "TYPE_MISMATCH", werr)); if (allOrNothing) return Abort(skipped); continue; }
+
+                        var to = spec["value"];
+                        changed.Add(new JObject { ["target"] = rt.Describe, ["propertyPath"] = path, ["from"] = current, ["to"] = to });
+                        var capturedObj = rt.Obj; var capturedPath = path; var capturedVal = to;
+                        planned.Add(() => ApplyOne(capturedObj, capturedPath, capturedVal, withoutUndo, undoLabel, dirtyObjects));
+                    }
+                }
+
+                if (!dryRun)
+                {
+                    if (!withoutUndo) Undo.IncrementCurrentGroup();
+                    foreach (var a in planned) a();
+                    if (!withoutUndo) { Undo.SetCurrentGroupName(undoLabel); Undo.CollapseUndoOperations(Undo.GetCurrentGroup()); }
+                    foreach (var o in dirtyObjects.Distinct()) EditorUtility.SetDirty(o);
+                }
+                return HandlerOutcome.Ok(new JObject { ["applied"] = !dryRun, ["changed"] = changed, ["skipped"] = skipped });
+            }
+            catch (System.Exception e) { return HandlerOutcome.Fail($"set failed: {e.Message}"); }
+        }
+
+        private static void ApplyOne(Object obj, string path, JToken value, bool withoutUndo, string undoLabel, List<Object> dirty)
+        {
+            if (!withoutUndo) Undo.RecordObject(obj, undoLabel);
+            var so = new SerializedObject(obj);
+            SerializedValue.Write(so.FindProperty(path), value, out _);
+            if (withoutUndo) so.ApplyModifiedPropertiesWithoutUndo(); else so.ApplyModifiedProperties();
+            if (PrefabUtility.IsPartOfPrefabInstance(obj)) PrefabUtility.RecordPrefabInstancePropertyModifications(obj);
+            dirty.Add(obj);
+        }
+
+        private static bool PlayModeBlocks(Object o) => EditorApplication.isPlaying && !(o is ScriptableObject) && AssetDatabase.GetAssetPath(o) == "";
+        private static JObject Skip(string target, string path, string code, string msg, JToken actual = null, JToken expected = null)
+        { var o = new JObject { ["target"] = target, ["propertyPath"] = path, ["code"] = code, ["message"] = msg }; if (actual != null) o["actual"] = actual; if (expected != null) o["expected"] = expected; return o; }
+        private static HandlerOutcome Abort(JArray skipped) => HandlerOutcome.Fail($"aborted (allOrNothing): {skipped.Count} precondition failure(s)", ((JObject)skipped.Last)["code"].ToString());
     }
 }

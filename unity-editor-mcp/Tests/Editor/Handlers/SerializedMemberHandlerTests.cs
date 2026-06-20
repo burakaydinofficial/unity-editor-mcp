@@ -31,6 +31,40 @@ namespace UnityEditorMCP.Tests
             Assert.IsNotNull(FindProp(props, "privateFloat"), "private [SerializeField] must appear");
         }
 
+        [Test] public void Set_PrivateSerializeField_Writes_Headline()
+        {
+            var read = SerializedMemberHandler.Inspect(new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath } });
+            var props = (JArray)JObject.FromObject(read.Payload)["object"]["properties"];
+            var cur = FindProp(props, "privateFloat")["value"];
+            var outcome = SerializedMemberHandler.Set(new JObject { ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["privateFloat"] = new JObject { ["value"] = 42.0, ["expected"] = cur } } } } });
+            Assert.IsFalse(outcome.IsError, outcome.Error);
+            Assert.AreEqual(42f, _asset.ReadPrivateFloat(), 0.0001f); // the private field actually changed
+        }
+
+        [Test] public void Set_StaleExpected_SkipsWithStale()
+        {
+            var outcome = SerializedMemberHandler.Set(new JObject { ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["IntField"] = new JObject { ["value"] = 99, ["expected"] = 12345 } } } } }); // wrong expected
+            var data = JObject.FromObject(outcome.Payload);
+            Assert.AreEqual(0, ((JArray)data["changed"]).Count);
+            Assert.AreEqual("STALE", (string)((JArray)data["skipped"])[0]["code"]);
+            Assert.AreEqual(7, _asset.IntField); // unchanged
+        }
+
+        [Test] public void Set_MissingExpected_RefusedUnlessForce()
+        {
+            var noForce = SerializedMemberHandler.Set(new JObject { ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath }, ["set"] = new JObject { ["IntField"] = new JObject { ["value"] = 5 } } } } });
+            Assert.AreEqual("MISSING_PRECONDITION", (string)((JArray)JObject.FromObject(noForce.Payload)["skipped"])[0]["code"]);
+            var forced = SerializedMemberHandler.Set(new JObject { ["force"] = true, ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath }, ["set"] = new JObject { ["IntField"] = new JObject { ["value"] = 5 } } } } });
+            Assert.IsFalse(forced.IsError, forced.Error);
+            Assert.AreEqual(5, _asset.IntField);
+        }
+
         internal static JToken FindProp(JArray props, string path)
         {
             foreach (var p in props) if ((string)p["propertyPath"] == path) return p;
