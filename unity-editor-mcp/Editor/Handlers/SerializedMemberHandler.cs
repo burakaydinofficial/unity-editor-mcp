@@ -53,15 +53,63 @@ namespace UnityEditorMCP.Handlers
             var startDepth = it.depth;
             while (it.NextVisible(enterChildren))
             {
-                enterChildren = it.depth - startDepth < maxDepth && it.hasVisibleChildren;
-                if (it.propertyPath == "m_Script") continue;
+                if (it.propertyPath == "m_Script") { enterChildren = false; continue; }
+                // Struct types (Vector/Quaternion/Color/Rect/Bounds) are read/written as a UNIT by SerializedValue —
+                // emit their composite value and do NOT recurse into x/y/z, so a read round-trips into a write.
+                var atomic = IsAtomicComposite(it.propertyType);
+                enterChildren = !atomic && it.depth - startDepth < maxDepth && it.hasVisibleChildren;
                 var node = new JObject { ["propertyPath"] = it.propertyPath, ["propertyType"] = it.propertyType.ToString() };
                 if (it.isArray && it.propertyType != SerializedPropertyType.String) node["arraySize"] = it.arraySize;
                 if (it.propertyType == SerializedPropertyType.ManagedReference) node["managedReferenceFullTypename"] = it.managedReferenceFullTypename;
-                if (includeValues && !it.hasVisibleChildren) node["value"] = SerializedValue.Read(it);
+                if (includeValues && (atomic || !it.hasVisibleChildren)) node["value"] = SerializedValue.Read(it);
                 arr.Add(node);
             }
             return arr;
+        }
+
+        // Value-equality for compare-and-swap: numbers compare NUMERICALLY (a read emits floats, e.g. -10.0,
+        // but an agent echoing -10 sends a JSON integer — JToken.DeepEquals would call them unequal). Objects
+        // and arrays recurse so {x:0,y:0,z:-10} (floats) matches {x:0,y:0,z:-10} (ints).
+        private static bool ValuesEqual(JToken a, JToken b)
+        {
+            if (a == null || b == null) return (a == null) == (b == null);
+            bool aNum = a.Type == JTokenType.Integer || a.Type == JTokenType.Float;
+            bool bNum = b.Type == JTokenType.Integer || b.Type == JTokenType.Float;
+            if (aNum && bNum) return a.Value<double>() == b.Value<double>();
+            if (a.Type == JTokenType.Object && b.Type == JTokenType.Object)
+            {
+                var ao = (JObject)a; var bo = (JObject)b;
+                if (ao.Count != bo.Count) return false;
+                foreach (var prop in ao) { if (!bo.TryGetValue(prop.Key, out var bv) || !ValuesEqual(prop.Value, bv)) return false; }
+                return true;
+            }
+            if (a.Type == JTokenType.Array && b.Type == JTokenType.Array)
+            {
+                var aa = (JArray)a; var ba = (JArray)b;
+                if (aa.Count != ba.Count) return false;
+                for (int i = 0; i < aa.Count; i++) if (!ValuesEqual(aa[i], ba[i])) return false;
+                return true;
+            }
+            return JToken.DeepEquals(a, b);
+        }
+
+        private static bool IsAtomicComposite(SerializedPropertyType t)
+        {
+            switch (t)
+            {
+                case SerializedPropertyType.Vector2:
+                case SerializedPropertyType.Vector3:
+                case SerializedPropertyType.Vector4:
+                case SerializedPropertyType.Vector2Int:
+                case SerializedPropertyType.Vector3Int:
+                case SerializedPropertyType.Quaternion:
+                case SerializedPropertyType.Color:
+                case SerializedPropertyType.Rect:
+                case SerializedPropertyType.Bounds:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         public static HandlerOutcome Set(JObject p)
@@ -100,7 +148,7 @@ namespace UnityEditorMCP.Handlers
                         var hasExpected = spec["expected"] != null;
                         if (!hasExpected && !force) { skipped.Add(Skip(rt.Describe, path, "MISSING_PRECONDITION", "expected required (or force)")); if (allOrNothing) return Abort(skipped); continue; }
                         var current = SerializedValue.Read(sp);
-                        if (hasExpected && !JToken.DeepEquals(current, spec["expected"]))
+                        if (hasExpected && !ValuesEqual(current, spec["expected"]))
                         { skipped.Add(Skip(rt.Describe, path, "STALE", "value changed", current, spec["expected"])); if (allOrNothing) return Abort(skipped); continue; }
 
                         var probe = new SerializedObject(rt.Obj);
@@ -202,6 +250,19 @@ namespace UnityEditorMCP.Handlers
             }
             using (var sha = System.Security.Cryptography.SHA256.Create())
                 return System.BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(sb.ToString()))).Replace("-", "").ToLowerInvariant();
+        }
+
+        // Persist dirty assets. set_serialized_properties writes are dirty-only — this is the explicit save.
+        // SaveAssets() (not the 2020.3-patch SaveAssetIfDirty) keeps the floor claim safe; it persists exactly
+        // what the writes dirtied.
+        public static HandlerOutcome SaveAssets(JObject p)
+        {
+            try
+            {
+                AssetDatabase.SaveAssets();
+                return HandlerOutcome.Ok(new JObject { ["saved"] = "all-dirty" });
+            }
+            catch (System.Exception e) { return HandlerOutcome.Fail($"save failed: {e.Message}"); }
         }
     }
 }

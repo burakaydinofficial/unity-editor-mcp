@@ -94,6 +94,9 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("get_type_members", CodeIntelligenceHandler.GetTypeMembers);
             dispatcher.Register("find_implementations", CodeIntelligenceHandler.FindImplementations);
             dispatcher.Register("export_roslyn_model", RoslynModelExporter.Export);
+            dispatcher.Register("inspect_serialized_object", SerializedMemberHandler.Inspect);
+            dispatcher.Register("set_serialized_properties", SerializedMemberHandler.Set);
+            dispatcher.Register("save_assets", SerializedMemberHandler.SaveAssets);
             dispatcher.Register("find_ui_elements", UIInteractionHandler.FindUIElements);
             dispatcher.Register("click_ui_element", UIInteractionHandler.ClickUIElement);
             dispatcher.Register("get_ui_element_state", UIInteractionHandler.GetUIElementState);

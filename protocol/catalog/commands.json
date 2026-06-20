@@ -491,6 +491,82 @@
       }
     },
     {
+      "name": "inspect_serialized_object",
+      "category": "serialization",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Discover a target's serialized property tree (propertyPath, SerializedPropertyType, current values, array sizes, [SerializeReference] typenames) via SerializedObject — never reflection, so private [SerializeField] fields appear. Provide `target` (single) or `match` (selector); optional component/componentIndex, pathPrefix (subtree scope), depth, includeValues, maxObjects. Read the result's values to drive set_serialized_properties' mandatory `expected`.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "target": { "type": "object", "description": "Single target: one of {instanceId} | {assetPath} | {guid} | {scenePath}." },
+          "match": { "type": "object", "description": "Selector: one of {prefab} | {componentType} | {tag} | {selection:true} | {scenePaths:[...]}." },
+          "component": { "type": "string", "description": "For a GameObject target/match: which component's SerializedObject (omitted = all components)." },
+          "componentIndex": { "type": "number", "description": "Disambiguate multiple components of the same type (default 0)." },
+          "pathPrefix": { "type": "string", "description": "Scope to a subtree (a propertyPath)." },
+          "depth": { "type": "number", "description": "Max nesting depth (default 3)." },
+          "includeValues": { "type": "boolean", "description": "Include current values (default true; false = paths+types only)." },
+          "maxObjects": { "type": "number", "description": "Cap a selector's matched objects (default 50, ceiling 500)." }
+        }
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "target": { "type": "string" },
+          "object": { "type": "object" },
+          "count": { "type": "number" },
+          "truncated": { "type": "boolean" },
+          "objects": { "type": "array" }
+        }
+      }
+    },
+    {
+      "name": "set_serialized_properties",
+      "category": "serialization",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": true,
+      "description": "Safely write serialized properties via SerializedObject (private [SerializeField] included), Inspector-correct (one Undo group, ApplyModifiedProperties, prefab-instance overrides, dirty). READ-BEFORE-WRITE is mandatory. Mode 1 — edits:[{target,component?,set:{path:{value,expected}}}]: each writes iff live==expected (STALE on mismatch); `expected` is required unless `force`. Mode 2 — match+set:{path:value}: a no-token call PREVIEWS (returns the matched set + current values + a token, no mutation); pass the `token` back to commit (STALE_MATCH if state drifted); `force` skips the token. dryRun reports without writing; allOrNothing makes the batch atomic; withoutUndo/undoLabel control undo. Writes are dirty-only — call save_assets to persist.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "edits": { "type": "array", "description": "Mode 1: explicit-target compare-and-swap edits [{target, component?, componentIndex?, set:{propertyPath:{value, expected}}}]." },
+          "match": { "type": "object", "description": "Mode 2 selector (see inspect_serialized_object)." },
+          "set": { "type": "object", "description": "Mode 2: propertyPath -> value, applied to every match." },
+          "component": { "type": "string" },
+          "componentIndex": { "type": "number" },
+          "token": { "type": "string", "description": "Mode 2 commit token returned by the preview call." },
+          "force": { "type": "boolean", "description": "Opt into a blind write — skips `expected` (Mode 1) / `token` (Mode 2). The one reckless door; default false." },
+          "dryRun": { "type": "boolean", "description": "Report planned changes + precondition results without mutating." },
+          "allOrNothing": { "type": "boolean", "description": "Any precondition failure aborts the whole batch." },
+          "withoutUndo": { "type": "boolean", "description": "ApplyModifiedPropertiesWithoutUndo (no undo entry)." },
+          "undoLabel": { "type": "string", "description": "The Undo group name." }
+        }
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "applied": { "type": "boolean" },
+          "changed": { "type": "array" },
+          "skipped": { "type": "array" },
+          "objects": { "type": "array" },
+          "token": { "type": "string" },
+          "forced": { "type": "boolean" }
+        }
+      }
+    },
+    {
+      "name": "save_assets",
+      "category": "serialization",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Persist all dirty assets to disk (AssetDatabase.SaveAssets). set_serialized_properties writes are dirty-only — call this to save. Never auto-called per write.",
+      "params": { "type": "object", "properties": {} },
+      "result": { "type": "object", "properties": { "saved": { "type": "string" } } }
+    },
+    {
       "name": "get_editor_info",
       "category": "system",
       "sides": ["editor"],

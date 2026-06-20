@@ -31,6 +31,17 @@ namespace UnityEditorMCP.Tests
             Assert.IsNotNull(FindProp(props, "privateFloat"), "private [SerializeField] must appear");
         }
 
+        [Test] public void Inspect_StructField_EmitsCompositeValue()
+        {
+            var data = JObject.FromObject(SerializedMemberHandler.Inspect(new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath } }).Payload);
+            var vec = FindProp((JArray)data["object"]["properties"], "Vec3Field");
+            Assert.IsNotNull(vec);
+            Assert.AreEqual("Vector3", (string)vec["propertyType"]);
+            Assert.AreEqual(1f, (float)vec["value"]["x"]); // composite emitted as a unit, not recursed into x/y/z
+            Assert.AreEqual(2f, (float)vec["value"]["y"]);
+            Assert.AreEqual(3f, (float)vec["value"]["z"]);
+        }
+
         [Test] public void Set_PrivateSerializeField_Writes_Headline()
         {
             var read = SerializedMemberHandler.Inspect(new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath } });
@@ -41,6 +52,19 @@ namespace UnityEditorMCP.Tests
                               ["set"] = new JObject { ["privateFloat"] = new JObject { ["value"] = 42.0, ["expected"] = cur } } } } });
             Assert.IsFalse(outcome.IsError, outcome.Error);
             Assert.AreEqual(42f, _asset.ReadPrivateFloat(), 0.0001f); // the private field actually changed
+        }
+
+        [Test] public void Set_CasToleratesIntVsFloatNumberForms()
+        {
+            // Vec3Field is {1,2,3} as floats; an agent echoing {1,2,3} as JSON integers must still CAS-match.
+            var outcome = SerializedMemberHandler.Set(new JObject { ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["Vec3Field"] = new JObject {
+                                  ["value"] = new JObject { ["x"] = 4, ["y"] = 5, ["z"] = 6 },
+                                  ["expected"] = new JObject { ["x"] = 1, ["y"] = 2, ["z"] = 3 } } } } } }); // expected as ints
+            Assert.IsFalse(outcome.IsError, outcome.Error);
+            Assert.AreEqual(1, ((JArray)JObject.FromObject(outcome.Payload)["changed"]).Count, "int-form expected must match the float-valued read");
+            Assert.AreEqual(new Vector3(4, 5, 6), _asset.Vec3Field);
         }
 
         [Test] public void Set_StaleExpected_SkipsWithStale()
