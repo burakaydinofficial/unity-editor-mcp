@@ -187,6 +187,138 @@ namespace UnityEditorMCP.Tests
             finally { Object.DestroyImmediate(a); }
         }
 
+        // ---- addressing coverage ----
+
+        [Test] public void Target_ByGuid_Resolves()
+        {
+            var guid = AssetDatabase.AssetPathToGUID(_assetPath);
+            var outcome = SerializedMemberHandler.Inspect(new JObject { ["target"] = new JObject { ["guid"] = guid } });
+            Assert.IsFalse(outcome.IsError, outcome.Error);
+            Assert.IsNotNull(FindProp((JArray)JObject.FromObject(outcome.Payload)["object"]["properties"], "IntField"));
+        }
+
+        [Test] public void Target_ByScenePath_Resolves()
+        {
+            var go = new GameObject("ScenePathTarget", typeof(BoxCollider));
+            try
+            {
+                var outcome = SerializedMemberHandler.Inspect(new JObject { ["target"] = new JObject { ["scenePath"] = "/ScenePathTarget" }, ["component"] = "BoxCollider" });
+                Assert.IsFalse(outcome.IsError, outcome.Error);
+                Assert.IsNotNull(FindProp((JArray)JObject.FromObject(outcome.Payload)["object"]["properties"], "m_IsTrigger"));
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
+        [Test] public void Target_ComponentIndex_Disambiguates()
+        {
+            var go = new GameObject("MultiCollider");
+            go.AddComponent<BoxCollider>();
+            go.AddComponent<BoxCollider>(); // two components of the same type
+            try
+            {
+                var ok = SerializedMemberHandler.Inspect(new JObject { ["target"] = new JObject { ["scenePath"] = "/MultiCollider" }, ["component"] = "BoxCollider", ["componentIndex"] = 1 });
+                Assert.IsFalse(ok.IsError, ok.Error); // index 1 resolves the second
+                var miss = SerializedMemberHandler.Inspect(new JObject { ["target"] = new JObject { ["scenePath"] = "/MultiCollider" }, ["component"] = "BoxCollider", ["componentIndex"] = 5 });
+                Assert.IsTrue(miss.IsError);
+                Assert.AreEqual("COMPONENT_NOT_FOUND", miss.Code);
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
+        [Test] public void Selector_Tag_Matches()
+        {
+            var go = new GameObject("TaggedObj", typeof(BoxCollider)); go.tag = "Player"; // built-in tag
+            try
+            {
+                var outcome = SerializedMemberHandler.Inspect(new JObject { ["match"] = new JObject { ["tag"] = "Player" }, ["component"] = "BoxCollider" });
+                Assert.IsFalse(outcome.IsError, outcome.Error);
+                Assert.GreaterOrEqual((int)JObject.FromObject(outcome.Payload)["count"], 1);
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
+        [Test] public void Selector_Selection_Matches()
+        {
+            var go = new GameObject("SelectedObj", typeof(BoxCollider));
+            try
+            {
+                Selection.objects = new Object[] { go };
+                var outcome = SerializedMemberHandler.Inspect(new JObject { ["match"] = new JObject { ["selection"] = true }, ["component"] = "BoxCollider" });
+                Assert.IsFalse(outcome.IsError, outcome.Error);
+                Assert.GreaterOrEqual((int)JObject.FromObject(outcome.Payload)["count"], 1);
+            }
+            finally { Selection.objects = new Object[0]; Object.DestroyImmediate(go); }
+        }
+
+        [Test] public void InspectBySelector_ReturnsMatchedObjects()
+        {
+            var a = new GameObject("S1", typeof(BoxCollider));
+            var b = new GameObject("S2", typeof(BoxCollider));
+            try
+            {
+                var outcome = SerializedMemberHandler.Inspect(new JObject { ["match"] = new JObject { ["componentType"] = "BoxCollider" }, ["component"] = "BoxCollider" });
+                Assert.IsFalse(outcome.IsError, outcome.Error);
+                Assert.GreaterOrEqual((int)JObject.FromObject(outcome.Payload)["count"], 2);
+            }
+            finally { Object.DestroyImmediate(a); Object.DestroyImmediate(b); }
+        }
+
+        // ---- set options + behavior coverage ----
+
+        [Test] public void Set_DryRun_DoesNotMutate()
+        {
+            var outcome = SerializedMemberHandler.Set(new JObject { ["dryRun"] = true, ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["IntField"] = new JObject { ["value"] = 555, ["expected"] = 7 } } } } });
+            var data = JObject.FromObject(outcome.Payload);
+            Assert.IsFalse((bool)data["applied"]);
+            Assert.AreEqual(1, ((JArray)data["changed"]).Count); // planned change reported
+            Assert.AreEqual(7, _asset.IntField);                  // but not mutated
+        }
+
+        [Test] public void Set_AllOrNothing_AbortsOnFirstFailure()
+        {
+            var outcome = SerializedMemberHandler.Set(new JObject { ["allOrNothing"] = true, ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["IntField"] = new JObject { ["value"] = 1, ["expected"] = 99999 } } } } }); // STALE -> abort
+            Assert.IsTrue(outcome.IsError);
+            Assert.AreEqual(7, _asset.IntField); // nothing written
+        }
+
+        [Test] public void Set_MultiTarget_Batch()
+        {
+            var asset2 = ScriptableObject.CreateInstance<SerFixtureAsset>();
+            var path2 = "Assets/__sertest2__.asset";
+            AssetDatabase.CreateAsset(asset2, path2);
+            try
+            {
+                var outcome = SerializedMemberHandler.Set(new JObject { ["edits"] = new JArray {
+                    new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath }, ["set"] = new JObject { ["IntField"] = new JObject { ["value"] = 10, ["expected"] = 7 } } },
+                    new JObject { ["target"] = new JObject { ["assetPath"] = path2 }, ["set"] = new JObject { ["IntField"] = new JObject { ["value"] = 20, ["expected"] = 7 } } } } });
+                Assert.IsFalse(outcome.IsError, outcome.Error);
+                Assert.AreEqual(10, _asset.IntField);
+                Assert.AreEqual(20, asset2.IntField);
+                Assert.AreEqual(2, ((JArray)JObject.FromObject(outcome.Payload)["changed"]).Count);
+            }
+            finally { AssetDatabase.DeleteAsset(path2); }
+        }
+
+        [Test] public void Set_Undo_RevertsTheChange()
+        {
+            SerializedMemberHandler.Set(new JObject { ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["IntField"] = new JObject { ["value"] = 321, ["expected"] = 7 } } } } });
+            Assert.AreEqual(321, _asset.IntField);
+            Undo.PerformUndo();
+            Assert.AreEqual(7, _asset.IntField); // the Undo wiring is real, not just recorded
+        }
+
+        [Test] public void SaveAssets_Succeeds()
+        {
+            var outcome = SerializedMemberHandler.SaveAssets(new JObject());
+            Assert.IsFalse(outcome.IsError, outcome.Error);
+        }
+
         internal static JToken FindProp(JArray props, string path)
         {
             foreach (var p in props) if ((string)p["propertyPath"] == path) return p;

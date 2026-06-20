@@ -18,6 +18,14 @@ namespace UnityEditorMCP.Tests
         public SerFixtureEnum EnumField = SerFixtureEnum.Beta;
         public Object RefField;            // ObjectReference
         public int[] IntArray = { 1, 2, 3 };
+        public Vector2 Vec2Field = new Vector2(1, 2);
+        public Vector4 Vec4Field = new Vector4(1, 2, 3, 4);
+        public Vector2Int Vec2IntField = new Vector2Int(1, 2);
+        public Vector3Int Vec3IntField = new Vector3Int(1, 2, 3);
+        public Quaternion QuatField = new Quaternion(0, 0, 0, 1);
+        public Rect RectField = new Rect(1, 2, 3, 4);
+        public Bounds BoundsField = new Bounds(new Vector3(0, 0, 0), new Vector3(1, 1, 1));
+        public char CharField = 'A';
 
         public float ReadPrivateFloat() => privateFloat; // test-only proof the private write landed
     }

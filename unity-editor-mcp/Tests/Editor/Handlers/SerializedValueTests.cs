@@ -30,6 +30,37 @@ namespace UnityEditorMCP.Tests
                 "Vec3Field", "ColorField", "MaskField", "EnumField" }) RoundTrip(path);
         }
 
+        [Test] public void RoundTrips_RemainingStructAndCharTypes()
+        {
+            foreach (var path in new[] { "Vec2Field", "Vec4Field", "Vec2IntField", "Vec3IntField",
+                "QuatField", "RectField", "BoundsField", "CharField" }) RoundTrip(path);
+        }
+
+        [Test] public void Quaternion_WritableByEuler()
+        {
+            var p = _so.FindProperty("QuatField");
+            Assert.IsTrue(SerializedValue.Write(p, JToken.Parse("{\"euler\":{\"x\":0,\"y\":90,\"z\":0}}"), out var err), err);
+            _so.ApplyModifiedPropertiesWithoutUndo();
+            Assert.AreEqual(90f, _so.FindProperty("QuatField").quaternionValue.eulerAngles.y, 0.01f);
+        }
+
+        [Test] public void RoundTrips_ObjectReference()
+        {
+            var other = ScriptableObject.CreateInstance<SerFixtureAsset>();
+            try { _asset.RefField = other; _so.Update(); RoundTrip("RefField"); }
+            finally { Object.DestroyImmediate(other); }
+        }
+
+        [Test] public void ArrayElement_ReadWriteByPropertyPath()
+        {
+            var p = _so.FindProperty("IntArray.Array.data[0]");
+            Assert.IsNotNull(p);
+            Assert.AreEqual(1L, (long)SerializedValue.Read(p));
+            Assert.IsTrue(SerializedValue.Write(p, JToken.FromObject(99), out _));
+            _so.ApplyModifiedPropertiesWithoutUndo();
+            Assert.AreEqual(99, _asset.IntArray[0]);
+        }
+
         [Test] public void Write_TypeMismatch_FailsWithCode()
         {
             var p = _so.FindProperty("IntField");
