@@ -567,6 +567,34 @@
       "result": { "type": "object", "properties": { "saved": { "type": "string" } } }
     },
     {
+      "name": "modify_serialized_array",
+      "category": "serialization",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": true,
+      "description": "Structurally mutate array/list SerializedProperties (resize/insert/remove/move/clear) with a size compare-and-swap. ops:[{target, component?, arrayPath, op, expectedSize, index?, count?, toIndex?, value?}]. Each op applies iff the live arraySize == expectedSize (STALE_SIZE else); expectedSize is mandatory unless force. Out-of-range index -> INDEX_OUT_OF_RANGE; non-array -> NOT_AN_ARRAY; up-front validated so allOrNothing is atomic. insert optionally sets the new leaf element's value. One Undo group; dirty-only (call save_assets). dryRun/allOrNothing/withoutUndo as set_serialized_properties.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "ops": { "type": "array", "description": "[{target, component?, componentIndex?, arrayPath, op: resize|insert|remove|move|clear, expectedSize, index?, count?, toIndex?, value?}]" },
+          "force": { "type": "boolean", "description": "Skip the expectedSize guard (blind structural mutation)." },
+          "dryRun": { "type": "boolean", "description": "Report planned ops without mutating." },
+          "allOrNothing": { "type": "boolean", "description": "Any failed op aborts the whole batch." },
+          "withoutUndo": { "type": "boolean" },
+          "undoLabel": { "type": "string" }
+        },
+        "required": ["ops"]
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "applied": { "type": "boolean" },
+          "changed": { "type": "array" },
+          "skipped": { "type": "array" }
+        }
+      }
+    },
+    {
       "name": "get_editor_info",
       "category": "system",
       "sides": ["editor"],

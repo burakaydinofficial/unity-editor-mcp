@@ -275,5 +275,114 @@ namespace UnityEditorMCP.Handlers
             }
             catch (System.Exception e) { return HandlerOutcome.Fail($"save failed: {e.Message}"); }
         }
+
+        // Structural array mutation (D8): a batch of ops over array properties, with size compare-and-swap
+        // (expectedSize) mirroring the value CAS. Reuses targeting + the play-mode guard + the Undo/dirty rail.
+        public static HandlerOutcome ModifyArray(JObject p)
+        {
+            try
+            {
+                var force = p["force"]?.ToObject<bool?>() ?? false;
+                var dryRun = p["dryRun"]?.ToObject<bool?>() ?? false;
+                var allOrNothing = p["allOrNothing"]?.ToObject<bool?>() ?? false;
+                var withoutUndo = p["withoutUndo"]?.ToObject<bool?>() ?? false;
+                var undoLabel = p["undoLabel"]?.ToString() ?? "MCP Modify Serialized Array";
+                if (!(p["ops"] is JArray ops)) return HandlerOutcome.Fail("provide ops[]", "VALIDATION_ERROR");
+
+                var changed = new JArray();
+                var skipped = new JArray();
+                var plan = new List<System.Action>();
+                var dirty = new List<Object>();
+
+                foreach (var op in ops.OfType<JObject>())
+                {
+                    if (!SerializedTargeting.ResolveSingle(op["target"] as JObject, op, out var rt, out var code, out var msg))
+                    { skipped.Add(Skip(null, null, code, msg)); if (allOrNothing) return Abort(skipped); continue; }
+                    if (PlayModeBlocks(rt.Obj)) { skipped.Add(Skip(rt.Describe, null, "PLAY_MODE", "scene writes refuse in play mode")); if (allOrNothing) return Abort(skipped); continue; }
+
+                    var arrayPath = op["arrayPath"]?.ToString();
+                    var opName = op["op"]?.ToString();
+                    var sp = new SerializedObject(rt.Obj).FindProperty(arrayPath);
+                    if (sp == null) { skipped.Add(Skip(rt.Describe, arrayPath, "PROPERTY_NOT_FOUND", "no such property")); if (allOrNothing) return Abort(skipped); continue; }
+                    if (!sp.isArray || sp.propertyType == SerializedPropertyType.String) { skipped.Add(Skip(rt.Describe, arrayPath, "NOT_AN_ARRAY", "property is not an array")); if (allOrNothing) return Abort(skipped); continue; }
+
+                    var size = sp.arraySize;
+                    var hasExpected = op["expectedSize"] != null;
+                    if (!hasExpected && !force) { skipped.Add(Skip(rt.Describe, arrayPath, "MISSING_PRECONDITION", "expectedSize required (or force)")); if (allOrNothing) return Abort(skipped); continue; }
+                    if (hasExpected && op["expectedSize"].Value<int>() != size) { skipped.Add(Skip(rt.Describe, arrayPath, "STALE_SIZE", "array size changed", size, op["expectedSize"])); if (allOrNothing) return Abort(skipped); continue; }
+
+                    if (!ValidateArrayOp(opName, op, size, out var newSize, out var verr, out var vcode))
+                    { skipped.Add(Skip(rt.Describe, arrayPath, vcode, verr)); if (allOrNothing) return Abort(skipped); continue; }
+
+                    changed.Add(new JObject { ["target"] = rt.Describe, ["arrayPath"] = arrayPath, ["op"] = opName, ["fromSize"] = size, ["toSize"] = newSize });
+                    var capObj = rt.Obj; var capPath = arrayPath; var capOp = op;
+                    plan.Add(() => ApplyArrayOp(capObj, capPath, capOp, withoutUndo, undoLabel, dirty));
+                }
+
+                if (!dryRun)
+                {
+                    if (!withoutUndo) Undo.IncrementCurrentGroup();
+                    try { foreach (var a in plan) a(); }
+                    finally { if (!withoutUndo) { Undo.SetCurrentGroupName(undoLabel); Undo.CollapseUndoOperations(Undo.GetCurrentGroup()); } }
+                    foreach (var o in dirty.Distinct()) EditorUtility.SetDirty(o);
+                }
+                return HandlerOutcome.Ok(new JObject { ["applied"] = !dryRun, ["changed"] = changed, ["skipped"] = skipped });
+            }
+            catch (System.Exception e) { return HandlerOutcome.Fail($"modify array failed: {e.Message}"); }
+        }
+
+        private static bool ValidateArrayOp(string op, JObject o, int size, out int newSize, out string error, out string code)
+        {
+            newSize = size; error = null; code = "VALIDATION_ERROR";
+            switch (op)
+            {
+                case "resize":
+                    var count = o["count"]?.ToObject<int?>() ?? -1;
+                    if (count < 0) { error = "resize needs count >= 0"; return false; }
+                    newSize = count; return true;
+                case "insert":
+                    var ii = o["index"]?.ToObject<int?>() ?? size;
+                    if (ii < 0 || ii > size) { code = "INDEX_OUT_OF_RANGE"; error = $"index {ii} out of [0,{size}]"; return false; }
+                    newSize = size + 1; return true;
+                case "remove":
+                    var ri = o["index"]?.ToObject<int?>() ?? -1;
+                    if (ri < 0 || ri >= size) { code = "INDEX_OUT_OF_RANGE"; error = $"index {ri} out of [0,{size})"; return false; }
+                    newSize = size - 1; return true;
+                case "move":
+                    int from = o["index"]?.ToObject<int?>() ?? -1, to = o["toIndex"]?.ToObject<int?>() ?? -1;
+                    if (from < 0 || from >= size || to < 0 || to >= size) { code = "INDEX_OUT_OF_RANGE"; error = $"move index out of [0,{size})"; return false; }
+                    return true;
+                case "clear": newSize = 0; return true;
+                default: error = $"unknown op '{op}'"; return false;
+            }
+        }
+
+        private static void ApplyArrayOp(Object obj, string arrayPath, JObject o, bool withoutUndo, string undoLabel, List<Object> dirty)
+        {
+            if (!withoutUndo) Undo.RecordObject(obj, undoLabel);
+            var so = new SerializedObject(obj);
+            var sp = so.FindProperty(arrayPath);
+            switch (o["op"].ToString())
+            {
+                case "resize": sp.arraySize = o["count"].Value<int>(); break;
+                case "insert":
+                    var ii = o["index"]?.ToObject<int?>() ?? sp.arraySize;
+                    sp.InsertArrayElementAtIndex(ii);
+                    if (o["value"] != null) SerializedValue.Write(sp.GetArrayElementAtIndex(ii), o["value"], out _);
+                    break;
+                case "remove":
+                    var ri = o["index"].Value<int>();
+                    var el = sp.GetArrayElementAtIndex(ri);
+                    bool nonNullRef = el.propertyType == SerializedPropertyType.ObjectReference && el.objectReferenceValue != null;
+                    sp.DeleteArrayElementAtIndex(ri);
+                    if (nonNullRef) sp.DeleteArrayElementAtIndex(ri); // object-ref arrays: first delete nulls, second removes
+                    break;
+                case "move": sp.MoveArrayElement(o["index"].Value<int>(), o["toIndex"].Value<int>()); break;
+                case "clear": sp.ClearArray(); break;
+            }
+            if (withoutUndo) so.ApplyModifiedPropertiesWithoutUndo(); else so.ApplyModifiedProperties();
+            if (PrefabUtility.IsPartOfPrefabInstance(obj)) PrefabUtility.RecordPrefabInstancePropertyModifications(obj);
+            dirty.Add(obj);
+        }
     }
 }

@@ -26,6 +26,7 @@ namespace UnityEditorMCP.Tests
         public Rect RectField = new Rect(1, 2, 3, 4);
         public Bounds BoundsField = new Bounds(new Vector3(0, 0, 0), new Vector3(1, 1, 1));
         public char CharField = 'A';
+        public AnimationCurve CurveField = AnimationCurve.Linear(0, 0, 1, 1);
 
         public float ReadPrivateFloat() => privateFloat; // test-only proof the private write landed
     }

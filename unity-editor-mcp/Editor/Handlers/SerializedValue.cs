@@ -68,7 +68,16 @@ namespace UnityEditorMCP.Handlers
                     case SerializedPropertyType.Rect: p.rectValue = new Rect(F(v, "x"), F(v, "y"), F(v, "width"), F(v, "height")); return true;
                     case SerializedPropertyType.Bounds: p.boundsValue = new Bounds(new Vector3(F(v["center"], "x"), F(v["center"], "y"), F(v["center"], "z")), new Vector3(F(v["size"], "x"), F(v["size"], "y"), F(v["size"], "z"))); return true;
                     case SerializedPropertyType.ObjectReference: return WriteRef(p, v, out error);
-                    default: error = $"{p.propertyType} is read-only in 0.7.0"; return false;
+                    case SerializedPropertyType.AnimationCurve:
+                    {
+                        var keys = v["keys"] as JArray ?? new JArray();
+                        var frames = new Keyframe[keys.Count];
+                        for (int i = 0; i < keys.Count; i++)
+                            frames[i] = new Keyframe(F(keys[i], "time"), F(keys[i], "value"), F(keys[i], "inTangent"), F(keys[i], "outTangent"));
+                        p.animationCurveValue = new AnimationCurve(frames);
+                        return true;
+                    }
+                    default: error = $"{p.propertyType} is read-only"; return false;
                 }
             }
             catch (Exception e) { error = $"TYPE_MISMATCH: cannot write {p.propertyType} from {v?.Type.ToString() ?? "null"} ({e.Message})"; return false; }

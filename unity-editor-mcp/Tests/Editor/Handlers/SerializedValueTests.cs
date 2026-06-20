@@ -61,6 +61,16 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual(99, _asset.IntArray[0]);
         }
 
+        [Test] public void AnimationCurve_RoundTrips()
+        {
+            var p = _so.FindProperty("CurveField");
+            var read = SerializedValue.Read(p);
+            Assert.IsTrue(SerializedValue.Write(p, read, out var err), err);
+            _so.ApplyModifiedPropertiesWithoutUndo();
+            Assert.IsTrue(JToken.DeepEquals(read, SerializedValue.Read(_so.FindProperty("CurveField"))));
+            Assert.AreEqual(2, _asset.CurveField.keys.Length);
+        }
+
         [Test] public void Write_TypeMismatch_FailsWithCode()
         {
             var p = _so.FindProperty("IntField");

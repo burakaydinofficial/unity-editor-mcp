@@ -2,6 +2,7 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UnityEditorMCP.Core;
 using UnityEditorMCP.Handlers;
 
 namespace UnityEditorMCP.Tests
@@ -317,6 +318,42 @@ namespace UnityEditorMCP.Tests
         {
             var outcome = SerializedMemberHandler.SaveAssets(new JObject());
             Assert.IsFalse(outcome.IsError, outcome.Error);
+        }
+
+        // ---- array mutation (D8) ----
+
+        private JObject Op(string op, JObject extra)
+        {
+            var o = new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath }, ["arrayPath"] = "IntArray", ["op"] = op, ["expectedSize"] = _asset.IntArray.Length };
+            foreach (var kv in extra) o[kv.Key] = kv.Value;
+            return o;
+        }
+        private static HandlerOutcome Arr(JObject op) => SerializedMemberHandler.ModifyArray(new JObject { ["ops"] = new JArray { op } });
+        private static string FirstSkipCode(HandlerOutcome r) => (string)((JArray)JObject.FromObject(r.Payload)["skipped"])[0]["code"];
+
+        [Test] public void Array_Resize() { Assert.IsFalse(Arr(Op("resize", new JObject { ["count"] = 5 })).IsError); Assert.AreEqual(5, _asset.IntArray.Length); }
+        [Test] public void Array_InsertWithValue() { Assert.IsFalse(Arr(Op("insert", new JObject { ["index"] = 0, ["value"] = 99 })).IsError); Assert.AreEqual(99, _asset.IntArray[0]); Assert.AreEqual(4, _asset.IntArray.Length); }
+        [Test] public void Array_Remove() { Assert.IsFalse(Arr(Op("remove", new JObject { ["index"] = 1 })).IsError); Assert.AreEqual(2, _asset.IntArray.Length); Assert.AreEqual(3, _asset.IntArray[1]); }
+        [Test] public void Array_Move() { Assert.IsFalse(Arr(Op("move", new JObject { ["index"] = 0, ["toIndex"] = 2 })).IsError); Assert.AreEqual(1, _asset.IntArray[2]); }
+        [Test] public void Array_Clear() { Assert.IsFalse(Arr(Op("clear", new JObject())).IsError); Assert.AreEqual(0, _asset.IntArray.Length); }
+
+        [Test] public void Array_StaleSize_Rejected()
+        {
+            var o = Op("remove", new JObject { ["index"] = 0 }); o["expectedSize"] = 99;
+            Assert.AreEqual("STALE_SIZE", FirstSkipCode(Arr(o)));
+            Assert.AreEqual(3, _asset.IntArray.Length); // unchanged
+        }
+        [Test] public void Array_MissingExpectedSize_Refused()
+        {
+            var o = Op("clear", new JObject()); o.Remove("expectedSize");
+            Assert.AreEqual("MISSING_PRECONDITION", FirstSkipCode(Arr(o)));
+        }
+        [Test] public void Array_IndexOutOfRange() { Assert.AreEqual("INDEX_OUT_OF_RANGE", FirstSkipCode(Arr(Op("remove", new JObject { ["index"] = 99 })))); }
+        [Test] public void Array_NotAnArray() { var o = Op("clear", new JObject()); o["arrayPath"] = "IntField"; Assert.AreEqual("NOT_AN_ARRAY", FirstSkipCode(Arr(o))); }
+        [Test] public void Array_DryRun_NoMutation()
+        {
+            Assert.IsFalse(SerializedMemberHandler.ModifyArray(new JObject { ["dryRun"] = true, ["ops"] = new JArray { Op("clear", new JObject()) } }).IsError);
+            Assert.AreEqual(3, _asset.IntArray.Length);
         }
 
         internal static JToken FindProp(JArray props, string path)
