@@ -5,26 +5,23 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm version](https://img.shields.io/npm/v/@burakaydinofficial/unity-editor-mcp)](https://www.npmjs.com/package/@burakaydinofficial/unity-editor-mcp)
 
-> ⚠️ **This project is in beta and under heavy development.** Features and APIs may change. Use at your own discretion.
+> ⚠️ **This project is in beta (0.x) and under heavy development.** Features and APIs may change. Use at your own discretion.
 
-Unity Editor MCP (Model Context Protocol) enables AI assistants like Claude and Cursor to interact directly with the Unity Editor, allowing for AI-assisted game development and automation.
+Unity Editor MCP (Model Context Protocol) enables AI assistants like Claude and Cursor to interact directly with the Unity Editor, allowing for AI-assisted game development and automation. This is a fork focused on being **the deep, floor-true bridge for older Unity projects** — Unity **2020.3 LTS and newer is the tested floor**, with both branches of every version-divergent API kept under guards down to 2019.4 (see [`COMPATIBILITY.md`](COMPATIBILITY.md)).
 
 ## 🚀 Key Features
 
-- **🎮 GameObject Management**: Create primitives, modify transforms, manage hierarchy, and delete objects
-- **🔧 Component System**: Add, remove, modify, and list components on GameObjects with full property control
-- **🎭 Prefab Workflow**: Complete prefab mode editing - open, modify, save, and exit with override management
-- **🔍 Smart Search**: Find GameObjects by name, tag, layer, or component type with exact/partial matching
-- **📊 Scene Analysis**: Analyze scene composition, component statistics, and prefab connections
-- **🎯 Component Inspection**: Get component values, find objects by component, trace references between objects
-- **🎬 Scene Control**: Create, load, save scenes, manage build settings, and work with multiple scenes
-- **🏃 Play Mode Testing**: Start, pause, and stop play mode, check editor state and compilation status
-- **🖼️ Screenshot Capture**: Take screenshots of Game View or Scene View with analysis capabilities
-- **🎨 Asset Management**: Create and modify prefabs, materials, scripts with comprehensive property control
-- **🖱️ UI Automation**: Interact with Unity UI elements programmatically for testing and automation
-- **📝 Console Integration**: Read Unity console logs filtered by type with enhanced debugging features
-- **🔄 Editor Operations**: Refresh assets, execute menu items, and trigger recompilation
-
+- **🎮 GameObject & Component control** — create/modify/delete GameObjects, **world or local** transforms, full component add/remove/**reorder** with `RequireComponent` awareness
+- **🧬 Deep serialization** — read/write *any* serialized property through `SerializedObject` (private `[SerializeField]` included), structural array/list edits, `[SerializeReference]`, `AnimationCurve`, `Gradient` — Inspector-correct (single Undo group + compare-and-swap)
+- **🎭 Prefab & asset workflow** — prefab-mode editing, variants, unpack, ScriptableObjects, materials, import settings, dependency analysis
+- **🩹 Legacy-project repair** — detect and remove **missing-script** MonoBehaviours (a deleted/moved `.cs` leaves a dangling component)
+- **🔍 Scene analysis & search** — find by name/tag/layer/component, scene statistics, reference tracing (all paged/capped for large scenes)
+- **🧠 Code intelligence** — always-on syntactic symbol search + file outline; a capability-gated **Roslyn** sidecar upgrades to semantic resolve / type-members / implementations
+- **🖼️ Visual capture** — screenshot Game/Scene View **and render an arbitrary world camera**, returned as real MCP **image content** the agent can see
+- **🏃 Play mode & tests** — drive play mode, run EditMode/PlayMode tests, read results
+- **🖱️ UI automation** — click / set / inspect uGUI elements (Undo-tracked)
+- **🛡️ Safety rails** — a confirm-gate on irreversible commands, a project-folder path sandbox, and a local mutation audit log
+- **🔌 Version-agnostic surface** — one server works with **any Unity 2020.3+ editor** (guarded to 2019.4) and several editors at once; the client learns each editor's real tools at runtime
 
 ## 🚀 Quick Start
 
@@ -81,13 +78,13 @@ Add the same configuration to Cursor's MCP settings
 ## Available Tools
 
 The MCP server advertises a **3-tool generic surface** — `list_unity_instances`, `list_unity_tools`, and
-`call_unity_tool`. Everything below is the **editor capability catalog** (~76 commands across 13
-categories): the agent discovers each connected editor's real tools — with schemas, learned at runtime —
-via `list_unity_tools`, then invokes them by name via `call_unity_tool`.
+`call_unity_tool`. Everything below is the **editor capability catalog** (**95 commands across 18 categories**):
+the agent discovers each connected editor's real tools — with schemas, learned at runtime — via
+`list_unity_tools`, then invokes them by name via `call_unity_tool`.
 
 > **Why a generic surface (v0.5.0 — [ADR 0006](docs/adr/0006-no-default-instance-on-demand-discovery.md)):**
 > one server works with **any Unity version and several editors at once**, the client carries 3 tool
-> definitions instead of ~80, and **every call names its target editor explicitly** (a project path or
+> definitions instead of ~95, and **every call names its target editor explicitly** (a project path or
 > port — there is no default instance, so an agent can never act on the wrong project). The catalog below
 > documents what each editor exposes; those commands are reached through `call_unity_tool`, not advertised
 > as individual MCP tools.
@@ -98,113 +95,130 @@ via `list_unity_tools`, then invokes them by name via `call_unity_tool`.
 > that trims the response to just those fields, GraphQL-style (array elements are transparent; omit for the
 > full result).
 
-### System & Core Tools (3 tools)
-- **`ping`** - Test connection to Unity Editor and verify server status
-- **`read_logs`** - Read Unity console logs with filtering by type (Log, Warning, Error, etc.)
-- **`refresh_assets`** - Refresh Unity assets and trigger recompilation
+<!-- The list below is generated from protocol/catalog/commands.json (the contract source of truth). -->
 
-### Instance Management (3 tools)
-- **`list_unity_instances`** - List the Unity editors currently running and discoverable (project, version, port); works with no editor connected
-- **`list_unity_tools`** - List the tools a connected editor actually supports, with schemas learned at runtime; pass `name` for one tool's full param schema **and result-field hints** (the version-agnostic surface)
-- **`call_unity_tool`** - Invoke any tool a connected editor supports by name, validated against its advertised schema; routes to the named instance (required — no default)
+### Instance Management — the 3 advertised meta-tools (3)
+- **`list_unity_instances`** — List the Unity editor instances currently running and discoverable (project path, Unity version, port).
+- **`list_unity_tools`** — List the tools a connected Unity editor actually supports, with their schemas (learned from the editor at runtime).
+- **`call_unity_tool`** — Invoke any tool a connected Unity editor supports, by name (discover names + schemas with list_unity_tools).
 
-### GameObject Management (5 tools)
-- **`create_gameobject`** - Create GameObjects with primitives, transforms, tags, and layers
-- **`find_gameobject`** - Find GameObjects by name, tag, layer with pattern matching
-- **`modify_gameobject`** - Modify GameObject properties (transform, name, active state, parent, etc.)
-- **`delete_gameobject`** - Delete single or multiple GameObjects with optional child handling
-- **`get_hierarchy`** - Get complete scene hierarchy with components and depth control
+### System & Core (7)
+- **`ping`** — Test connection to the Unity Editor.
+- **`read_logs`** — Read Unity console logs.
+- **`refresh_assets`** — Trigger Unity to refresh assets and check for compilation.
+- **`get_editor_info`** — Editor environment: Unity version, platform, project path, active build target, product/company name, play/compile state.
+- **`get_audit_log`** — Read the local mutation audit log (H5) — recent dispatched commands as `{t, type, target, ok}`.
+- **`clear_audit_log`** — Clear the local mutation audit log (H5). *(confirm-gated)*
+- **`quit_editor`** — Quit the Unity editor (intended for CI/automation). *(confirm-gated)*
 
-### Component System (5 tools)
-- **`add_component`** - Add Unity components to GameObjects with initial property values
-- **`remove_component`** - Remove components from GameObjects with safety checks (prevents Transform removal)
-- **`modify_component`** - Modify component properties with support for nested properties using dot notation
-- **`list_components`** - List all components on a GameObject with type information and removability status
-- **`get_component_types`** - Discover available component types with filtering by category and addability
+### GameObject Management (6)
+- **`create_gameobject`** — Create a GameObject (primitive/empty) with transform, tag, and layer.
+- **`find_gameobject`** — Find GameObjects by name, tag, or layer (paged via `limit`).
+- **`modify_gameobject`** — Modify a GameObject's name/active/parent and transform, in **world or local** space (`space`).
+- **`delete_gameobject`** — Delete GameObject(s), with optional child handling. *(confirm-gated)*
+- **`get_hierarchy`** — Get the scene hierarchy (capped via `maxNodes`).
+- **`remove_missing_scripts`** — Remove missing-script MonoBehaviours from the active scene (all, or specific paths). *(confirm-gated)*
 
-### Scene Management (5 tools)
-- **`create_scene`** - Create new scenes with build settings integration and auto-loading
-- **`load_scene`** - Load existing scenes in Single or Additive mode
-- **`save_scene`** - Save current scene with Save As functionality
-- **`list_scenes`** - List all scenes in project with filtering and build settings info
-- **`get_scene_info`** - Get detailed scene information including GameObject counts
+### Component System (6)
+- **`add_component`** — Add a component to a GameObject with initial property values.
+- **`remove_component`** — Remove a component (refuses when another component `[RequireComponent]`s it).
+- **`modify_component`** — Modify component properties (dot-notation for nested).
+- **`list_components`** — List a GameObject's components with type info and removability.
+- **`get_component_types`** — Discover addable component types, filterable by category.
+- **`reorder_component`** — Reorder a component among its siblings (order affects execution/serialization).
 
-### Scene Analysis (5 tools)
-- **`get_gameobject_details`** - Deep inspection of GameObjects with component details and hierarchy
-- **`analyze_scene_contents`** - Comprehensive scene statistics, composition, and performance metrics
-- **`get_component_values`** - Get all properties and values of specific components with metadata
-- **`find_by_component`** - Find GameObjects by component type with scope filtering (scene/prefabs/all)
-- **`get_object_references`** - Analyze references between objects including hierarchy and asset connections
+### Scene Analysis (6)
+- **`get_gameobject_details`** — Deep inspection of a GameObject: components, values, hierarchy.
+- **`analyze_scene_contents`** — Scene statistics, composition, and performance metrics.
+- **`get_component_values`** — All properties and values of a specific component.
+- **`find_by_component`** — Find GameObjects by component type, scope-filtered (paged).
+- **`get_object_references`** — References to/from a GameObject (hierarchy + assets).
+- **`find_missing_scripts`** — Find GameObjects with missing-script MonoBehaviours — the legacy-project staple.
 
-### Asset Management (11 tools)
-- **`create_prefab`** - Create prefabs from GameObjects or empty templates with overwrite options
-- **`modify_prefab`** - Modify existing prefabs with property changes and instance updates
-- **`instantiate_prefab`** - Instantiate prefabs in scenes with transform and parenting options
-- **`open_prefab`** - Open prefabs in Unity's prefab mode for detailed editing with focus and isolation
-- **`exit_prefab_mode`** - Exit prefab mode with optional save/discard changes
-- **`save_prefab`** - Save prefab changes in prefab mode or apply instance overrides to prefab assets
-- **`create_material`** - Create new materials with shader assignment and property configuration
-- **`modify_material`** - Modify existing materials with shader changes and property updates
-- **`manage_asset_import_settings`** - Manage Unity asset import settings (get, modify, apply presets, reimport)
-- **`manage_asset_database`** - Manage Unity Asset Database operations (find, info, create folders, move, copy, delete, refresh)
-- **`analyze_asset_dependencies`** - Analyze Unity asset dependencies (get dependencies, dependents, circular deps, unused assets, size impact)
+### Serialization — deep property access (4)
+- **`inspect_serialized_object`** — Discover a target's serialized property tree (path, type, values, array sizes, `[SerializeReference]` types).
+- **`set_serialized_properties`** — Write serialized properties via `SerializedObject` (private `[SerializeField]` included) — one Undo group + apply.
+- **`modify_serialized_array`** — Structurally mutate array/list properties (resize/insert/remove/move/clear) with a size compare-and-swap.
+- **`save_assets`** — Persist all dirty assets to disk (`AssetDatabase.SaveAssets`).
 
-### Script Management (6 tools)
-- **`create_script`** - Create new C# scripts with templates and namespace management
-- **`read_script`** - Read script file contents with syntax highlighting information
-- **`update_script`** - Modify existing scripts with content replacement and validation
-- **`delete_script`** - Delete script files with dependency checking and confirmation
-- **`list_scripts`** - List all scripts in project with filtering and metadata
-- **`validate_script`** - Validate script syntax and check for compilation errors
+### Scene Management (5)
+- **`create_scene`** — Create a new scene (build-settings integration, auto-load).
+- **`load_scene`** — Load a scene (Single or Additive).
+- **`save_scene`** — Save the current scene (with Save As).
+- **`list_scenes`** — List project scenes (filter + build-settings info).
+- **`get_scene_info`** — Detailed scene info including GameObject counts.
 
-### Code Intelligence (4 tools)
-- **`get_symbols`** - Outline a C# file's types/methods/properties (with line ranges)
-- **`find_symbol`** - Find a symbol by name across the project's Assets scripts (optional kind filter)
-- **`find_references`** - Find textual (syntactic) references to an identifier across Assets scripts
-- **`get_symbol_body`** - Extract a named symbol's source from a C# file
+### Asset & Prefab Management (14)
+- **`create_prefab`** — Create a prefab from a GameObject or from scratch.
+- **`modify_prefab`** — Modify an existing prefab's properties (and instances).
+- **`instantiate_prefab`** — Instantiate a prefab in the scene.
+- **`open_prefab` / `exit_prefab_mode` / `save_prefab`** — Prefab-mode editing lifecycle (open, save/apply, exit).
+- **`create_prefab_variant`** — Create a prefab variant of a base prefab.
+- **`unpack_prefab`** — Unpack a prefab instance (`regular` outermost, or `complete`).
+- **`create_scriptable_object`** — Create a ScriptableObject of a named type and save it as an asset.
+- **`create_material` / `modify_material`** — Create/modify materials (shader + properties).
+- **`manage_asset_database`** — Asset DB ops: find, info, folders, move, copy, **delete (confirm-gated)**, refresh, save.
+- **`manage_asset_import_settings`** — Get/modify import settings, apply presets, reimport.
+- **`analyze_asset_dependencies`** — Dependencies, dependents, circular deps, unused assets, size impact.
 
-### Play Mode Controls (4 tools)
-- **`play_game`** - Start Unity play mode for testing and interaction
-- **`pause_game`** - Pause or resume Unity play mode
-- **`stop_game`** - Stop Unity play mode and return to edit mode
-- **`get_editor_state`** - Get current Unity editor state (play mode, pause, compilation status)
+### Script Management (6)
+- **`create_script`** — Create a new C# script (templates + namespace).
+- **`read_script`** — Read a script file's contents.
+- **`update_script`** — Update a script (content replacement + validation). *(confirm-gated)*
+- **`delete_script`** — Delete a script (dependency check + confirm). *(confirm-gated)*
+- **`list_scripts`** — List project scripts with metadata.
+- **`validate_script`** — Validate script syntax / compatibility.
 
-### UI Automation (5 tools)
-- **`find_ui_elements`** - Locate UI elements in scene hierarchy with filtering
-- **`click_ui_element`** - Simulate clicking on UI elements (buttons, toggles, etc.)
-- **`get_ui_element_state`** - Get detailed UI element state and interaction capabilities
-- **`set_ui_element_value`** - Set values for UI input elements (sliders, input fields, etc.)
-- **`simulate_ui_input`** - Execute complex UI interaction sequences
+### Code Intelligence — semantic (Roslyn-gated) (8)
+- **`get_symbols`** — Outline a C# file: types, methods, properties with line ranges.
+- **`find_symbol`** — Find symbol declarations by exact name across `Assets` scripts.
+- **`find_references`** — Textual references to an identifier (comments/strings excluded; upgrades to semantic when the sidecar is ready).
+- **`get_symbol_body`** — Source text of a named symbol within a C# file.
+- **`resolve_symbol`** — *(Roslyn)* Resolve an identifier to declaring type(s)/member(s) via compiled assemblies.
+- **`get_type_members`** — *(Roslyn)* Members of a named type with signatures and visibility.
+- **`find_implementations`** — *(Roslyn)* Subtypes/implementors via `TypeCache`.
+- **`export_roslyn_model`** — Export the `CompilationPipeline` project model (sources, references, defines).
 
-### Editor Operations (11 tools)
-- **`execute_menu_item`** - Execute Unity menu items programmatically with safety checks
-- **`clear_console`** - Clear Unity console logs with optional filtering
-- **`enhanced_read_logs`** - Advanced log reading with search, filtering, and export capabilities
-- **`capture_screenshot`** - Take screenshots of Game View or Scene View with custom resolution and encoding
-- **`analyze_screenshot`** - Analyze screenshot content with basic image analysis capabilities
-- **`get_editor_info`** - Read editor/project environment info (Unity version, platform, build target, paths, play/compile state)
-- **`get_project_settings`** - Read curated project settings (product/company name, version, color space, screen size, scripting backend, define symbols)
-- **`list_packages`** - List installed UPM packages from the manifest + lock files (direct deps + full resolved set with source)
-- **`set_project_setting`** - Write a curated project setting (productName, companyName, bundleVersion, defaultScreenWidth/Height, runInBackground, colorSpace, scriptingDefineSymbols)
-- **`manage_packages`** - Add or remove a UPM package (asynchronous; verify with list_packages)
-- **`quit_editor`** - Quit the Unity editor (deferred so the response flushes first)
+### Compilation (3)
+- **`get_compilation_state`** — Current compilation state, errors, and warnings.
+- **`start_compilation_monitoring` / `stop_compilation_monitoring`** — Real-time compile error monitoring.
 
-### Editor Control & Automation (8 tools)
-- **`manage_tags`** - Manage Unity project tags (add, remove, list)
-- **`manage_layers`** - Manage Unity project layers (add, remove, list, convert index/name)
-- **`manage_selection`** - Manage Unity Editor selection (get, set, clear, get details)
-- **`manage_windows`** - Manage Unity Editor windows (list, focus, get state)
-- **`manage_tools`** - Manage Unity Editor tools and plugins (list, activate, deactivate, refresh)
-- **`start_compilation_monitoring`** - Start monitoring Unity compilation with real-time error detection
-- **`stop_compilation_monitoring`** - Stop compilation monitoring and get final status
-- **`get_compilation_state`** - Get current Unity compilation state and errors
+### Play Mode (4)
+- **`play_game` / `pause_game` / `stop_game`** — Enter/pause/exit play mode (transitions are async — poll state to confirm).
+- **`get_editor_state`** — Editor state: play mode, pause, compilation.
 
-### Test Runner (4 tools)
-- **`run_tests`** - Run Unity EditMode/PlayMode tests (all, or filtered by name/class/category/assembly)
-- **`get_test_results`** - Get results of a test run (summary plus optional per-test details, filterable by status)
-- **`list_tests`** - List available tests without running them
-- **`cancel_tests`** - Cancel a test run in progress
+### UI Automation (5)
+- **`find_ui_elements`** — Locate uGUI elements with filtering.
+- **`click_ui_element`** — Simulate clicking buttons/toggles (Undo-tracked).
+- **`get_ui_element_state`** — UI element state and interaction capabilities.
+- **`set_ui_element_value`** — Set values for sliders/input fields/toggles (Undo-tracked).
+- **`simulate_ui_input`** — Execute complex UI interaction sequences.
 
+### Visual Capture (2)
+- **`capture_screenshot`** — Capture **Game View / Scene View / a specific world camera**; returns viewable MCP **image content**.
+- **`analyze_screenshot`** — Analyze screenshot content (UI elements, colors, basic image analysis).
+
+### Editor Operations — tags, layers, selection, windows, packages, settings (9)
+- **`get_editor_info` / `get_project_settings`** — Read editor environment and curated project settings.
+- **`set_project_setting`** — Write a curated project setting (PlayerSettings). *(confirm-gated)*
+- **`list_packages` / `manage_packages`** — List installed UPM packages; add/remove a package. *(manage is confirm-gated)*
+- **`manage_tags` / `manage_layers`** — Manage project tags / layers (add, remove, list).
+- **`manage_selection`** — Manage editor selection (get, set, clear).
+- **`manage_windows`** — Manage editor windows (list, focus, get state).
+- **`manage_tools`** — Manage editor tools/plugins (list, activate, deactivate).
+
+### Menu (1)
+- **`execute_menu_item`** — Execute an editor menu item (errors when the item didn't run, rather than reporting a false success).
+
+### Console (2)
+- **`clear_console`** — Clear the editor console.
+- **`enhanced_read_logs`** — Read console logs with advanced search/filtering.
+
+### Test Runner (4)
+- **`run_tests`** — Run EditMode/PlayMode tests (all, or filtered by name/class/category/assembly).
+- **`get_test_results`** — Results of a run (summary + optional per-test detail, filterable by status).
+- **`list_tests`** — List available tests without running them.
+- **`cancel_tests`** — Cancel a test run in progress.
 
 ## Troubleshooting
 

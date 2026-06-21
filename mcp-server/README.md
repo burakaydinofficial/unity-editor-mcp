@@ -76,7 +76,7 @@ Add to your `claude_desktop_config.json`:
 
 This is what lets one server drive **any Unity version** and **several editors at once**. The agent discovers each editor's tools on demand via `list_unity_tools` and invokes them by name with `call_unity_tool` — there is no per-tool advertised surface (ADR 0006).
 
-The editor exposes ~78 tools spanning GameObjects, components, scenes, scene analysis, assets (prefabs / materials / import settings), scripts, code intelligence, play mode, UI automation, the Test Runner, and editor operations. The complete, categorized catalog lives in the [project README](https://github.com/burakaydinofficial/unity-editor-mcp#available-tools).
+The editor exposes ~95 tools spanning GameObjects, components, scenes, scene analysis, **deep serialization**, assets (prefabs / materials / import settings / ScriptableObjects), scripts, **semantic code intelligence**, play mode, UI automation, **visual capture**, the Test Runner, and editor operations — plus safety rails (a confirm-gate, a project-folder path sandbox, and a mutation audit log). The complete, categorized catalog lives in the [project README](https://github.com/burakaydinofficial/unity-editor-mcp#available-tools).
 
 ### Roslyn backend (optional)
 

@@ -3,7 +3,81 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to follow semantic
 versioning. This fork is **the deep, floor-true MCP bridge for older Unity projects** (Unity 2019 →
-latest; initial focus 2020.3–2022.3 LTS).
+latest; initial focus 2020.3–2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
+package `com.burakk.unity-editor-mcp` ship together at the same version.
+
+## [0.19.0] — Deployment prep
+
+First version prepared for publication. **npm + UPM aligned to 0.19.0** (previously stranded at 0.3.0 while the
+feature work ran on local tags v0.4–v0.18). Docs refreshed to the real surface — README command catalog
+regenerated from the contract (**95 commands across 18 categories**, was "~76/13"), Key Features rewritten, this
+CHANGELOG extended, `floor-testing.md` corrected (Unity deprecated Personal manual activation). Floor-CI wired: a
+GameCI EditMode matrix over **2020.3.49f1 / 2021.3.45f2 / 2022.3.62f2** with committed host projects under
+`ci/unity-host-<version>/`.
+
+## [0.18.0] — F1: inherited-handler contract sweep
+
+A multi-agent sweep of the inherited handlers fixing 12 confirmed contract gaps: play-mode guards on the
+component mutators (`add`/`modify`/`remove_component`); false-success fixes (`execute_menu_item`,
+`modify_material`, `modify_prefab` no longer report success when the operation did not happen); missing-Undo
+gaps (material edits, UI state); `play_game`/`stop_game` messaging made async-honest.
+
+## [0.17.0] — Transform space + component reorder (F3/F4)
+
+`modify_gameobject` gains a world/local `space`; new `reorder_component`; `remove_component` is now
+`RequireComponent`-aware (`COMPONENT_REQUIRED` instead of a silent false success — a real bug fix).
+
+## [0.16.0] — Missing-script detection (F5)
+
+`find_missing_scripts` + `remove_missing_scripts` (active-scene, Undo + confirm-gated) — the legacy-project staple.
+
+## [0.15.0] — Visual capture (G5)
+
+The Node server emits real MCP **image content** for captures (the agent can see them), and `capture_screenshot`
+gains a **specific-camera** render mode.
+
+## [0.14.0] — Query paging / limits (F2)
+
+`limit`/`maxNodes` caps with a `truncated` signal on `find_gameobject` / `find_by_component` / `get_hierarchy`,
+keeping a large scene under the 1 MB frame cap.
+
+## [0.13.0] — Path sandbox (Security H4)
+
+Project-root containment sweep — 14 path-escape gaps closed; `Core.PathContainment` is dotnet-tested (the symlink
+limitation is documented).
+
+## [0.12.0] — Mutation audit log (Security H5)
+
+`Library/UnityEditorMCP/audit-log.jsonl` (dispatcher-hooked, size-capped, fail-safe) with `get_audit_log` /
+`clear_audit_log`.
+
+## [0.11.0] — Confirm-gate (Security H3)
+
+A central confirm-gate for irreversible commands (`delete_gameobject`, `delete_script`, `update_script`,
+`quit_editor`, `set_project_setting`, `manage_packages`) — `CONFIRMATION_REQUIRED` until `confirm:true`.
+
+## [0.10.0] — Asset & prefab lifecycle (section E)
+
+`create_scriptable_object`, `unpack_prefab`, `create_prefab_variant`; a destructive-delete gate (dependents) and
+scene-mutation play-mode guards.
+
+## [0.9.0] — Serialization: `[SerializeReference]` + `Gradient`
+
+Writes managed references and gradients — closes the Serialization Core (section D).
+
+## [0.8.0] — Serialization: array/list mutation
+
+`modify_serialized_array` (resize/insert/remove/move/clear with a size compare-and-swap) and `AnimationCurve` writing.
+
+## [0.7.0] — Serialization Core
+
+`inspect_serialized_object` / `set_serialized_properties` — a safe `SerializedObject` editor reaching private
+`[SerializeField]` data, Inspector-correct (one Undo group; compare-and-swap / preview-token / force).
+
+## [0.6.0] — Semantic code intelligence
+
+An always-on lite reflection/`TypeCache` layer plus an opt-in, capability-gated **Roslyn** sidecar
+(`resolve_symbol`, `get_type_members`, `find_implementations`, semantic `find_references`).
 
 ## [0.5.0] — Unreleased
 
