@@ -227,18 +227,22 @@ namespace UnityEditorMCP.Handlers
                     modified = true;
                 }
                 
-                // Transform
+                // Transform. F3: explicit space — world (default) uses transform.position/.rotation; local uses
+                // localPosition/localEulerAngles. (scale is always localScale — there is no world scale.)
+                bool local = string.Equals(parameters["space"]?.ToString(), "local", StringComparison.OrdinalIgnoreCase);
                 var position = ParseVector3(parameters["position"]);
                 if (position.HasValue)
                 {
-                    obj.transform.position = position.Value;
+                    if (local) obj.transform.localPosition = position.Value;
+                    else obj.transform.position = position.Value;
                     modified = true;
                 }
-                
+
                 var rotation = ParseVector3(parameters["rotation"]);
                 if (rotation.HasValue)
                 {
-                    obj.transform.rotation = Quaternion.Euler(rotation.Value);
+                    if (local) obj.transform.localEulerAngles = rotation.Value;
+                    else obj.transform.rotation = Quaternion.Euler(rotation.Value);
                     modified = true;
                 }
                 

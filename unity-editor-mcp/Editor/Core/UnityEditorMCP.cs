@@ -111,6 +111,7 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("remove_component", ComponentHandler.RemoveComponent);
             dispatcher.Register("modify_component", ComponentHandler.ModifyComponent);
             dispatcher.Register("list_components", ComponentHandler.ListComponents);
+            dispatcher.Register("reorder_component", ComponentHandler.ReorderComponent);
             dispatcher.Register("start_compilation_monitoring", CompilationHandler.StartCompilationMonitoring);
             dispatcher.Register("stop_compilation_monitoring", CompilationHandler.StopCompilationMonitoring);
             dispatcher.Register("get_compilation_state", CompilationHandler.GetCompilationState);

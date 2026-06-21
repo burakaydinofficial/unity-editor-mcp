@@ -706,6 +706,26 @@
       "result": { "type": "object", "properties": { "removed": { "type": "number" }, "objectsAffected": { "type": "number" }, "notFound": { "type": "array" }, "notFoundCount": { "type": "number" } } }
     },
     {
+      "name": "reorder_component",
+      "category": "component",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Reorder a component among its siblings on a GameObject (F4) — component order affects execution/serialization. Moves the component (componentType + componentIndex, default 0) up or down by count steps (clamped at the ends; `moved` reports the steps taken). Registers Undo; refuses in play mode.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "gameObjectPath": { "type": "string" },
+          "componentType": { "type": "string" },
+          "componentIndex": { "type": "number", "description": "Which instance of the type (default 0)." },
+          "direction": { "type": "string", "enum": ["up", "down"], "description": "Move up or down (default up)." },
+          "count": { "type": "number", "description": "Number of steps (default 1)." }
+        },
+        "required": ["gameObjectPath", "componentType"]
+      },
+      "result": { "type": "object", "properties": { "componentType": { "type": "string" }, "direction": { "type": "string" }, "moved": { "type": "number" } } }
+    },
+    {
       "name": "get_editor_info",
       "category": "system",
       "sides": ["editor"],
@@ -5191,13 +5211,18 @@
             "type": "string",
             "description": "Path to the GameObject to modify (required)"
           },
+          "space": {
+            "type": "string",
+            "enum": ["world", "local"],
+            "description": "F3: space for position+rotation — world (default) sets transform.position/rotation; local sets localPosition/localEulerAngles. scale is always local."
+          },
           "name": {
             "type": "string",
             "description": "New name for the GameObject"
           },
           "position": {
             "type": "object",
-            "description": "New world position",
+            "description": "New position (world by default; local if space:local)",
             "properties": {
               "x": {
                 "type": "number"

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using UnityEngine;
 using UnityEditor;
+using UnityEditorInternal;
 using Newtonsoft.Json.Linq;
 using UnityEditorMCP.Core;
 
@@ -162,6 +163,15 @@ namespace UnityEditorMCP.Handlers
 
                 // Remove the component
                 Component componentToRemove = components[componentIndex];
+
+                // F4: RequireComponent awareness. Unity blocks removing a component another component requires,
+                // but DestroyObjectImmediate does it SILENTLY (the component stays) while we'd report removed:true.
+                // Detect the dependent + refuse honestly; the caller removes the dependent first. (No force: Unity
+                // won't remove a still-required component regardless.)
+                string requiredBy = FindRequiringComponent(targetObject, type, componentToRemove);
+                if (requiredBy != null)
+                    return HandlerOutcome.Fail($"{type.Name} is required by {requiredBy} (RequireComponent) — remove {requiredBy} first.", "COMPONENT_REQUIRED");
+
                 Undo.DestroyObjectImmediate(componentToRemove);
 
                 return HandlerOutcome.Ok(new
@@ -177,6 +187,87 @@ namespace UnityEditorMCP.Handlers
             {
                 Debug.LogError($"[ComponentHandler] Error in RemoveComponent: {ex.Message}");
                 return HandlerOutcome.Fail($"Failed to remove component: {ex.Message}");
+            }
+        }
+
+        // The Name of a sibling component that [RequireComponent]s `removingType` (or a base of it) and would be
+        // left unsatisfied if `removing` were destroyed; else null. Tolerates multiple satisfying instances. (F4)
+        private static string FindRequiringComponent(GameObject go, Type removingType, Component removing)
+        {
+            var all = go.GetComponents<Component>();
+            foreach (var comp in all)
+            {
+                if (comp == null || comp == removing) continue;
+                foreach (RequireComponent rc in comp.GetType().GetCustomAttributes(typeof(RequireComponent), true))
+                {
+                    foreach (var req in new[] { rc.m_Type0, rc.m_Type1, rc.m_Type2 })
+                    {
+                        if (req == null || !req.IsAssignableFrom(removingType)) continue;
+                        bool stillSatisfied = all.Any(c => c != null && c != removing && req.IsAssignableFrom(c.GetType()));
+                        if (!stillSatisfied) return comp.GetType().Name;
+                    }
+                }
+            }
+            return null;
+        }
+
+        /// <summary>Reorders a component among its siblings (F4) via ComponentUtility move up/down.</summary>
+        public static HandlerOutcome ReorderComponent(JObject parameters)
+        {
+            try
+            {
+                if (EditorApplication.isPlaying)
+                    return HandlerOutcome.Fail("scene mutations refuse in play mode", "PLAY_MODE");
+
+                string gameObjectPath = parameters["gameObjectPath"]?.ToString();
+                string componentType = parameters["componentType"]?.ToString();
+                int componentIndex = parameters["componentIndex"]?.ToObject<int>() ?? 0;
+                string direction = (parameters["direction"]?.ToString() ?? "up").ToLowerInvariant();
+                int count = parameters["count"]?.ToObject<int>() ?? 1;
+
+                if (string.IsNullOrEmpty(gameObjectPath))
+                    return HandlerOutcome.Fail("gameObjectPath is required", "VALIDATION_ERROR");
+                if (string.IsNullOrEmpty(componentType))
+                    return HandlerOutcome.Fail("componentType is required", "VALIDATION_ERROR");
+                if (direction != "up" && direction != "down")
+                    return HandlerOutcome.Fail("direction must be 'up' or 'down'", "VALIDATION_ERROR");
+                if (count < 1) count = 1;
+
+                GameObject go = GameObject.Find(gameObjectPath);
+                if (go == null)
+                    return HandlerOutcome.Fail($"GameObject not found: {gameObjectPath}", "NOT_FOUND");
+                Type type = ResolveComponentType(componentType);
+                if (type == null)
+                    return HandlerOutcome.Fail($"Component type not found: {componentType}", "NOT_FOUND");
+                var components = go.GetComponents(type);
+                if (components.Length == 0)
+                    return HandlerOutcome.Fail($"Component {type.Name} not found on GameObject", "NOT_FOUND");
+                if (componentIndex >= components.Length)
+                    return HandlerOutcome.Fail($"Component index {componentIndex} out of range (found {components.Length})", "VALIDATION_ERROR");
+
+                var comp = components[componentIndex];
+                int moved = 0;
+                for (int i = 0; i < count; i++)
+                {
+                    bool ok = direction == "down" ? ComponentUtility.MoveComponentDown(comp) : ComponentUtility.MoveComponentUp(comp);
+                    if (!ok) break; // hit the top/bottom
+                    moved++;
+                }
+
+                return HandlerOutcome.Ok(new
+                {
+                    success = true,
+                    gameObjectPath = gameObjectPath,
+                    componentType = type.Name,
+                    direction = direction,
+                    moved = moved,
+                    message = $"Moved {type.Name} {direction} {moved} step(s)"
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ComponentHandler] Error in ReorderComponent: {ex.Message}");
+                return HandlerOutcome.Fail($"Failed to reorder component: {ex.Message}");
             }
         }
 
