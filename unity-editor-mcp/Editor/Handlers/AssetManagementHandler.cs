@@ -147,6 +147,7 @@ namespace UnityEditorMCP.Handlers
 
                 // Load prefab contents for editing
                 GameObject prefabRoot = PrefabUtility.LoadPrefabContents(prefabPath);
+                bool prefabSaved = false;
 
                 try
                 {
@@ -159,14 +160,17 @@ namespace UnityEditorMCP.Handlers
                         }
                     }
 
-                    // Save the modified prefab
-                    PrefabUtility.SaveAsPrefabAsset(prefabRoot, prefabPath);
+                    // Save the modified prefab (F1: check the out-success — was ignored, a failed save read as success)
+                    PrefabUtility.SaveAsPrefabAsset(prefabRoot, prefabPath, out prefabSaved);
                 }
                 finally
                 {
                     // Unload prefab contents
                     PrefabUtility.UnloadPrefabContents(prefabRoot);
                 }
+
+                if (!prefabSaved)
+                    return HandlerOutcome.Fail($"Prefab save failed: {prefabPath}", "INTERNAL_ERROR");
 
                 int affectedInstances = 0;
 
@@ -191,9 +195,9 @@ namespace UnityEditorMCP.Handlers
                     prefabPath = prefabPath,
                     modifiedProperties = modifiedProperties.ToArray(),
                     affectedInstances = affectedInstances,
-                    message = applyToInstances ?
-                        "Prefab modified successfully" :
-                        "Prefab modified without updating instances"
+                    message = modifiedProperties.Count == 0
+                        ? "Prefab saved, but NONE of the requested modifications applied" // F1: was "modified successfully"
+                        : (applyToInstances ? "Prefab modified successfully" : "Prefab modified without updating instances")
                 });
             }
             catch (Exception e)
@@ -615,8 +619,11 @@ namespace UnityEditorMCP.Handlers
                 }
 
                 List<string> propertiesModified = new List<string>();
+                List<string> propertiesFailed = new List<string>();
                 bool shaderChanged = false;
                 string previousShader = material.shader.name;
+
+                Undo.RecordObject(material, "Modify Material"); // F1: record BEFORE mutating (was no Undo)
 
                 // Change shader if specified
                 if (!string.IsNullOrEmpty(shader))
@@ -638,10 +645,14 @@ namespace UnityEditorMCP.Handlers
                 foreach (var prop in properties.Properties())
                 {
                     if (ApplyMaterialProperty(material, prop.Name, prop.Value))
-                    {
                         propertiesModified.Add(prop.Name);
-                    }
+                    else
+                        propertiesFailed.Add(prop.Name);
                 }
+
+                // F1: don't report success when NOTHING applied (was success:true with propertiesModified:[]).
+                if (!shaderChanged && propertiesModified.Count == 0)
+                    return HandlerOutcome.Fail($"No changes applied — none of the {propertiesFailed.Count} requested property(ies) could be set on this material/shader", "INVALID_STATE");
 
                 // Mark as dirty to ensure changes are saved
                 EditorUtility.SetDirty(material);
@@ -652,10 +663,11 @@ namespace UnityEditorMCP.Handlers
                     success = true,
                     materialPath = materialPath,
                     propertiesModified = propertiesModified.ToArray(),
+                    propertiesFailed = propertiesFailed.ToArray(),
                     shaderChanged = shaderChanged,
                     previousShader = shaderChanged ? previousShader : null,
                     newShader = shaderChanged ? shader : null,
-                    message = "Material modified successfully"
+                    message = propertiesFailed.Count > 0 ? "Material modified (some requested properties were not applied — see propertiesFailed)" : "Material modified successfully"
                 });
             }
             catch (Exception e)

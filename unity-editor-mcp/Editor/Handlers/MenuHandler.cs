@@ -138,6 +138,13 @@ namespace UnityEditorMCP.Handlers
                 // Calculate execution time
                 var executionTime = (int)(DateTime.UtcNow - startTime).TotalMilliseconds;
 
+                // F1: don't report success when the menu did NOT run (was success:true with executed:false).
+                if (!executed)
+                    return HandlerOutcome.Fail(
+                        menuExists ? "Menu item found but could not be executed (may be disabled or context-dependent)"
+                                   : "Menu item not found or execution failed",
+                        menuExists ? "INVALID_STATE" : "NOT_FOUND");
+
                 // Build response
                 var result = new
                 {

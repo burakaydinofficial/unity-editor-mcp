@@ -415,6 +415,7 @@ namespace UnityEditorMCP.Handlers
             var toggle = target.GetComponent<Toggle>();
             if (toggle != null && toggle.interactable)
             {
+                Undo.RecordObject(toggle, "Toggle UI"); // F1: record the serialized state change
                 toggle.isOn = !toggle.isOn;
                 return true;
             }
@@ -531,6 +532,7 @@ namespace UnityEditorMCP.Handlers
             var inputField = target.GetComponent<InputField>();
             if (inputField != null)
             {
+                Undo.RecordObject(inputField, "Set UI Value"); // F1: record the serialized state change
                 inputField.text = value.ToString();
                 if (triggerEvents)
                 {
@@ -544,6 +546,7 @@ namespace UnityEditorMCP.Handlers
             var toggle = target.GetComponent<Toggle>();
             if (toggle != null)
             {
+                Undo.RecordObject(toggle, "Set UI Value"); // F1: record the serialized state change
                 toggle.isOn = value.ToObject<bool>();
                 if (triggerEvents)
                 {
@@ -556,6 +559,7 @@ namespace UnityEditorMCP.Handlers
             var slider = target.GetComponent<Slider>();
             if (slider != null)
             {
+                Undo.RecordObject(slider, "Set UI Value"); // F1: record the serialized state change
                 slider.value = value.ToObject<float>();
                 if (triggerEvents)
                 {

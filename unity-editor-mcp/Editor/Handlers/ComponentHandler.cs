@@ -22,6 +22,8 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                if (EditorApplication.isPlaying)
+                    return HandlerOutcome.Fail("scene mutations refuse in play mode", "PLAY_MODE"); // F1: was a play-mode false-success
                 // Parse parameters
                 string gameObjectPath = parameters["gameObjectPath"]?.ToString();
                 string componentType = parameters["componentType"]?.ToString();
@@ -106,6 +108,8 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                if (EditorApplication.isPlaying)
+                    return HandlerOutcome.Fail("scene mutations refuse in play mode", "PLAY_MODE"); // F1
                 // Parse parameters
                 string gameObjectPath = parameters["gameObjectPath"]?.ToString();
                 string componentType = parameters["componentType"]?.ToString();
@@ -278,6 +282,8 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                if (EditorApplication.isPlaying)
+                    return HandlerOutcome.Fail("scene mutations refuse in play mode", "PLAY_MODE"); // F1
                 // Parse parameters
                 string gameObjectPath = parameters["gameObjectPath"]?.ToString();
                 string componentType = parameters["componentType"]?.ToString();

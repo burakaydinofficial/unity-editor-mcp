@@ -42,7 +42,7 @@ namespace UnityEditorMCP.Handlers
                 if (!EditorApplication.isPlaying)
                 {
                     EditorApplication.isPlaying = true;
-                    message = "Entered play mode";
+                    message = "Entering play mode (async — takes effect after the next domain reload; poll state to confirm)"; // F1: was "Entered" while still transitioning
                 }
                 else
                 {
@@ -81,7 +81,7 @@ namespace UnityEditorMCP.Handlers
                 if (EditorApplication.isPlaying)
                 {
                     EditorApplication.isPlaying = false;
-                    message = "Exited play mode";
+                    message = "Exiting play mode (async — poll state to confirm)"; // F1: was "Exited" while still transitioning
                 }
                 else
                 {
