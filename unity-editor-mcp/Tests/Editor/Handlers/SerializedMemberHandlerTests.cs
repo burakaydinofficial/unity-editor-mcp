@@ -394,6 +394,52 @@ namespace UnityEditorMCP.Tests
             finally { Object.DestroyImmediate(o1); Object.DestroyImmediate(o2); }
         }
 
+        // ---- [SerializeReference] (D7) ----
+
+        [Test] public void ManagedRef_SetByType_Instantiates()
+        {
+            var r = SerializedMemberHandler.Set(new JObject { ["force"] = true, ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["Strategy"] = new JObject { ["value"] = new JObject { ["$type"] = "UnityEditorMCP.Tests.SerStrategyA" } } } } } });
+            Assert.IsFalse(r.IsError, r.Error);
+            Assert.IsInstanceOf<SerStrategyA>(_asset.Strategy);
+        }
+
+        [Test] public void ManagedRef_NotAssignable_Rejected()
+        {
+            var r = SerializedMemberHandler.Set(new JObject { ["force"] = true, ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["Strategy"] = new JObject { ["value"] = new JObject { ["$type"] = "System.String" } } } } } });
+            var skip = (JArray)JObject.FromObject(r.Payload)["skipped"];
+            Assert.AreEqual("TYPE_MISMATCH", (string)skip[0]["code"]);
+            Assert.IsTrue(((string)skip[0]["message"]).Contains("not assignable"));
+        }
+
+        [Test] public void ManagedRef_Clear_Null()
+        {
+            SerializedMemberHandler.Set(new JObject { ["force"] = true, ["edits"] = new JArray { new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath }, ["set"] = new JObject { ["Strategy"] = new JObject { ["value"] = new JObject { ["$type"] = "UnityEditorMCP.Tests.SerStrategyA" } } } } } });
+            Assert.IsNotNull(_asset.Strategy);
+            var r = SerializedMemberHandler.Set(new JObject { ["force"] = true, ["edits"] = new JArray { new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath }, ["set"] = new JObject { ["Strategy"] = new JObject { ["value"] = JValue.CreateNull() } } } } });
+            Assert.IsFalse(r.IsError, r.Error);
+            Assert.IsNull(_asset.Strategy);
+        }
+
+        [Test] public void ManagedRef_NestedFieldWrite()
+        {
+            SerializedMemberHandler.Set(new JObject { ["force"] = true, ["edits"] = new JArray { new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath }, ["set"] = new JObject { ["Strategy"] = new JObject { ["value"] = new JObject { ["$type"] = "UnityEditorMCP.Tests.SerStrategyA" } } } } } });
+            var r = SerializedMemberHandler.Set(new JObject { ["force"] = true, ["edits"] = new JArray { new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath }, ["set"] = new JObject { ["Strategy.A"] = new JObject { ["value"] = 42 } } } } });
+            Assert.IsFalse(r.IsError, r.Error);
+            Assert.AreEqual(42, ((SerStrategyA)_asset.Strategy).A);
+        }
+
+        [Test] public void Inspect_ManagedRef_ExposesFieldTypename()
+        {
+            var data = JObject.FromObject(SerializedMemberHandler.Inspect(new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath } }).Payload);
+            var node = FindProp((JArray)data["object"]["properties"], "Strategy");
+            Assert.IsNotNull(node);
+            Assert.IsNotNull(node["managedReferenceFieldTypename"]);
+        }
+
         internal static JToken FindProp(JArray props, string path)
         {
             foreach (var p in props) if ((string)p["propertyPath"] == path) return p;

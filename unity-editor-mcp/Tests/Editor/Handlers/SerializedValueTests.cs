@@ -71,6 +71,16 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual(2, _asset.CurveField.keys.Length);
         }
 
+        [Test] public void Gradient_RoundTrips()
+        {
+            var p = _so.FindProperty("GradientField");
+            var read = SerializedValue.Read(p);
+            Assert.AreNotEqual(JTokenType.Null, read.Type, "gradient read must work on the floor (reflection)");
+            Assert.IsTrue(SerializedValue.Write(p, read, out var err), err);
+            _so.ApplyModifiedPropertiesWithoutUndo();
+            Assert.IsTrue(JToken.DeepEquals(read, SerializedValue.Read(_so.FindProperty("GradientField"))));
+        }
+
         [Test] public void Write_TypeMismatch_FailsWithCode()
         {
             var p = _so.FindProperty("IntField");

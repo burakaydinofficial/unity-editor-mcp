@@ -4,6 +4,10 @@ namespace UnityEditorMCP.Tests
 {
     public enum SerFixtureEnum { Alpha, Beta, Gamma }
 
+    public interface ISerStrategy { }
+    [System.Serializable] public class SerStrategyA : ISerStrategy { public int A = 1; }
+    [System.Serializable] public class SerStrategyB : ISerStrategy { public string B = "x"; }
+
     // Drives the serialized-property tests. The PRIVATE [SerializeField] is the headline (D6).
     // Must be in a file named SerFixtureAsset.cs so Unity creates its MonoScript (needed to serialize to assets).
     public class SerFixtureAsset : ScriptableObject
@@ -28,6 +32,8 @@ namespace UnityEditorMCP.Tests
         public Bounds BoundsField = new Bounds(new Vector3(0, 0, 0), new Vector3(1, 1, 1));
         public char CharField = 'A';
         public AnimationCurve CurveField = AnimationCurve.Linear(0, 0, 1, 1);
+        public Gradient GradientField = new Gradient();
+        [SerializeReference] public ISerStrategy Strategy;
 
         public float ReadPrivateFloat() => privateFloat; // test-only proof the private write landed
     }

@@ -29,13 +29,14 @@ namespace UnityEditorMCP.Handlers
                 case SerializedPropertyType.Vector2Int: { var v = p.vector2IntValue; return V(v.x, v.y); }
                 case SerializedPropertyType.Vector3Int: { var v = p.vector3IntValue; return V(v.x, v.y, v.z); }
                 case SerializedPropertyType.Quaternion: { var q = p.quaternionValue; return V4(q.x, q.y, q.z, q.w); }
-                case SerializedPropertyType.Color: { var c = p.colorValue; return new JObject { ["r"] = c.r, ["g"] = c.g, ["b"] = c.b, ["a"] = c.a }; }
+                case SerializedPropertyType.Color: return ColorObj(p.colorValue);
                 case SerializedPropertyType.Rect: { var r = p.rectValue; return new JObject { ["x"] = r.x, ["y"] = r.y, ["width"] = r.width, ["height"] = r.height }; }
                 case SerializedPropertyType.Bounds: { var b = p.boundsValue; return new JObject { ["center"] = V(b.center.x, b.center.y, b.center.z), ["size"] = V(b.size.x, b.size.y, b.size.z) }; }
                 case SerializedPropertyType.ObjectReference: return RefToken(p.objectReferenceValue);
                 case SerializedPropertyType.ManagedReference: return p.managedReferenceFullTypename ?? ""; // read-only in 0.7.0
-                case SerializedPropertyType.AnimationCurve: return CurveToken(p.animationCurveValue);     // read-only in 0.7.0
-                default: return JValue.CreateNull(); // Gradient + exotic: read-only marker
+                case SerializedPropertyType.AnimationCurve: return CurveToken(p.animationCurveValue);
+                case SerializedPropertyType.Gradient: return GradientToken(GradientReflection.Get(p));
+                default: return JValue.CreateNull(); // exotic types: read-only marker
             }
         }
 
@@ -64,10 +65,11 @@ namespace UnityEditorMCP.Handlers
                             ? Quaternion.Euler(F(v["euler"], "x"), F(v["euler"], "y"), F(v["euler"], "z"))
                             : new Quaternion(F(v, "x"), F(v, "y"), F(v, "z"), F(v, "w"));
                         return true;
-                    case SerializedPropertyType.Color: p.colorValue = new Color(F(v, "r"), F(v, "g"), F(v, "b"), v["a"] != null ? F(v, "a") : 1f); return true;
+                    case SerializedPropertyType.Color: p.colorValue = ColorFrom(v); return true;
                     case SerializedPropertyType.Rect: p.rectValue = new Rect(F(v, "x"), F(v, "y"), F(v, "width"), F(v, "height")); return true;
                     case SerializedPropertyType.Bounds: p.boundsValue = new Bounds(new Vector3(F(v["center"], "x"), F(v["center"], "y"), F(v["center"], "z")), new Vector3(F(v["size"], "x"), F(v["size"], "y"), F(v["size"], "z"))); return true;
                     case SerializedPropertyType.ObjectReference: return WriteRef(p, v, out error);
+                    case SerializedPropertyType.ManagedReference: return ManagedReferenceResolver.TrySet(p, v, out error);
                     case SerializedPropertyType.AnimationCurve:
                     {
                         var keys = v["keys"] as JArray ?? new JArray();
@@ -75,6 +77,18 @@ namespace UnityEditorMCP.Handlers
                         for (int i = 0; i < keys.Count; i++)
                             frames[i] = new Keyframe(F(keys[i], "time"), F(keys[i], "value"), F(keys[i], "inTangent"), F(keys[i], "outTangent"));
                         p.animationCurveValue = new AnimationCurve(frames);
+                        return true;
+                    }
+                    case SerializedPropertyType.Gradient:
+                    {
+                        var g = new Gradient();
+                        var cks = new System.Collections.Generic.List<GradientColorKey>();
+                        foreach (var k in (v["colorKeys"] as JArray ?? new JArray())) cks.Add(new GradientColorKey(ColorFrom(k["color"]), F(k, "time")));
+                        var aks = new System.Collections.Generic.List<GradientAlphaKey>();
+                        foreach (var k in (v["alphaKeys"] as JArray ?? new JArray())) aks.Add(new GradientAlphaKey(F(k, "alpha"), F(k, "time")));
+                        g.SetKeys(cks.ToArray(), aks.ToArray());
+                        if (v["mode"] != null && Enum.TryParse<GradientMode>(v["mode"].ToString(), out var gm)) g.mode = gm;
+                        if (!GradientReflection.Set(p, g)) { error = "TYPE_MISMATCH: gradientValue not accessible on this Unity version"; return false; }
                         return true;
                     }
                     default: error = $"{p.propertyType} is read-only"; return false;
@@ -129,5 +143,25 @@ namespace UnityEditorMCP.Handlers
         private static JObject V4(float x, float y, float z, float w) => new JObject { ["x"] = x, ["y"] = y, ["z"] = z, ["w"] = w };
         private static float F(JToken v, string k) => v[k] != null ? v[k].Value<float>() : 0f;
         private static int I(JToken v, string k) => v[k] != null ? v[k].Value<int>() : 0;
+        private static JObject ColorObj(Color c) => new JObject { ["r"] = c.r, ["g"] = c.g, ["b"] = c.b, ["a"] = c.a };
+        private static Color ColorFrom(JToken v) => new Color(F(v, "r"), F(v, "g"), F(v, "b"), v["a"] != null ? F(v, "a") : 1f);
+
+        private static JToken GradientToken(Gradient g)
+        {
+            if (g == null) return JValue.CreateNull();
+            var ck = new JArray(); foreach (var k in g.colorKeys) ck.Add(new JObject { ["color"] = ColorObj(k.color), ["time"] = k.time });
+            var ak = new JArray(); foreach (var k in g.alphaKeys) ak.Add(new JObject { ["alpha"] = k.alpha, ["time"] = k.time });
+            return new JObject { ["colorKeys"] = ck, ["alphaKeys"] = ak, ["mode"] = g.mode.ToString() };
+        }
+
+        // gradientValue is internal until Unity 2022.2 — reflection access works on the 2020.3 floor + newer
+        // (COMPATIBILITY.md: the only reflection workaround in the serialization core).
+        private static class GradientReflection
+        {
+            private static readonly System.Reflection.PropertyInfo Prop =
+                typeof(SerializedProperty).GetProperty("gradientValue", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+            public static Gradient Get(SerializedProperty p) => Prop?.GetValue(p) as Gradient;
+            public static bool Set(SerializedProperty p, Gradient g) { if (Prop == null) return false; Prop.SetValue(p, g); return true; }
+        }
     }
 }

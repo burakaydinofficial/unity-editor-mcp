@@ -60,7 +60,7 @@ namespace UnityEditorMCP.Handlers
                 enterChildren = !atomic && it.depth - startDepth < maxDepth && it.hasVisibleChildren;
                 var node = new JObject { ["propertyPath"] = it.propertyPath, ["propertyType"] = it.propertyType.ToString() };
                 if (it.isArray && it.propertyType != SerializedPropertyType.String) node["arraySize"] = it.arraySize;
-                if (it.propertyType == SerializedPropertyType.ManagedReference) node["managedReferenceFullTypename"] = it.managedReferenceFullTypename;
+                if (it.propertyType == SerializedPropertyType.ManagedReference) { node["managedReferenceFullTypename"] = it.managedReferenceFullTypename; node["managedReferenceFieldTypename"] = it.managedReferenceFieldTypename; }
                 if (includeValues && (atomic || !it.hasVisibleChildren)) node["value"] = SerializedValue.Read(it);
                 arr.Add(node);
             }

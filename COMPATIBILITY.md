@@ -61,6 +61,15 @@ Tracked openly so the list is the work list:
    (`ComponentHandler.GetComponentTypes`); `protocol/catalog/commands.json` →
    `knownGaps` is empty and the drift gate reports zero gaps. (Previously a registered
    MCP tool with no Unity dispatch case that returned `UNKNOWN_COMMAND` at runtime.)
+4. **`Gradient` read/write via reflection (serialization core, 0.9.0).**
+   `SerializedProperty.gradientValue` is `internal` until Unity 2022.2, so
+   `SerializedValue.GradientReflection` accesses it by reflection — a single code path
+   that works on the 2020.3 floor and newer. This is a deliberate **reflection
+   workaround, not an `#if` floor break**: if a future Unity renames the internal
+   property, read returns `null` and write returns a structured `TYPE_MISMATCH` (never
+   a crash). The `[SerializeReference]` APIs it sits beside — `managedReferenceValue`
+   (2019.3+), `managedReferenceFullTypename` (2019.3+), `managedReferenceFieldTypename`
+   (2020.1+) — are all available on the 2020.3 floor, so no guard is needed.
 
 ## Adding a guard
 
