@@ -46,6 +46,15 @@ namespace UnityEditorMCP.Core.Tests
         }
 
         [Fact]
+        public void Read_Since_ShortForm_IncludesSameSecondEntries()
+        {
+            AuditLog.Append(_path, "cmd", "x", true);
+            var stamp = (string)AuditLog.Read(_path, 100, null, null)[0]["t"]; // ...SS.fffffffZ
+            var shortForm = stamp.Substring(0, 19) + "Z";                       // ...SSZ (no fractional, Z)
+            Assert.Single(AuditLog.Read(_path, 100, null, shortForm));          // normalized -> same-second entry kept
+        }
+
+        [Fact]
         public void Read_CapsByMax()
         {
             for (int i = 0; i < 10; i++) AuditLog.Append(_path, "set_x", i.ToString(), true);

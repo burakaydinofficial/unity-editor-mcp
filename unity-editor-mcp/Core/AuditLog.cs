@@ -22,7 +22,7 @@ namespace UnityEditorMCP.Core
                 if (capBytes > 0 && File.Exists(filePath) && new FileInfo(filePath).Length > capBytes)
                 {
                     var lines = File.ReadAllLines(filePath);
-                    File.WriteAllLines(filePath, lines.Skip(lines.Length / 2));
+                    File.WriteAllLines(filePath, lines.Skip(Math.Max(1, lines.Length / 2))); // always drop >=1 (guarantees shrinkage)
                 }
                 var entry = new JObject
                 {
@@ -46,6 +46,7 @@ namespace UnityEditorMCP.Core
                 if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return result;
                 if (max <= 0) max = 100;
                 if (max > 1000) max = 1000;
+                var sinceNorm = NormalizeSince(since); // canonicalize so a short-form since (no fractional / +00:00) still matches
                 var matches = new List<JObject>();
                 foreach (var line in File.ReadLines(filePath))
                 {
@@ -62,14 +63,25 @@ namespace UnityEditorMCP.Core
                     catch { continue; }
                     if (!string.IsNullOrEmpty(typeFilter) &&
                         (e["type"]?.ToString().IndexOf(typeFilter, StringComparison.OrdinalIgnoreCase) ?? -1) < 0) continue;
-                    if (!string.IsNullOrEmpty(since) &&
-                        string.CompareOrdinal(e["t"]?.ToString() ?? "", since) < 0) continue;
+                    if (!string.IsNullOrEmpty(sinceNorm) &&
+                        string.CompareOrdinal(e["t"]?.ToString() ?? "", sinceNorm) < 0) continue;
                     matches.Add(e);
                 }
                 foreach (var e in matches.Skip(Math.Max(0, matches.Count - max))) result.Add(e);
             }
             catch { /* fail-safe */ }
             return result;
+        }
+
+        // Re-emit a caller's `since` in the stored canonical form ("o", UTC) so the ordinal compare is correct for
+        // any ISO-8601 input (no fractional seconds, +00:00 offset, etc.). Unparseable -> raw (best-effort).
+        private static string NormalizeSince(string since)
+        {
+            if (string.IsNullOrEmpty(since)) return since;
+            if (DateTime.TryParse(since, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var dt))
+                return dt.ToUniversalTime().ToString("o");
+            return since;
         }
 
         public static void Clear(string filePath)
