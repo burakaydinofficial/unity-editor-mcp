@@ -340,7 +340,9 @@ namespace UnityEditorMCP.Handlers
                 string tag = parameters["tag"]?.ToString();
                 int? layer = parameters["layer"]?.ToObject<int>();
                 bool exactMatch = parameters["exactMatch"]?.ToObject<bool>() ?? true;
-                
+                int limit = parameters["limit"]?.ToObject<int>() ?? 200;
+                if (limit <= 0) limit = 200;
+
                 List<GameObject> results = new List<GameObject>();
                 
                 // Get all GameObjects in scene
@@ -382,8 +384,13 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
                 
+                // F2: cap the RESPONSE size so a big legacy scene can't blow the 1MB frame budget.
+                int total = results.Count;
+                bool truncated = total > limit;
+                var capped = truncated ? results.Take(limit).ToList() : results;
+
                 // Convert results to data
-                var resultData = results.Select(obj => new
+                var resultData = capped.Select(obj => new
                 {
                     id = obj.GetInstanceID(),
                     name = obj.name,
@@ -402,6 +409,9 @@ namespace UnityEditorMCP.Handlers
                 return HandlerOutcome.Ok(new
                 {
                     count = resultData.Count,
+                    total = total,
+                    truncated = truncated,
+                    limit = limit,
                     objects = resultData
                 });
             }
@@ -481,24 +491,32 @@ namespace UnityEditorMCP.Handlers
                 bool includeInactive = parameters["includeInactive"]?.ToObject<bool>() ?? true;
                 int maxDepth = parameters["maxDepth"]?.ToObject<int>() ?? -1;
                 bool includeComponents = parameters["includeComponents"]?.ToObject<bool>() ?? false;
+                int maxNodes = parameters["maxNodes"]?.ToObject<int>() ?? 1000;
+                if (maxNodes <= 0) maxNodes = 1000;
 
                 // Get root GameObjects
                 GameObject[] rootObjects = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
 
-                // Build hierarchy
+                // Build hierarchy. F2: a node budget caps the RESPONSE so a big legacy scene can't blow the 1MB
+                // frame budget (maxDepth bounds depth, not total breadth).
+                var budget = new int[] { maxNodes };
                 List<object> hierarchy = new List<object>();
                 foreach (var root in rootObjects)
                 {
                     if (!includeInactive && !root.activeInHierarchy)
                         continue;
+                    if (budget[0] <= 0) break;
 
-                    hierarchy.Add(BuildHierarchyNode(root, 0, maxDepth, includeInactive, includeComponents));
+                    hierarchy.Add(BuildHierarchyNode(root, 0, maxDepth, includeInactive, includeComponents, budget));
                 }
+                bool truncated = budget[0] <= 0; // budget exhausted -> there may be more
 
                 return HandlerOutcome.Ok(new
                 {
                     sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name,
                     objectCount = hierarchy.Count,
+                    truncated = truncated,
+                    maxNodes = maxNodes,
                     hierarchy = hierarchy
                 });
             }
@@ -511,8 +529,9 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Builds a hierarchy node for a GameObject
         /// </summary>
-        private static object BuildHierarchyNode(GameObject obj, int currentDepth, int maxDepth, bool includeInactive, bool includeComponents)
+        private static object BuildHierarchyNode(GameObject obj, int currentDepth, int maxDepth, bool includeInactive, bool includeComponents, int[] budget)
         {
+            budget[0]--; // count this node against the response budget (F2)
             var node = new Dictionary<string, object>
             {
                 ["name"] = obj.name,
@@ -551,8 +570,9 @@ namespace UnityEditorMCP.Handlers
                 {
                     if (!includeInactive && !child.gameObject.activeInHierarchy)
                         continue;
-                        
-                    children.Add(BuildHierarchyNode(child.gameObject, currentDepth + 1, maxDepth, includeInactive, includeComponents));
+                    if (budget[0] <= 0) break; // F2: response budget exhausted
+
+                    children.Add(BuildHierarchyNode(child.gameObject, currentDepth + 1, maxDepth, includeInactive, includeComponents, budget));
                 }
                 
                 if (children.Count > 0)

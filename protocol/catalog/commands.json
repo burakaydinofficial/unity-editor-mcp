@@ -980,6 +980,10 @@
           "matchExactType": {
             "type": "boolean",
             "description": "Match exact type only (not derived types). Default: true"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max results returned (default 200); the response signals truncated/totalFound/returned. Caps the response so a big scene can't blow the 1MB frame budget."
           }
         },
         "required": [
@@ -4913,6 +4917,10 @@
           "exactMatch": {
             "type": "boolean",
             "description": "Whether to match name exactly (default: true)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Max results returned (default 200); the response signals truncated/total. Caps the response so a big scene can't blow the 1MB frame budget."
           }
         },
         "required": []
@@ -5029,6 +5037,10 @@
           "includeComponents": {
             "type": "boolean",
             "description": "Include component information (default: false)"
+          },
+          "maxNodes": {
+            "type": "number",
+            "description": "Max total nodes returned (default 1000); the response signals truncated. maxDepth bounds depth, this bounds total breadth so a big scene can't blow the 1MB frame budget."
           }
         },
         "required": []

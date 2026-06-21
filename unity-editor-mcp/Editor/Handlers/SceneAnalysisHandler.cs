@@ -919,6 +919,8 @@ namespace UnityEditorMCP.Handlers
                 var includeInactive = parameters["includeInactive"]?.ToObject<bool>() ?? true;
                 var searchScope = parameters["searchScope"]?.ToString() ?? "scene";
                 var matchExactType = parameters["matchExactType"]?.ToObject<bool>() ?? true;
+                var limit = parameters["limit"]?.ToObject<int>() ?? 200;
+                if (limit <= 0) limit = 200;
 
                 // Validate input
                 if (string.IsNullOrEmpty(componentType))
@@ -1039,15 +1041,23 @@ namespace UnityEditorMCP.Handlers
                 // Sort results by path
                 results = results.OrderBy(r => r["path"].ToString()).ToList();
 
-                // Count active objects
+                // Count active objects (over the full match set, before paging)
                 var activeCount = results.Count(r => (bool)r["isActive"]);
+
+                // F2: cap the RESPONSE size so a big legacy scene can't blow the 1MB frame budget.
+                var totalFound = results.Count;
+                bool truncated = totalFound > limit;
+                if (truncated) results = results.Take(limit).ToList();
 
                 // Build result
                 var finalResult = new Dictionary<string, object>();
                 finalResult["componentType"] = componentType;
                 finalResult["searchScope"] = searchScope;
                 finalResult["results"] = results;
-                finalResult["totalFound"] = results.Count;
+                finalResult["totalFound"] = totalFound;
+                finalResult["returned"] = results.Count;
+                finalResult["truncated"] = truncated;
+                finalResult["limit"] = limit;
                 finalResult["activeCount"] = activeCount;
 
                 if (searchScope == "all")
