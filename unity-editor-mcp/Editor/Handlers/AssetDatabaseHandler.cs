@@ -287,8 +287,8 @@ namespace UnityEditorMCP.Handlers
         }
 
         // Assets that directly reference assetPath (reverse dependency scan). O(N) over project assets — a
-        // pre-delete safety check, not a hot path.
-        private static List<string> FindDependents(string assetPath)
+        // pre-delete safety check, not a hot path. internal so the asset-creation overwrite paths reuse it.
+        internal static List<string> FindDependents(string assetPath)
         {
             var result = new List<string>();
             foreach (var p in AssetDatabase.GetAllAssetPaths())

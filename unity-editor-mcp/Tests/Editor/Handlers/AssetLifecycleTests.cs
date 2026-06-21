@@ -53,6 +53,21 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual("PATH_EXISTS", r2.Code);
         }
 
+        [Test] public void CreateScriptableObject_AbstractType_NotInstantiable()
+        {
+            var r = AssetManagementHandler.CreateScriptableObject(new JObject { ["typeName"] = "UnityEditorMCP.Tests.SerAbstractSO", ["assetPath"] = "Assets/__so_abstract__.asset" });
+            Assert.AreEqual("NOT_INSTANTIABLE", r.Code);
+        }
+
+        [Test] public void CreateScriptableObject_Overwrite_NoDependents_Succeeds()
+        {
+            var path = "Assets/__so_overwrite__.asset"; _cleanup.Add(path);
+            Assert.IsFalse(AssetManagementHandler.CreateScriptableObject(new JObject { ["typeName"] = "UnityEditorMCP.Tests.SerFixtureAsset", ["assetPath"] = path }).IsError);
+            var r2 = AssetManagementHandler.CreateScriptableObject(new JObject { ["typeName"] = "UnityEditorMCP.Tests.SerFixtureAsset", ["assetPath"] = path, ["overwrite"] = true });
+            Assert.IsFalse(r2.IsError, r2.Error); // no dependents -> overwrite proceeds without confirm
+            Assert.IsNotNull(AssetDatabase.LoadAssetAtPath<ScriptableObject>(path));
+        }
+
         // ---- unpack_prefab (E2) ----
 
         [Test] public void UnpackPrefab_RemovesInstanceLink()

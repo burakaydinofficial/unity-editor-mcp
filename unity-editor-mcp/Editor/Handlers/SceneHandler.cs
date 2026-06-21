@@ -159,6 +159,8 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                if (EditorApplication.isPlaying)
+                    return HandlerOutcome.Fail("scene mutations refuse in play mode", "PLAY_MODE");
                 // Get scene identification parameters
                 var scenePath = parameters["scenePath"]?.ToString();
                 var sceneName = parameters["sceneName"]?.ToString();

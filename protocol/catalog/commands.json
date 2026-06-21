@@ -2049,7 +2049,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": false,
-      "description": "Manage Unity Asset Database operations (find, info, create folders, move, copy, delete, refresh)",
+      "description": "Manage Unity Asset Database operations (find, info, create folders, move, copy, delete, refresh, save). delete_asset is DRY-RUN by default: it returns the asset's dependents + confirmRequired; pass confirm:true to actually delete (H3).",
       "params": {
         "type": "object",
         "properties": {
@@ -2093,6 +2093,10 @@
           "toPath": {
             "type": "string",
             "description": "Destination path for move/copy operations"
+          },
+          "confirm": {
+            "type": "boolean",
+            "description": "Required for delete_asset: without confirm:true the delete is a dry-run returning dependents + confirmRequired; pass confirm:true to actually delete (H3)."
           }
         },
         "required": [
@@ -2344,6 +2348,20 @@
               "success",
               "action"
             ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "success": { "type": "boolean" },
+              "action": { "type": "string" },
+              "confirmRequired": { "type": "boolean" },
+              "wouldDelete": { "type": "string" },
+              "dependents": { "type": "array", "items": { "type": "string" } },
+              "dependentCount": { "type": "number" },
+              "deleted": { "type": "string" },
+              "hadDependents": { "type": "number" }
+            },
+            "required": [ "success", "action" ]
           }
         ]
       }

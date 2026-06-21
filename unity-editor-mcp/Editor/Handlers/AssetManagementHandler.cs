@@ -310,9 +310,20 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail($"type not found: {typeName}", "TYPE_NOT_FOUND");
                 if (!typeof(ScriptableObject).IsAssignableFrom(type))
                     return HandlerOutcome.Fail($"{type.FullName} is not a ScriptableObject", "NOT_A_SCRIPTABLE_OBJECT");
+                if (type.IsAbstract || type.IsGenericTypeDefinition)
+                    return HandlerOutcome.Fail($"{type.FullName} is abstract or an open generic and cannot be instantiated", "NOT_INSTANTIABLE");
 
-                if (AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath) != null && !overwrite)
-                    return HandlerOutcome.Fail($"Asset already exists at {assetPath}. Set overwrite to true to replace it.", "PATH_EXISTS");
+                bool confirm = parameters["confirm"]?.ToObject<bool>() ?? false;
+                if (AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath) != null)
+                {
+                    if (!overwrite)
+                        return HandlerOutcome.Fail($"Asset already exists at {assetPath}. Set overwrite to true to replace it.", "PATH_EXISTS");
+                    // Overwrite is a destructive replace — same dependents gate as delete (H3); bail BEFORE creating the SO.
+                    var gate = GuardDestructiveReplace(assetPath, confirm);
+                    if (gate != null) return gate;
+                    if (!AssetDatabase.DeleteAsset(assetPath))
+                        return HandlerOutcome.Fail($"Could not replace existing asset at {assetPath}", "INVALID_STATE");
+                }
 
                 string directory = Path.GetDirectoryName(assetPath);
                 if (!AssetDatabase.IsValidFolder(directory)) { Directory.CreateDirectory(directory); AssetDatabase.Refresh(); }
@@ -320,7 +331,6 @@ namespace UnityEditorMCP.Handlers
                 var so = ScriptableObject.CreateInstance(type);
                 if (so == null)
                     return HandlerOutcome.Fail($"Failed to instantiate {type.FullName}", "INTERNAL_ERROR");
-                if (overwrite) AssetDatabase.DeleteAsset(assetPath);
                 AssetDatabase.CreateAsset(so, assetPath);
                 AssetDatabase.SaveAssets();
 
@@ -359,6 +369,8 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail("GameObject not found (provide gameObjectPath or instanceId)", "NOT_FOUND");
                 if (!PrefabUtility.IsPartOfPrefabInstance(go))
                     return HandlerOutcome.Fail($"{go.name} is not a prefab instance", "NOT_A_PREFAB_INSTANCE");
+                if (PrefabUtility.GetOutermostPrefabInstanceRoot(go) != go)
+                    return HandlerOutcome.Fail($"{go.name} is not the outermost prefab-instance root; unpack the root instead", "NOT_OUTERMOST_ROOT");
 
                 var mode = modeStr == "complete" ? PrefabUnpackMode.Completely : PrefabUnpackMode.OutermostRoot;
                 PrefabUtility.UnpackPrefabInstance(go, mode, InteractionMode.UserAction); // UserAction registers Undo
@@ -398,8 +410,16 @@ namespace UnityEditorMCP.Handlers
                 var basePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(basePrefabPath);
                 if (basePrefab == null)
                     return HandlerOutcome.Fail($"Base prefab not found: {basePrefabPath}", "NOT_FOUND");
-                if (AssetDatabase.LoadAssetAtPath<GameObject>(variantPath) != null && !overwrite)
-                    return HandlerOutcome.Fail($"Asset already exists at {variantPath}. Set overwrite to true to replace it.", "PATH_EXISTS");
+                bool confirm = parameters["confirm"]?.ToObject<bool>() ?? false;
+                if (AssetDatabase.LoadAssetAtPath<GameObject>(variantPath) != null)
+                {
+                    if (!overwrite)
+                        return HandlerOutcome.Fail($"Asset already exists at {variantPath}. Set overwrite to true to replace it.", "PATH_EXISTS");
+                    var gate = GuardDestructiveReplace(variantPath, confirm);
+                    if (gate != null) return gate;
+                    if (!AssetDatabase.DeleteAsset(variantPath))
+                        return HandlerOutcome.Fail($"Could not replace existing variant at {variantPath}", "INVALID_STATE");
+                }
 
                 string directory = Path.GetDirectoryName(variantPath);
                 if (!AssetDatabase.IsValidFolder(directory)) { Directory.CreateDirectory(directory); AssetDatabase.Refresh(); }
@@ -410,7 +430,6 @@ namespace UnityEditorMCP.Handlers
                 GameObject variant = null;
                 try
                 {
-                    if (overwrite) AssetDatabase.DeleteAsset(variantPath);
                     // Saving a CONNECTED prefab instance as an asset creates a Prefab VARIANT of its source.
                     variant = PrefabUtility.SaveAsPrefabAsset(instance, variantPath);
                 }
@@ -434,6 +453,24 @@ namespace UnityEditorMCP.Handlers
                 Debug.LogError($"[AssetManagementHandler] Error in CreatePrefabVariant: {e.Message}");
                 return HandlerOutcome.Fail($"Failed to create prefab variant: {e.Message}");
             }
+        }
+
+        // Destructive-replace gate (H3): refuse to overwrite an asset that has dependents unless confirm:true,
+        // returning the dependent list (a dry-run). Returns null when it is safe to proceed (no deps or confirmed).
+        private static HandlerOutcome GuardDestructiveReplace(string assetPath, bool confirm)
+        {
+            if (confirm) return null;
+            var dependents = AssetDatabaseHandler.FindDependents(assetPath);
+            if (dependents.Count == 0) return null;
+            return HandlerOutcome.Ok(new
+            {
+                success = true,
+                confirmRequired = true,
+                wouldReplace = assetPath,
+                dependents = dependents,
+                dependentCount = dependents.Count,
+                message = $"Overwriting '{assetPath}' would affect {dependents.Count} dependent(s). Re-call with confirm:true to replace."
+            });
         }
 
         /// <summary>

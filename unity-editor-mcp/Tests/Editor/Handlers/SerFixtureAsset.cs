@@ -4,6 +4,8 @@ namespace UnityEditorMCP.Tests
 {
     public enum SerFixtureEnum { Alpha, Beta, Gamma }
 
+    public abstract class SerAbstractSO : ScriptableObject { } // for the create_scriptable_object NOT_INSTANTIABLE test
+
     public interface ISerStrategy { }
     [System.Serializable] public class SerStrategyA : ISerStrategy { public int A = 1; }
     [System.Serializable] public class SerStrategyB : ISerStrategy { public string B = "x"; }
