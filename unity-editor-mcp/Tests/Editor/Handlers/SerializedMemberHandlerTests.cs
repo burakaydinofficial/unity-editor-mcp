@@ -440,6 +440,22 @@ namespace UnityEditorMCP.Tests
             Assert.IsNotNull(node["managedReferenceFieldTypename"]);
         }
 
+        [Test] public void ManagedRef_CasOnTypename()
+        {
+            // an unset managed ref reads typename "" — a CAS write with expected "" succeeds
+            var r = SerializedMemberHandler.Set(new JObject { ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["Strategy"] = new JObject { ["value"] = new JObject { ["$type"] = "UnityEditorMCP.Tests.SerStrategyA" }, ["expected"] = "" } } } } });
+            Assert.IsFalse(r.IsError, r.Error);
+            Assert.IsInstanceOf<SerStrategyA>(_asset.Strategy);
+            // a stale expected typename is rejected
+            var r2 = SerializedMemberHandler.Set(new JObject { ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["Strategy"] = new JObject { ["value"] = JValue.CreateNull(), ["expected"] = "WrongType" } } } } });
+            Assert.AreEqual("STALE", FirstSkipCode(r2));
+            Assert.IsNotNull(_asset.Strategy); // unchanged
+        }
+
         internal static JToken FindProp(JArray props, string path)
         {
             foreach (var p in props) if ((string)p["propertyPath"] == path) return p;

@@ -1,6 +1,4 @@
 using System;
-using System.Linq;
-using System.Reflection;
 using System.Runtime.Serialization;
 using UnityEditor;
 using Newtonsoft.Json.Linq;
@@ -21,7 +19,12 @@ namespace UnityEditorMCP.Handlers
             if (string.IsNullOrEmpty(typeName)) { error = "managed reference value needs {\"$type\":\"<name>\"} or null"; return false; }
             var type = ResolveType(typeName);
             if (type == null) { error = $"TYPE_NOT_FOUND: type not found: {typeName}"; return false; }
-            var constraint = ResolveType(p.managedReferenceFieldTypename);
+            var fieldConstraint = p.managedReferenceFieldTypename;
+            var constraint = ResolveType(fieldConstraint);
+            // A DECLARED constraint we cannot resolve must FAIL — never silently accept any type (the agent should
+            // supply a full name). Only a genuinely unconstrained field (empty constraint) skips the check.
+            if (!string.IsNullOrEmpty(fieldConstraint) && constraint == null)
+            { error = $"CONSTRAINT_NOT_RESOLVED: cannot resolve the field's managed-reference constraint '{fieldConstraint}'"; return false; }
             if (constraint != null && !constraint.IsAssignableFrom(type)) { error = $"TYPE_NOT_ASSIGNABLE: {type.FullName} is not assignable to {constraint.FullName}"; return false; }
             object instance;
             try { instance = Activator.CreateInstance(type); }                       // run a parameterless ctor for defaults
@@ -31,29 +34,23 @@ namespace UnityEditorMCP.Handlers
             return true;
         }
 
-        // Resolve from a plain FullName/simple name, OR the "AssemblyName FullName" managedReference*Typename format.
+        // Resolve a type by FullName or AQN, OR the "AssemblyName FullName" managedReference*Typename format.
+        // Requires a FullName (the agent obtains it from inspect / find_implementations) — never a bare simple
+        // name, which collides across the editor's many assemblies and would pick a type non-deterministically.
         public static Type ResolveType(string name)
         {
             if (string.IsNullOrEmpty(name)) return null;
-            var full = name.Contains(" ") ? name.Substring(name.LastIndexOf(' ') + 1) : name;
+            // The assembly name has no space, so the FIRST space splits "AssemblyName FullName"; the remainder is
+            // the FullName (which may itself contain spaces for generics). A plain FullName/AQN passes through.
+            var full = name.Contains(" ") ? name.Substring(name.IndexOf(' ') + 1) : name;
             var t = Type.GetType(full);
             if (t != null) return t;
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
-                try { t = asm.GetType(full); } catch { t = null; }
+                try { t = asm.GetType(full); } catch { t = null; } // exact FullName per assembly — no simple-name scan
                 if (t != null) return t;
             }
-            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-                foreach (var c in SafeTypes(asm))
-                    if (c.FullName == full || c.Name == full) return c;
             return null;
-        }
-
-        private static Type[] SafeTypes(Assembly asm)
-        {
-            try { return asm.GetTypes(); }
-            catch (ReflectionTypeLoadException e) { return e.Types.Where(x => x != null).ToArray(); }
-            catch { return Array.Empty<Type>(); }
         }
     }
 }
