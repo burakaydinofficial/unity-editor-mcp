@@ -649,6 +649,33 @@
       "result": { "type": "object", "properties": { "variantPath": { "type": "string" }, "guid": { "type": "string" }, "basePrefabPath": { "type": "string" } } }
     },
     {
+      "name": "get_audit_log",
+      "category": "system",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Read the local mutation audit log (H5) — recent dispatched commands as {t, type, target, ok}. A complete command trail; filter `type` (case-insensitive substring, e.g. 'delete'/'set'/'create') for mutations, `since` (ISO-8601 UTC) for a time window; `max` caps the count (default 100, ceiling 1000). Entries are chronological.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "max": { "type": "number", "description": "Max entries to return (default 100, ceiling 1000)." },
+          "type": { "type": "string", "description": "Case-insensitive substring filter on the command type." },
+          "since": { "type": "string", "description": "ISO-8601 UTC; only entries at or after this time." }
+        }
+      },
+      "result": { "type": "object", "properties": { "count": { "type": "number" }, "entries": { "type": "array" } } }
+    },
+    {
+      "name": "clear_audit_log",
+      "category": "system",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": true,
+      "description": "Clear the local mutation audit log (H5). Destructive (erases the trail); requires confirm:true (H3).",
+      "params": { "type": "object", "properties": {} },
+      "result": { "type": "object", "properties": { "cleared": { "type": "boolean" } } }
+    },
+    {
       "name": "get_editor_info",
       "category": "system",
       "sides": ["editor"],

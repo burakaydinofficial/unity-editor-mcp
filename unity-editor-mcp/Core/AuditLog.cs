@@ -1,0 +1,81 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Newtonsoft.Json.Linq;
+
+namespace UnityEditorMCP.Core
+{
+    /// <summary>Append-only command journal (H5). Unity-independent (the file path is injected) so it runs under
+    /// dotnet test. Every method is FAIL-SAFE: audit logging must never break command dispatch or reads.</summary>
+    public static class AuditLog
+    {
+        /// <summary>Append one entry {t,type,target,ok}. If the file exceeds capBytes, drop the oldest half
+        /// first (crude rotation — the truncate is occasional, so most appends are O(1)).</summary>
+        public static void Append(string filePath, string type, string target, bool ok, long capBytes = 2_097_152)
+        {
+            if (string.IsNullOrEmpty(filePath) || string.IsNullOrEmpty(type)) return;
+            try
+            {
+                var dir = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                if (capBytes > 0 && File.Exists(filePath) && new FileInfo(filePath).Length > capBytes)
+                {
+                    var lines = File.ReadAllLines(filePath);
+                    File.WriteAllLines(filePath, lines.Skip(lines.Length / 2));
+                }
+                var entry = new JObject
+                {
+                    ["t"] = DateTime.UtcNow.ToString("o"),
+                    ["type"] = type,
+                    ["target"] = target ?? "",
+                    ["ok"] = ok
+                };
+                File.AppendAllText(filePath, entry.ToString(Newtonsoft.Json.Formatting.None) + "\n");
+            }
+            catch { /* logging must never throw */ }
+        }
+
+        /// <summary>The last <paramref name="max"/> entries (chronological), filtered by a case-insensitive
+        /// type substring and a since-timestamp (ISO-8601). Malformed lines are skipped.</summary>
+        public static JArray Read(string filePath, int max, string typeFilter, string since)
+        {
+            var result = new JArray();
+            try
+            {
+                if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return result;
+                if (max <= 0) max = 100;
+                if (max > 1000) max = 1000;
+                var matches = new List<JObject>();
+                foreach (var line in File.ReadLines(filePath))
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    JObject e;
+                    try
+                    {
+                        // DateParseHandling.None: keep "t" as the raw ISO string so the ordinal since-compare works
+                        // (Newtonsoft otherwise reparses it into a DateTime token, changing its string form).
+                        using (var sr = new StringReader(line))
+                        using (var jr = new Newtonsoft.Json.JsonTextReader(sr) { DateParseHandling = Newtonsoft.Json.DateParseHandling.None })
+                            e = (JObject)JToken.ReadFrom(jr);
+                    }
+                    catch { continue; }
+                    if (!string.IsNullOrEmpty(typeFilter) &&
+                        (e["type"]?.ToString().IndexOf(typeFilter, StringComparison.OrdinalIgnoreCase) ?? -1) < 0) continue;
+                    if (!string.IsNullOrEmpty(since) &&
+                        string.CompareOrdinal(e["t"]?.ToString() ?? "", since) < 0) continue;
+                    matches.Add(e);
+                }
+                foreach (var e in matches.Skip(Math.Max(0, matches.Count - max))) result.Add(e);
+            }
+            catch { /* fail-safe */ }
+            return result;
+        }
+
+        public static void Clear(string filePath)
+        {
+            try { if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath)) File.Delete(filePath); }
+            catch { /* fail-safe */ }
+        }
+    }
+}

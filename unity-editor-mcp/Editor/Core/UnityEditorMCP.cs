@@ -69,6 +69,8 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("set_project_setting", EditorInfoHandler.SetProjectSetting, requiresConfirm: true);
             dispatcher.Register("manage_packages", EditorInfoHandler.ManagePackages, requiresConfirm: true);
             dispatcher.Register("quit_editor", EditorInfoHandler.QuitEditor, requiresConfirm: true);
+            dispatcher.Register("get_audit_log", AuditLogHandler.GetAuditLog);
+            dispatcher.Register("clear_audit_log", AuditLogHandler.ClearAuditLog, requiresConfirm: true);
             // Batch A (single-method handlers). Their now-dead legacy switch cases are removed wholesale
             // at the capstone (the rail wins via IsRegistered, so the cases are unreachable meanwhile).
             dispatcher.Register("create_gameobject", GameObjectHandler.CreateGameObject);
@@ -425,7 +427,9 @@ namespace UnityEditorMCP.Core
                     Type = command?.Type,
                     Params = command?.Parameters
                 };
-                respond(_dispatcher.Dispatch(request).ToJson());
+                var result = _dispatcher.Dispatch(request);
+                AuditLogBridge.Record(command?.Type, command?.Parameters, !result.IsError); // H5 audit trail (fail-safe)
+                respond(result.ToJson());
             }
             catch (Exception ex)
             {
