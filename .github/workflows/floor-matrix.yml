@@ -10,13 +10,15 @@ name: floor-matrix
 
 on:
   workflow_dispatch:
-  # First-run trigger: fire on push to the working branch. (workflow_dispatch alone won't work until the
-  # workflow reaches the DEFAULT branch — a GitHub limitation — so a branch-scoped push trigger is used.)
+  # Green established — now gate release tags + PRs that touch the package or the CI host projects.
+  # (The first-run branch trigger is retired.)
   push:
-    branches: [quality/protocol-contract-foundation]
-  # After the first green run, switch to gating releases/PRs (and remove the branch trigger above):
-  # pull_request:
-  #   paths: ['unity-editor-mcp/**']
+    tags: ['v*']
+  pull_request:
+    paths:
+      - 'unity-editor-mcp/**'
+      - 'ci/unity-host-**'
+      - '.github/workflows/floor-matrix.yml'
 
 # unity-test-runner posts the results as a check run (checkName) — needs checks:write, else the step fails
 # with "Resource not accessible by integration" on repos whose default workflow token is read-only.
