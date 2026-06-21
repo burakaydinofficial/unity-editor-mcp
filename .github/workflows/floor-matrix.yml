@@ -18,6 +18,12 @@ on:
   # pull_request:
   #   paths: ['unity-editor-mcp/**']
 
+# unity-test-runner posts the results as a check run (checkName) — needs checks:write, else the step fails
+# with "Resource not accessible by integration" on repos whose default workflow token is read-only.
+permissions:
+  contents: read
+  checks: write
+
 jobs:
   editmode:
     name: EditMode @ Unity ${{ matrix.unity }}

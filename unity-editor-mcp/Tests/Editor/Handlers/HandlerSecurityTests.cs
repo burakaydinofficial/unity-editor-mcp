@@ -37,11 +37,15 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
         }
 
+#if UNITY_EDITOR_WIN
+        // Windows-only vector: "Assets/C:/..." passes StartsWith("Assets/"), then Path.Combine treats the
+        // drive-rooted "C:/..." as absolute and discards dataPath — the resolved-path PathSafety gate blocks it.
+        // On POSIX there is no drive concept and NormalizePath trims a leading '/', so the same input resolves
+        // to a benign in-project subfolder (correctly allowed) — there is no absolute bypass to reject there.
+        // (Round-4 audit; the floor-CI Linux run surfaced the platform difference.)
         [Test]
         public void CreateScript_WithAbsolutePathBypass_IsRejected()
         {
-            // "Assets/C:/..." passes a StartsWith("Assets/") check, but Path.Combine discards dataPath for
-            // the rooted segment — the resolved-path PathSafety gate is what blocks it. (Round-4 audit.)
             var outcome = ScriptHandler.CreateScript(new JObject
             {
                 ["scriptName"] = "Probe",
@@ -51,6 +55,7 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
             StringAssert.Contains("project root", outcome.Error);
         }
+#endif
 
         [Test]
         public void AnalyzeScreenshot_WithTraversalImagePath_IsRejected()
