@@ -6076,10 +6076,11 @@
             "enum": [
               "game",
               "scene",
-              "window"
+              "window",
+              "camera"
             ],
             "default": "game",
-            "description": "What to capture: game (Game View), scene (Scene View), or window (specific editor window)"
+            "description": "What to capture: game (Game View), scene (Scene View), window (a specific editor window), or camera (render an arbitrary world camera — G5)"
           },
           "width": {
             "type": "number",
@@ -6100,8 +6101,20 @@
           },
           "encodeAsBase64": {
             "type": "boolean",
-            "default": false,
-            "description": "Return the screenshot data as base64 encoded string"
+            "default": true,
+            "description": "Return the capture as viewable MCP image content (default true — the agent SEES the render). false returns only the saved path."
+          },
+          "cameraName": {
+            "type": "string",
+            "description": "captureMode camera: render the camera on the GameObject with this name."
+          },
+          "cameraPath": {
+            "type": "string",
+            "description": "captureMode camera: render the camera at this hierarchy path."
+          },
+          "cameraInstanceId": {
+            "type": "number",
+            "description": "captureMode camera: render the camera with this instanceId. If none of cameraName/Path/InstanceId is given, Camera.main is used."
           }
         },
         "required": []

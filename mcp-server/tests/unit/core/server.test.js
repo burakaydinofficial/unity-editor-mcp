@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from '../../../src/core/server.js';
+import { createServer, toMcpResponse } from '../../../src/core/server.js';
 import { createHandlers, BaseToolHandler } from '../../../src/handlers/index.js';
 
 describe('Server', () => {
@@ -79,5 +79,43 @@ describe('Server', () => {
       assert.equal(result.status, 'error');
       assert.equal(result.code, 'CUSTOM_ERROR_CODE');
     });
+  });
+});
+
+describe('toMcpResponse — image content (G5)', () => {
+  it('emits an MCP image block + a text echo with the base64 stripped to a size marker', () => {
+    const data = 'AAAABBBBCCCC'; // stand-in base64
+    const out = toMcpResponse({ status: 'success', result: { captureMode: 'camera', path: 'Assets/x.png', image: { mimeType: 'image/png', data } } }, 'capture_screenshot');
+    assert.equal(out.content.length, 2);
+    const image = out.content.find((c) => c.type === 'image');
+    const text = out.content.find((c) => c.type === 'text');
+    assert.ok(image, 'has an image block');
+    assert.equal(image.data, data);
+    assert.equal(image.mimeType, 'image/png');
+    assert.ok(!text.text.includes(data), 'raw base64 is NOT duplicated in the text');
+    assert.ok(text.text.includes('"bytes"'), 'text carries a size marker');
+    assert.ok(text.text.includes('camera'), 'text keeps the other fields');
+  });
+
+  it('defaults the mimeType to image/png when omitted', () => {
+    const out = toMcpResponse({ status: 'success', result: { image: { data: 'ZZZZ' } } }, 'capture_screenshot');
+    assert.equal(out.content.find((c) => c.type === 'image').mimeType, 'image/png');
+  });
+
+  it('leaves a normal result as a single text block', () => {
+    const out = toMcpResponse({ status: 'success', result: { count: 3, objects: [] } }, 'find_gameobject');
+    assert.equal(out.content.length, 1);
+    assert.equal(out.content[0].type, 'text');
+  });
+
+  it('ignores a non-string / empty image.data (no image block)', () => {
+    assert.equal(toMcpResponse({ status: 'success', result: { image: { data: '' } } }, 't').content[0].type, 'text');
+    assert.equal(toMcpResponse({ status: 'success', result: { image: { data: 123 } } }, 't').content[0].type, 'text');
+  });
+
+  it('keeps an error result as an isError text response', () => {
+    const out = toMcpResponse({ status: 'error', error: 'nope', code: 'X' }, 't');
+    assert.equal(out.isError, true);
+    assert.equal(out.content[0].type, 'text');
   });
 });

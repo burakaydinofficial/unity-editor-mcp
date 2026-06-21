@@ -26,12 +26,15 @@ namespace UnityEditorMCP.Handlers
                 int height = parameters["height"]?.ToObject<int>() ?? 0;
                 bool includeUI = parameters["includeUI"]?.ToObject<bool>() ?? true;
                 string windowName = parameters["windowName"]?.ToString();
-                bool encodeAsBase64 = parameters["encodeAsBase64"]?.ToObject<bool>() ?? false;
+                bool encodeAsBase64 = parameters["encodeAsBase64"]?.ToObject<bool>() ?? true; // default on -> the agent SEES the capture (G5)
+                string cameraName = parameters["cameraName"]?.ToString();
+                string cameraPath = parameters["cameraPath"]?.ToString();
+                int? cameraInstanceId = parameters["cameraInstanceId"]?.ToObject<int?>();
                 
                 // Validate capture mode
                 if (!IsValidCaptureMode(captureMode))
                 {
-                    return HandlerOutcome.Fail("Invalid capture mode. Must be 'game', 'scene', or 'window'", "VALIDATION_ERROR");
+                    return HandlerOutcome.Fail("Invalid capture mode. Must be 'game', 'scene', 'window', or 'camera'", "VALIDATION_ERROR");
                 }
                 
                 // Generate output path if not provided
@@ -68,6 +71,9 @@ namespace UnityEditorMCP.Handlers
                         break;
                     case "window":
                         result = CaptureEditorWindow(outputPath, windowName, encodeAsBase64);
+                        break;
+                    case "camera":
+                        result = CaptureCamera(outputPath, width, height, encodeAsBase64, cameraName, cameraPath, cameraInstanceId);
                         break;
                 }
 
@@ -146,7 +152,7 @@ namespace UnityEditorMCP.Handlers
                             result.includeUI,
                             result.fileSize,
                             result.message,
-                            base64Data = Convert.ToBase64String(imageBytes)
+                            image = new { mimeType = "image/png", data = Convert.ToBase64String(imageBytes) }
                         });
                     }
 
@@ -255,7 +261,92 @@ namespace UnityEditorMCP.Handlers
                 return HandlerOutcome.Fail($"Failed to capture Scene View: {ex.Message}");
             }
         }
-        
+
+        /// <summary>Renders a specific world camera (by name/path/instanceId, else Camera.main) to a texture (G5).</summary>
+        private static HandlerOutcome CaptureCamera(string outputPath, int width, int height, bool encodeAsBase64,
+            string cameraName, string cameraPath, int? cameraInstanceId)
+        {
+            try
+            {
+                Camera cam = ResolveCamera(cameraName, cameraPath, cameraInstanceId);
+                if (cam == null)
+                    return HandlerOutcome.Fail("Camera not found (provide cameraName/cameraPath/cameraInstanceId, or tag a camera MainCamera)", "CAMERA_NOT_FOUND");
+
+                int captureWidth = width > 0 ? width : (cam.pixelWidth > 0 ? cam.pixelWidth : 1280);
+                int captureHeight = height > 0 ? height : (cam.pixelHeight > 0 ? cam.pixelHeight : 720);
+
+                RenderTexture renderTexture = new RenderTexture(captureWidth, captureHeight, 24);
+                var prevTarget = cam.targetTexture;
+                var prevActive = RenderTexture.active;
+                cam.targetTexture = renderTexture;
+                cam.Render();
+                RenderTexture.active = renderTexture;
+                Texture2D screenshot = new Texture2D(captureWidth, captureHeight, TextureFormat.RGB24, false);
+                screenshot.ReadPixels(new Rect(0, 0, captureWidth, captureHeight), 0, 0);
+                screenshot.Apply();
+                cam.targetTexture = prevTarget;
+                RenderTexture.active = prevActive;
+                UnityEngine.Object.DestroyImmediate(renderTexture);
+
+                byte[] imageBytes = screenshot.EncodeToPNG();
+                UnityEngine.Object.DestroyImmediate(screenshot);
+                File.WriteAllBytes(outputPath, imageBytes);
+                AssetDatabase.Refresh();
+
+                var cameraInfo = new
+                {
+                    name = cam.name,
+                    position = new { x = cam.transform.position.x, y = cam.transform.position.y, z = cam.transform.position.z },
+                    rotation = new { x = cam.transform.eulerAngles.x, y = cam.transform.eulerAngles.y, z = cam.transform.eulerAngles.z }
+                };
+
+                if (encodeAsBase64)
+                {
+                    return HandlerOutcome.Ok(new
+                    {
+                        success = true, path = outputPath, width = captureWidth, height = captureHeight,
+                        captureMode = "camera", fileSize = imageBytes.Length, camera = cameraInfo,
+                        message = "Camera render captured successfully",
+                        image = new { mimeType = "image/png", data = Convert.ToBase64String(imageBytes) }
+                    });
+                }
+                return HandlerOutcome.Ok(new
+                {
+                    success = true, path = outputPath, width = captureWidth, height = captureHeight,
+                    captureMode = "camera", fileSize = imageBytes.Length, camera = cameraInfo,
+                    message = "Camera render captured successfully"
+                });
+            }
+            catch (Exception ex)
+            {
+                return HandlerOutcome.Fail($"Failed to capture camera: {ex.Message}");
+            }
+        }
+
+        // Resolve a Camera by instanceId, hierarchy path, or name; else Camera.main (the MainCamera-tagged camera).
+        private static Camera ResolveCamera(string cameraName, string cameraPath, int? cameraInstanceId)
+        {
+            if (cameraInstanceId.HasValue)
+            {
+                var obj = EditorUtility.InstanceIDToObject(cameraInstanceId.Value);
+                if (obj is GameObject go) return go.GetComponent<Camera>();
+                return obj as Camera;
+            }
+            if (!string.IsNullOrEmpty(cameraPath))
+            {
+                var go = GameObject.Find(cameraPath);
+                return go != null ? go.GetComponent<Camera>() : null;
+            }
+            if (!string.IsNullOrEmpty(cameraName))
+            {
+                foreach (var c in Camera.allCameras) if (c.name == cameraName) return c;
+                foreach (var c in Resources.FindObjectsOfTypeAll<Camera>())
+                    if (c.name == cameraName && c.gameObject.scene.IsValid()) return c; // include inactive
+                return null;
+            }
+            return Camera.main;
+        }
+
         /// <summary>
         /// Captures a specific Editor Window
         /// </summary>
@@ -513,7 +604,7 @@ namespace UnityEditorMCP.Handlers
         /// </summary>
         private static bool IsValidCaptureMode(string mode)
         {
-            return mode == "game" || mode == "scene" || mode == "window";
+            return mode == "game" || mode == "scene" || mode == "window" || mode == "camera";
         }
     }
 }

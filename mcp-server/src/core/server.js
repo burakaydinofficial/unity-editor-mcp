@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
  * code, details }) into an MCP tool response. Shared by the live request handler and the
  * createServer test helper so both speak the same MCP shape (errors carry isError:true).
  */
-function toMcpResponse(result, name) {
+export function toMcpResponse(result, name) {
   if (result.status === 'error') {
     logger.error(`[MCP] Handler returned error: ${name}`, { error: result.error, code: result.code });
     return {
@@ -29,9 +29,24 @@ function toMcpResponse(result, name) {
     };
   }
   logger.debug(`[MCP] success response for: ${name}`);
-  const responseText = (result.result === undefined || result.result === null)
+  const payload = result.result;
+  // Viewable image content (MCP image block): a capture/render returns { image: { mimeType, data } } (data =
+  // base64, no data-URI prefix). The model SEES the image; the text echo carries the rest of the payload with the
+  // base64 replaced by a { mimeType, bytes } marker so a multi-MB string isn't duplicated. (G5 — visual capture.)
+  const img = (payload && typeof payload === 'object' && !Array.isArray(payload)) ? payload.image : null;
+  if (img && typeof img.data === 'string' && img.data.length > 0) {
+    const mimeType = img.mimeType || 'image/png';
+    const { image, ...rest } = payload;
+    return {
+      content: [
+        { type: 'image', data: img.data, mimeType },
+        { type: 'text', text: JSON.stringify({ ...rest, image: { mimeType, bytes: img.data.length } }, null, 2) }
+      ]
+    };
+  }
+  const responseText = (payload === undefined || payload === null)
     ? JSON.stringify({ status: 'success', message: 'Operation completed successfully but no details were returned', tool: name }, null, 2)
-    : JSON.stringify(result.result, null, 2);
+    : JSON.stringify(payload, null, 2);
   return { content: [{ type: 'text', text: responseText }] };
 }
 
