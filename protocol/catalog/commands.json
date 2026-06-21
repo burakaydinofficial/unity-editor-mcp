@@ -11,7 +11,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": true,
-      "description": "Set one project setting by key (PlayerSettings). Supported keys: productName, companyName, bundleVersion, defaultScreenWidth, defaultScreenHeight, runInBackground, colorSpace, scriptingDefineSymbols.",
+      "description": "Set one project setting by key (PlayerSettings). Supported keys: productName, companyName, bundleVersion, defaultScreenWidth, defaultScreenHeight, runInBackground, colorSpace, scriptingDefineSymbols. Destructive; requires confirm:true (H3).",
       "params": {
         "type": "object",
         "properties": {
@@ -56,7 +56,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": true,
-      "description": "Add or remove a UPM package. Resolution is asynchronous (the editor recompiles/reloads); the call returns once the request is queued — verify with list_packages afterwards.",
+      "description": "Add or remove a UPM package. Resolution is asynchronous (the editor recompiles/reloads); the call returns once the request is queued — verify with list_packages afterwards. Destructive; requires confirm:true (H3).",
       "params": {
         "type": "object",
         "properties": {
@@ -99,7 +99,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": true,
-      "description": "Quit the Unity editor (intended for CI/automation). The editor exits after the response is sent, so the connection will drop. Unsaved changes are NOT saved.",
+      "description": "Quit the Unity editor (intended for CI/automation). The editor exits after the response is sent, so the connection will drop. Unsaved changes are NOT saved. Requires confirm:true (H3).",
       "params": {
         "type": "object",
         "properties": {},
@@ -4803,7 +4803,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": true,
-      "description": "Delete GameObject(s) from Unity scene",
+      "description": "Delete GameObject(s) from Unity scene. Requires confirm:true (H3).",
       "params": {
         "type": "object",
         "properties": {
@@ -6225,7 +6225,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": true,
-      "description": "Delete a C# script from Unity project",
+      "description": "Delete a C# script from Unity project. Requires confirm:true (H3).",
       "params": {
         "type": "object",
         "properties": {

@@ -33,6 +33,7 @@ namespace UnityEditorMCP.Core
         private readonly Dictionary<string, Func<JObject, HandlerOutcome>> _handlers =
             new Dictionary<string, Func<JObject, HandlerOutcome>>(StringComparer.OrdinalIgnoreCase);
         private readonly IMcpLogger _log;
+        private readonly HashSet<string> _requiresConfirm = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private Func<CommandRequest, HandlerOutcome> _fallback;
 
         public CommandDispatcher(IMcpLogger log = null)
@@ -50,13 +51,23 @@ namespace UnityEditorMCP.Core
         public bool IsRegistered(string type) => type != null && _handlers.ContainsKey(type);
 
         /// <summary>Registers a handler. Throws on an empty type or a duplicate.</summary>
-        public void Register(string type, Func<JObject, HandlerOutcome> handler)
+        public void Register(string type, Func<JObject, HandlerOutcome> handler) => Register(type, handler, false);
+
+        /// <summary>Registers a handler; <paramref name="requiresConfirm"/> marks an irreversible/coarse op that
+        /// the dispatcher refuses (CONFIRMATION_REQUIRED) unless the request carries params.confirm==true (H3).
+        /// Ops with a finer safety model (CAS serialization writes, the dependents-aware asset delete) are NOT
+        /// marked — they self-gate.</summary>
+        public void Register(string type, Func<JObject, HandlerOutcome> handler, bool requiresConfirm)
         {
             if (string.IsNullOrEmpty(type)) throw new ArgumentException("type is required", nameof(type));
             if (handler == null) throw new ArgumentNullException(nameof(handler));
             if (_handlers.ContainsKey(type)) throw new InvalidOperationException($"Duplicate handler for '{type}'");
             _handlers[type] = handler;
+            if (requiresConfirm) _requiresConfirm.Add(type);
         }
+
+        /// <summary>True if the command type is gated behind params.confirm==true (H3).</summary>
+        public bool RequiresConfirm(string type) => type != null && _requiresConfirm.Contains(type);
 
         /// <summary>
         /// Sets a fallback invoked when no specific handler is registered for a
@@ -102,6 +113,12 @@ namespace UnityEditorMCP.Core
             }
             else
             {
+                // H3: irreversible/coarse destructive ops require an explicit confirm:true. The gate is central
+                // (here) so it can't be forgotten per-handler; confirm stays in params (some handlers read it).
+                if (_requiresConfirm.Contains(request.Type) && !IsConfirmed(request.Params))
+                    return CommandResult.FromOutcome(request.Id, HandlerOutcome.Fail(
+                        $"'{request.Type}' is destructive and requires confirm:true. Re-send with \"confirm\": true to proceed.",
+                        "CONFIRMATION_REQUIRED"));
                 try
                 {
                     var rawParams = request.Params ?? new JObject();
@@ -118,6 +135,14 @@ namespace UnityEditorMCP.Core
             if (fields != null && outcome != null && !outcome.IsError && outcome.Payload != null)
                 outcome = ProjectPayload(outcome, fields);
             return CommandResult.FromOutcome(request.Id, outcome);
+        }
+
+        // The reserved "confirm" meta-param: true gates an irreversible op (H3). Left in params (not stripped)
+        // because some handlers also read it for their own finer gate (e.g. the asset-delete dependents check).
+        private static bool IsConfirmed(JObject p)
+        {
+            var c = p?["confirm"];
+            return c != null && c.Type == JTokenType.Boolean && (bool)c;
         }
 
         // The reserved "fields" meta-param: a string[] of dot-paths selecting which result fields to

@@ -54,6 +54,50 @@ namespace UnityEditorMCP.Core.Tests
             Assert.Contains("kaboom", (string)json["error"]);
         }
 
+        // --- H3 confirm-gate ---
+
+        [Fact]
+        public void RequiresConfirm_WithoutConfirm_RefusesAndDoesNotCallHandler()
+        {
+            var d = new CommandDispatcher();
+            bool called = false;
+            d.Register("nuke", p => { called = true; return HandlerOutcome.Ok(new { done = true }); }, requiresConfirm: true);
+            var json = JObject.Parse(d.Dispatch(Req("5", "nuke")).ToJson());
+            Assert.Equal("error", (string)json["status"]);
+            Assert.Equal("CONFIRMATION_REQUIRED", (string)json["code"]);
+            Assert.False(called); // gated before the handler runs
+        }
+
+        [Fact]
+        public void RequiresConfirm_WithConfirmTrue_Dispatches()
+        {
+            var d = new CommandDispatcher();
+            d.Register("nuke", p => HandlerOutcome.Ok(new { done = true }), requiresConfirm: true);
+            var json = JObject.Parse(d.Dispatch(Req("6", "nuke", new JObject { ["confirm"] = true })).ToJson());
+            Assert.Equal("success", (string)json["status"]);
+            Assert.True((bool)json["result"]["done"]);
+        }
+
+        [Fact]
+        public void NonConfirmCommand_IsUnaffectedByTheGate()
+        {
+            var d = new CommandDispatcher();
+            d.Register("safe", p => HandlerOutcome.Ok(new { ok = true }));
+            var json = JObject.Parse(d.Dispatch(Req("7", "safe")).ToJson());
+            Assert.Equal("success", (string)json["status"]); // no confirm needed
+            Assert.False(d.RequiresConfirm("safe"));
+        }
+
+        [Fact]
+        public void Confirm_StaysInParams_ForHandlersThatReadIt()
+        {
+            var d = new CommandDispatcher();
+            bool sawConfirm = false;
+            d.Register("nuke", p => { sawConfirm = p["confirm"] != null && (bool)p["confirm"]; return HandlerOutcome.Ok(new { }); }, requiresConfirm: true);
+            d.Dispatch(Req("8", "nuke", new JObject { ["confirm"] = true }));
+            Assert.True(sawConfirm); // confirm is NOT stripped (unlike fields), so self-gating handlers still see it
+        }
+
         [Fact]
         public void Params_DefaultToEmptyObject_WhenNull()
         {

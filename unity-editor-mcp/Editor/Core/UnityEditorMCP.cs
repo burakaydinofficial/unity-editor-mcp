@@ -66,15 +66,15 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("get_editor_info", EditorInfoHandler.GetEditorInfo);
             dispatcher.Register("get_project_settings", EditorInfoHandler.GetProjectSettings);
             dispatcher.Register("list_packages", EditorInfoHandler.ListPackages);
-            dispatcher.Register("set_project_setting", EditorInfoHandler.SetProjectSetting);
-            dispatcher.Register("manage_packages", EditorInfoHandler.ManagePackages);
-            dispatcher.Register("quit_editor", EditorInfoHandler.QuitEditor);
+            dispatcher.Register("set_project_setting", EditorInfoHandler.SetProjectSetting, requiresConfirm: true);
+            dispatcher.Register("manage_packages", EditorInfoHandler.ManagePackages, requiresConfirm: true);
+            dispatcher.Register("quit_editor", EditorInfoHandler.QuitEditor, requiresConfirm: true);
             // Batch A (single-method handlers). Their now-dead legacy switch cases are removed wholesale
             // at the capstone (the rail wins via IsRegistered, so the cases are unreachable meanwhile).
             dispatcher.Register("create_gameobject", GameObjectHandler.CreateGameObject);
             dispatcher.Register("find_gameobject", GameObjectHandler.FindGameObjects);
             dispatcher.Register("modify_gameobject", GameObjectHandler.ModifyGameObject);
-            dispatcher.Register("delete_gameobject", GameObjectHandler.DeleteGameObject);
+            dispatcher.Register("delete_gameobject", GameObjectHandler.DeleteGameObject, requiresConfirm: true);
             dispatcher.Register("get_hierarchy", GameObjectHandler.GetHierarchy);
             dispatcher.Register("create_scene", SceneHandler.CreateScene);
             dispatcher.Register("load_scene", SceneHandler.LoadScene);
@@ -135,7 +135,7 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("create_script", ScriptHandler.CreateScript);
             dispatcher.Register("read_script", ScriptHandler.ReadScript);
             dispatcher.Register("update_script", ScriptHandler.UpdateScript);
-            dispatcher.Register("delete_script", ScriptHandler.DeleteScript);
+            dispatcher.Register("delete_script", ScriptHandler.DeleteScript, requiresConfirm: true);
             dispatcher.Register("list_scripts", ScriptHandler.ListScripts);
             dispatcher.Register("validate_script", ScriptHandler.ValidateScript);
             dispatcher.Register("list_tests", TestRunnerHandler.ListTests);
