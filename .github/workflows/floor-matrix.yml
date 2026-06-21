@@ -1,18 +1,20 @@
-# Unity floor matrix — proves the Editor C# compiles + its EditMode tests pass on every
-# supported LTS. This is the verification behind the "old-Unity compatible" claim.
+# Unity floor matrix — proves the Editor C# compiles + its EditMode tests pass on every supported LTS.
+# (Verifies the "old-Unity compatible" claim — that the COMPATIBILITY.md guards are correct on each floor.)
 #
-# STATUS: host projects committed (ci/unity-host-<version>/, the version-matched manifests + ProjectVersion).
-# ONE one-time setup task remains to make it live (see docs/floor-testing.md):
-#   - Repo secrets: UNITY_LICENSE (the .ulf from a free Personal activation), and UNITY_EMAIL + UNITY_PASSWORD.
-# Until the secret exists it is workflow_dispatch-only and skips on forks. After the first green manual run,
-# uncomment the push(tags)/pull_request triggers below to gate releases/PRs.
+# STATUS: LIVE-READY. Host projects committed (ci/unity-host-<version>/) and the three repo secrets are set
+# (UNITY_LICENSE = the Personal .ulf, UNITY_EMAIL, UNITY_PASSWORD — GameCI activates Personal from these,
+# since Unity deprecated offline/manual activation for Personal). Fires on push to the working branch below.
+# After the first green run, switch to the release/PR gates and drop the broad branch trigger.
 
 name: floor-matrix
 
 on:
   workflow_dispatch:
-  # push:
-  #   tags: ['v*']
+  # First-run trigger: fire on push to the working branch. (workflow_dispatch alone won't work until the
+  # workflow reaches the DEFAULT branch — a GitHub limitation — so a branch-scoped push trigger is used.)
+  push:
+    branches: [quality/protocol-contract-foundation]
+  # After the first green run, switch to gating releases/PRs (and remove the branch trigger above):
   # pull_request:
   #   paths: ['unity-editor-mcp/**']
 
@@ -47,9 +49,9 @@ jobs:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
         with:
           unityVersion: ${{ matrix.unity }}
-          # Minimal host that references the package via file: + testables. TODO: add it.
+          # Minimal host that references the package via file: + testables (ci/unity-host-<version>/).
           projectPath: ci/unity-host-${{ matrix.unity }}
-          testMode: editmode
+          testMode: EditMode
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           checkName: EditMode ${{ matrix.unity }}
 
