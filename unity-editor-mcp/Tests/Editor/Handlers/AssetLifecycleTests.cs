@@ -126,8 +126,8 @@ namespace UnityEditorMCP.Tests
             var path = "Assets/__del_gate__.asset"; _cleanup.Add(path);
             AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<SerFixtureAsset>(), path);
             var r = AssetDatabaseHandler.HandleCommand("delete_asset", new JObject { ["assetPath"] = path });
-            Assert.IsFalse(r.IsError, r.Error);
-            Assert.IsTrue((bool)JObject.FromObject(r.Payload)["confirmRequired"]);
+            Assert.IsTrue(r.IsError);
+            Assert.AreEqual("CONFIRMATION_REQUIRED", r.Code); // refusal is an error, consistent with the central gate
             Assert.IsNotNull(AssetDatabase.LoadAssetAtPath<ScriptableObject>(path)); // NOT deleted without confirm
         }
 

@@ -250,18 +250,14 @@ namespace UnityEditorMCP.Handlers
                 // references this asset, so an agent never blind-deletes something in use (H3).
                 if (!confirm)
                 {
-                    return HandlerOutcome.Ok(new
-                    {
-                        success = true,
-                        action = "delete_asset",
-                        confirmRequired = true,
-                        wouldDelete = assetPath,
-                        dependents = dependents,
-                        dependentCount = dependents.Count,
-                        message = dependents.Count > 0
+                    // Consistent with the central H3 gate: refusal is an ERROR (CONFIRMATION_REQUIRED), not a
+                    // success envelope. Dependents go in details so the agent can see what references the asset.
+                    return HandlerOutcome.Fail(
+                        dependents.Count > 0
                             ? $"'{assetPath}' is referenced by {dependents.Count} asset(s). Re-call with confirm:true to delete."
-                            : $"Re-call with confirm:true to delete '{assetPath}'."
-                    });
+                            : $"Re-call with confirm:true to delete '{assetPath}'.",
+                        "CONFIRMATION_REQUIRED",
+                        details: new { wouldDelete = assetPath, dependents = dependents, dependentCount = dependents.Count });
                 }
 
                 if (!AssetDatabase.DeleteAsset(assetPath))

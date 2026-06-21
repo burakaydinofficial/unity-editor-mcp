@@ -6250,7 +6250,7 @@
           "force": {
             "type": "boolean",
             "default": false,
-            "description": "Force deletion without confirmation"
+            "description": "When multiple scripts share the name: delete all matches (true) vs refuse (false). NOT related to the H3 confirm gate — confirm:true is always required to proceed."
           }
         },
         "required": []
@@ -6482,8 +6482,8 @@
       "category": "scripting",
       "sides": ["editor"],
       "internal": false,
-      "destructive": false,
-      "description": "Update an existing C# script in Unity project",
+      "destructive": true,
+      "description": "Update an existing C# script in Unity project. Destructive: replace mode overwrites the whole file (no Undo; createBackup defaults false). Requires confirm:true (H3).",
       "params": {
         "type": "object",
         "properties": {

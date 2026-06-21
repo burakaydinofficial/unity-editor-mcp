@@ -134,7 +134,7 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("save_prefab", AssetManagementHandler.SavePrefab);
             dispatcher.Register("create_script", ScriptHandler.CreateScript);
             dispatcher.Register("read_script", ScriptHandler.ReadScript);
-            dispatcher.Register("update_script", ScriptHandler.UpdateScript);
+            dispatcher.Register("update_script", ScriptHandler.UpdateScript, requiresConfirm: true);
             dispatcher.Register("delete_script", ScriptHandler.DeleteScript, requiresConfirm: true);
             dispatcher.Register("list_scripts", ScriptHandler.ListScripts);
             dispatcher.Register("validate_script", ScriptHandler.ValidateScript);

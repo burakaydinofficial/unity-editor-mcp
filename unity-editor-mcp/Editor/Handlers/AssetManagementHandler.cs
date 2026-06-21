@@ -462,15 +462,12 @@ namespace UnityEditorMCP.Handlers
             if (confirm) return null;
             var dependents = AssetDatabaseHandler.FindDependents(assetPath);
             if (dependents.Count == 0) return null;
-            return HandlerOutcome.Ok(new
-            {
-                success = true,
-                confirmRequired = true,
-                wouldReplace = assetPath,
-                dependents = dependents,
-                dependentCount = dependents.Count,
-                message = $"Overwriting '{assetPath}' would affect {dependents.Count} dependent(s). Re-call with confirm:true to replace."
-            });
+            // Consistent with the central H3 gate: a refusal is an ERROR (CONFIRMATION_REQUIRED), not a success
+            // envelope — so an agent that keys on the error code recognises it. Dependents go in details.
+            return HandlerOutcome.Fail(
+                $"Overwriting '{assetPath}' would affect {dependents.Count} dependent(s). Re-call with confirm:true to replace.",
+                "CONFIRMATION_REQUIRED",
+                details: new { wouldReplace = assetPath, dependents = dependents, dependentCount = dependents.Count });
         }
 
         /// <summary>
