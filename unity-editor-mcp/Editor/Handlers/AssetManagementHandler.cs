@@ -120,6 +120,7 @@ namespace UnityEditorMCP.Handlers
             {
                 // Parse parameters
                 string prefabPath = parameters["prefabPath"]?.ToString();
+                { var g = PathSafety.Guard(prefabPath, "prefabPath"); if (g != null) return g; } // H4
                 JObject modifications = parameters["modifications"] as JObject;
                 bool applyToInstances = parameters["applyToInstances"]?.ToObject<bool>() ?? true;
 
@@ -211,6 +212,7 @@ namespace UnityEditorMCP.Handlers
             {
                 // Parse parameters
                 string prefabPath = parameters["prefabPath"]?.ToString();
+                { var g = PathSafety.Guard(prefabPath, "prefabPath"); if (g != null) return g; } // H4
                 var position = ParseVector3(parameters["position"]) ?? Vector3.zero;
                 var rotation = ParseVector3(parameters["rotation"]) ?? Vector3.zero;
                 string parentPath = parameters["parent"]?.ToString();
@@ -404,6 +406,7 @@ namespace UnityEditorMCP.Handlers
                     basePrefabPath = AssetDatabase.GUIDToAssetPath(baseGuid);
                 if (string.IsNullOrEmpty(basePrefabPath))
                     return HandlerOutcome.Fail("basePrefabPath or baseGuid is required", "VALIDATION_ERROR");
+                { var g = PathSafety.Guard(basePrefabPath, "basePrefabPath"); if (g != null) return g; } // H4
                 if (string.IsNullOrEmpty(variantPath) || !variantPath.StartsWith("Assets/") || !variantPath.EndsWith(".prefab") || !PathSafety.IsWithinProject(variantPath))
                     return HandlerOutcome.Fail("variantPath must be a .prefab inside the project (Assets/...), with no '..' traversal", "VALIDATION_ERROR");
 
@@ -482,6 +485,7 @@ namespace UnityEditorMCP.Handlers
                 string shader = parameters["shader"]?.ToString() ?? "Standard";
                 JObject properties = parameters["properties"] as JObject;
                 string copyFrom = parameters["copyFrom"]?.ToString();
+                { var g = PathSafety.Guard(copyFrom, "copyFrom"); if (g != null) return g; } // H4 (copyFrom optional)
                 bool overwrite = parameters["overwrite"]?.ToObject<bool>() ?? false;
 
                 // Validate material path
@@ -900,6 +904,7 @@ namespace UnityEditorMCP.Handlers
             {
                 // Parse parameters
                 string prefabPath = parameters["prefabPath"]?.ToString();
+                { var g = PathSafety.Guard(prefabPath, "prefabPath"); if (g != null) return g; } // H4
                 string focusObject = parameters["focusObject"]?.ToString();
                 bool isolateObject = parameters["isolateObject"]?.ToObject<bool>() ?? false;
 

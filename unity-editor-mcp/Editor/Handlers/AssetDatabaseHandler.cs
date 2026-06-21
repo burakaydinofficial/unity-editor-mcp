@@ -26,24 +26,31 @@ namespace UnityEditorMCP.Handlers
                     case "find_assets":
                         var filter = parameters["filter"]?.ToString();
                         var searchInFolders = parameters["searchInFolders"]?.ToObject<string[]>();
+                        foreach (var sf in searchInFolders ?? System.Array.Empty<string>())
+                            { var g = PathSafety.Guard(sf, "searchInFolders"); if (g != null) return g; } // H4
                         return FindAssets(filter, searchInFolders);
                     case "get_asset_info":
                         var assetPath = parameters["assetPath"]?.ToString();
+                        { var g = PathSafety.Guard(assetPath, "assetPath"); if (g != null) return g; } // H4
                         return GetAssetInfo(assetPath);
                     case "create_folder":
                         var folderPath = parameters["folderPath"]?.ToString();
+                        { var g = PathSafety.Guard(folderPath, "folderPath"); if (g != null) return g; } // H4
                         return CreateFolder(folderPath);
                     case "delete_asset":
                         var deleteAssetPath = parameters["assetPath"]?.ToString();
                         var confirmDelete = parameters["confirm"]?.ToObject<bool>() ?? false;
+                        { var g = PathSafety.Guard(deleteAssetPath, "assetPath"); if (g != null) return g; } // H4
                         return DeleteAsset(deleteAssetPath, confirmDelete);
                     case "move_asset":
                         var fromPath = parameters["fromPath"]?.ToString();
                         var toPath = parameters["toPath"]?.ToString();
+                        { var g = PathSafety.Guard(fromPath, "fromPath") ?? PathSafety.Guard(toPath, "toPath"); if (g != null) return g; } // H4
                         return MoveAsset(fromPath, toPath);
                     case "copy_asset":
                         var copyFromPath = parameters["fromPath"]?.ToString();
                         var copyToPath = parameters["toPath"]?.ToString();
+                        { var g = PathSafety.Guard(copyFromPath, "fromPath") ?? PathSafety.Guard(copyToPath, "toPath"); if (g != null) return g; } // H4
                         return CopyAsset(copyFromPath, copyToPath);
                     case "refresh":
                         return RefreshAssetDatabase();

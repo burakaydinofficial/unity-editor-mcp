@@ -125,6 +125,7 @@ namespace UnityEditorMCP.Handlers
                     }
                     relativePath = foundPath;
                     fullPath = Path.Combine(Application.dataPath, "../", foundPath);
+                    { var g = PathSafety.Guard(fullPath, "scriptName path"); if (g != null) return g; } // H4
                 }
                 else
                 {
@@ -207,6 +208,7 @@ namespace UnityEditorMCP.Handlers
                     }
                     relativePath = foundPath;
                     fullPath = Path.Combine(Application.dataPath, "../", foundPath);
+                    { var g = PathSafety.Guard(fullPath, "scriptName path"); if (g != null) return g; } // H4
                 }
                 else
                 {
@@ -534,6 +536,7 @@ namespace UnityEditorMCP.Handlers
                     }
                     actualPath = foundPath;
                     string fullPath = Path.Combine(Application.dataPath, "../", foundPath);
+                    { var g = PathSafety.Guard(fullPath, "scriptName path"); if (g != null) return g; } // H4
                     content = File.ReadAllText(fullPath);
                 }
                 else

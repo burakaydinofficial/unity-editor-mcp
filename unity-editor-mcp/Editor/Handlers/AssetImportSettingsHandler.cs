@@ -26,6 +26,7 @@ namespace UnityEditorMCP.Handlers
                 {
                     return HandlerOutcome.Fail("Asset path not specified", "VALIDATION_ERROR");
                 }
+                { var g = PathSafety.Guard(assetPath, "assetPath"); if (g != null) return g; } // H4: contain all actions' assetPath
 
                 switch (action.ToLower())
                 {

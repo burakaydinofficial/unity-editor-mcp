@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using UnityEngine;
 
 namespace UnityEditorMCP.Handlers
@@ -14,29 +12,16 @@ namespace UnityEditorMCP.Handlers
     /// </summary>
     internal static class PathSafety
     {
-        /// <summary>True if <paramref name="candidatePath"/> (resolved absolutely) stays within the project root.</summary>
+        /// <summary>True if <paramref name="candidatePath"/> (resolved absolutely) stays within the project root.
+        /// Delegates to the dotnet-tested Core.PathContainment; the project root is Application.dataPath/.. .</summary>
         public static bool IsWithinProject(string candidatePath)
-        {
-            if (string.IsNullOrEmpty(candidatePath)) return false;
-            string projectRoot = Path.GetFullPath(Application.dataPath + "/..");
-            string rootWithSep = projectRoot.EndsWith(Path.DirectorySeparatorChar.ToString())
-                ? projectRoot
-                : projectRoot + Path.DirectorySeparatorChar;
-            string full;
-            try
-            {
-                // Resolve a relative path against the PROJECT ROOT explicitly (an absolute path is taken
-                // as-is). Don't rely on the process CWD — Unity sets it to the project root, but making
-                // the base explicit keeps the guard correct regardless.
-                full = Path.GetFullPath(Path.IsPathRooted(candidatePath)
-                    ? candidatePath
-                    : Path.Combine(projectRoot, candidatePath));
-            }
-            catch { return false; }
-            // Strictly under the root (the trailing separator blocks a sibling-prefix collision like
-            // "C:/proj" vs "C:/proj-evil"), or the root itself.
-            return full.StartsWith(rootWithSep, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(full, projectRoot, StringComparison.OrdinalIgnoreCase);
-        }
+            => Core.PathContainment.IsWithin(Application.dataPath + "/..", candidatePath);
+
+        /// <summary>Returns a VALIDATION_ERROR outcome if <paramref name="path"/> is non-empty and escapes the
+        /// project root; null when the path is empty (the caller validates required-ness) or contained. (H4)</summary>
+        public static Core.HandlerOutcome Guard(string path, string label = "path")
+            => (!string.IsNullOrEmpty(path) && !IsWithinProject(path))
+                ? Core.HandlerOutcome.Fail($"{label} must stay within the project root", "VALIDATION_ERROR")
+                : null;
     }
 }
