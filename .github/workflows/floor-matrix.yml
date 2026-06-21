@@ -1,11 +1,11 @@
 # Unity floor matrix — proves the Editor C# compiles + its EditMode tests pass on every
 # supported LTS. This is the verification behind the "old-Unity compatible" claim.
 #
-# STATUS: scaffold. Two one-time setup tasks make it live (see docs/floor-testing.md):
-#   1. Repo secrets: UNITY_EMAIL, UNITY_PASSWORD, UNITY_LICENSE (free Personal license).
-#   2. Minimal committed host projects under ci/unity-host-<version>/ (the git-ignored
-#      unity-test-projects/ are not available in CI).
-# Until then it is manual-dispatch only and skips on forks without secrets.
+# STATUS: host projects committed (ci/unity-host-<version>/, the version-matched manifests + ProjectVersion).
+# ONE one-time setup task remains to make it live (see docs/floor-testing.md):
+#   - Repo secrets: UNITY_LICENSE (the .ulf from a free Personal activation), and UNITY_EMAIL + UNITY_PASSWORD.
+# Until the secret exists it is workflow_dispatch-only and skips on forks. After the first green manual run,
+# uncomment the push(tags)/pull_request triggers below to gate releases/PRs.
 
 name: floor-matrix
 
@@ -27,8 +27,8 @@ jobs:
       matrix:
         unity:
           - 2020.3.49f1
-          - 2021.3.45f1
-          - 2022.3.50f1
+          - 2021.3.45f2
+          - 2022.3.62f2
           # - 6000.0.34f1   # add once a Unity 6 host project exists
     steps:
       - uses: actions/checkout@v4

@@ -1,0 +1,2 @@
+# Minimal host project for the floor-CI (GameCI) — the package's EditMode tests run here via `testables`.
+# Library/ and Temp/ are generated in CI (cached); only manifest.json + ProjectVersion.txt are committed.
