@@ -289,6 +289,154 @@ namespace UnityEditorMCP.Handlers
         }
 
         /// <summary>
+        /// Creates a ScriptableObject of a named type and saves it as an asset (E1). Pairs with
+        /// set_serialized_properties to populate fields (private [SerializeField] included).
+        /// </summary>
+        public static HandlerOutcome CreateScriptableObject(JObject parameters)
+        {
+            try
+            {
+                string typeName = parameters["typeName"]?.ToString();
+                string assetPath = parameters["assetPath"]?.ToString();
+                bool overwrite = parameters["overwrite"]?.ToObject<bool>() ?? false;
+
+                if (string.IsNullOrEmpty(typeName))
+                    return HandlerOutcome.Fail("typeName is required", "VALIDATION_ERROR");
+                if (string.IsNullOrEmpty(assetPath) || !assetPath.StartsWith("Assets/") || !assetPath.EndsWith(".asset") || !PathSafety.IsWithinProject(assetPath))
+                    return HandlerOutcome.Fail("assetPath must be a .asset inside the project (Assets/...), with no '..' traversal", "VALIDATION_ERROR");
+
+                var type = ManagedReferenceResolver.ResolveType(typeName);
+                if (type == null)
+                    return HandlerOutcome.Fail($"type not found: {typeName}", "TYPE_NOT_FOUND");
+                if (!typeof(ScriptableObject).IsAssignableFrom(type))
+                    return HandlerOutcome.Fail($"{type.FullName} is not a ScriptableObject", "NOT_A_SCRIPTABLE_OBJECT");
+
+                if (AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath) != null && !overwrite)
+                    return HandlerOutcome.Fail($"Asset already exists at {assetPath}. Set overwrite to true to replace it.", "PATH_EXISTS");
+
+                string directory = Path.GetDirectoryName(assetPath);
+                if (!AssetDatabase.IsValidFolder(directory)) { Directory.CreateDirectory(directory); AssetDatabase.Refresh(); }
+
+                var so = ScriptableObject.CreateInstance(type);
+                if (so == null)
+                    return HandlerOutcome.Fail($"Failed to instantiate {type.FullName}", "INTERNAL_ERROR");
+                if (overwrite) AssetDatabase.DeleteAsset(assetPath);
+                AssetDatabase.CreateAsset(so, assetPath);
+                AssetDatabase.SaveAssets();
+
+                return HandlerOutcome.Ok(new
+                {
+                    success = true,
+                    assetPath = assetPath,
+                    guid = AssetDatabase.AssetPathToGUID(assetPath),
+                    type = type.FullName,
+                    message = "ScriptableObject created"
+                });
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[AssetManagementHandler] Error in CreateScriptableObject: {e.Message}");
+                return HandlerOutcome.Fail($"Failed to create ScriptableObject: {e.Message}");
+            }
+        }
+
+        /// <summary>Unpacks a prefab instance (E2): regular = outermost root, complete = whole hierarchy.</summary>
+        public static HandlerOutcome UnpackPrefab(JObject parameters)
+        {
+            try
+            {
+                if (EditorApplication.isPlaying)
+                    return HandlerOutcome.Fail("scene mutations refuse in play mode", "PLAY_MODE");
+
+                string gameObjectPath = parameters["gameObjectPath"]?.ToString();
+                int? instanceId = parameters["instanceId"]?.ToObject<int?>();
+                string modeStr = (parameters["mode"]?.ToString() ?? "regular").ToLower();
+
+                GameObject go = null;
+                if (instanceId.HasValue) go = EditorUtility.InstanceIDToObject(instanceId.Value) as GameObject;
+                else if (!string.IsNullOrEmpty(gameObjectPath)) go = GameObject.Find(gameObjectPath);
+                if (go == null)
+                    return HandlerOutcome.Fail("GameObject not found (provide gameObjectPath or instanceId)", "NOT_FOUND");
+                if (!PrefabUtility.IsPartOfPrefabInstance(go))
+                    return HandlerOutcome.Fail($"{go.name} is not a prefab instance", "NOT_A_PREFAB_INSTANCE");
+
+                var mode = modeStr == "complete" ? PrefabUnpackMode.Completely : PrefabUnpackMode.OutermostRoot;
+                PrefabUtility.UnpackPrefabInstance(go, mode, InteractionMode.UserAction); // UserAction registers Undo
+
+                return HandlerOutcome.Ok(new
+                {
+                    success = true,
+                    gameObjectPath = GetGameObjectPath(go),
+                    mode = modeStr,
+                    message = "Prefab instance unpacked"
+                });
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[AssetManagementHandler] Error in UnpackPrefab: {e.Message}");
+                return HandlerOutcome.Fail($"Failed to unpack prefab: {e.Message}");
+            }
+        }
+
+        /// <summary>Creates a prefab variant of a base prefab (E2).</summary>
+        public static HandlerOutcome CreatePrefabVariant(JObject parameters)
+        {
+            try
+            {
+                string basePrefabPath = parameters["basePrefabPath"]?.ToString();
+                string baseGuid = parameters["baseGuid"]?.ToString();
+                string variantPath = parameters["variantPath"]?.ToString();
+                bool overwrite = parameters["overwrite"]?.ToObject<bool>() ?? false;
+
+                if (!string.IsNullOrEmpty(baseGuid) && string.IsNullOrEmpty(basePrefabPath))
+                    basePrefabPath = AssetDatabase.GUIDToAssetPath(baseGuid);
+                if (string.IsNullOrEmpty(basePrefabPath))
+                    return HandlerOutcome.Fail("basePrefabPath or baseGuid is required", "VALIDATION_ERROR");
+                if (string.IsNullOrEmpty(variantPath) || !variantPath.StartsWith("Assets/") || !variantPath.EndsWith(".prefab") || !PathSafety.IsWithinProject(variantPath))
+                    return HandlerOutcome.Fail("variantPath must be a .prefab inside the project (Assets/...), with no '..' traversal", "VALIDATION_ERROR");
+
+                var basePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(basePrefabPath);
+                if (basePrefab == null)
+                    return HandlerOutcome.Fail($"Base prefab not found: {basePrefabPath}", "NOT_FOUND");
+                if (AssetDatabase.LoadAssetAtPath<GameObject>(variantPath) != null && !overwrite)
+                    return HandlerOutcome.Fail($"Asset already exists at {variantPath}. Set overwrite to true to replace it.", "PATH_EXISTS");
+
+                string directory = Path.GetDirectoryName(variantPath);
+                if (!AssetDatabase.IsValidFolder(directory)) { Directory.CreateDirectory(directory); AssetDatabase.Refresh(); }
+
+                var instance = PrefabUtility.InstantiatePrefab(basePrefab) as GameObject;
+                if (instance == null)
+                    return HandlerOutcome.Fail("Failed to instantiate the base prefab", "INTERNAL_ERROR");
+                GameObject variant = null;
+                try
+                {
+                    if (overwrite) AssetDatabase.DeleteAsset(variantPath);
+                    // Saving a CONNECTED prefab instance as an asset creates a Prefab VARIANT of its source.
+                    variant = PrefabUtility.SaveAsPrefabAsset(instance, variantPath);
+                }
+                finally { UnityEngine.Object.DestroyImmediate(instance); }
+
+                if (variant == null)
+                    return HandlerOutcome.Fail("Failed to create prefab variant", "INTERNAL_ERROR");
+                AssetDatabase.SaveAssets();
+
+                return HandlerOutcome.Ok(new
+                {
+                    success = true,
+                    variantPath = variantPath,
+                    guid = AssetDatabase.AssetPathToGUID(variantPath),
+                    basePrefabPath = basePrefabPath,
+                    message = "Prefab variant created"
+                });
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[AssetManagementHandler] Error in CreatePrefabVariant: {e.Message}");
+                return HandlerOutcome.Fail($"Failed to create prefab variant: {e.Message}");
+            }
+        }
+
+        /// <summary>
         /// Creates a new material with specified shader and properties
         /// </summary>
         public static HandlerOutcome CreateMaterial(JObject parameters)

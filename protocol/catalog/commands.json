@@ -595,6 +595,60 @@
       }
     },
     {
+      "name": "create_scriptable_object",
+      "category": "asset",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Create a ScriptableObject of a named type and save it as an asset (E1). typeName is a FullName (discover concrete ScriptableObject types via find_implementations of UnityEngine.ScriptableObject); assetPath is Assets/....asset. Refuses an existing path unless overwrite. Pair with set_serialized_properties to populate fields (private [SerializeField] included). Errors: TYPE_NOT_FOUND, NOT_A_SCRIPTABLE_OBJECT, PATH_EXISTS.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "typeName": { "type": "string", "description": "FullName/AQN of a ScriptableObject subtype." },
+          "assetPath": { "type": "string", "description": "Assets/....asset destination." },
+          "overwrite": { "type": "boolean", "description": "Replace an existing asset at the path (default false)." }
+        },
+        "required": ["typeName", "assetPath"]
+      },
+      "result": { "type": "object", "properties": { "assetPath": { "type": "string" }, "guid": { "type": "string" }, "type": { "type": "string" } } }
+    },
+    {
+      "name": "unpack_prefab",
+      "category": "asset",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": true,
+      "description": "Unpack a prefab instance in the scene (E2): mode 'regular' unpacks the outermost root, 'complete' unpacks the whole hierarchy. Target by gameObjectPath or instanceId. Refuses in play mode (PLAY_MODE) and on a non-instance (NOT_A_PREFAB_INSTANCE). Registers Undo.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "gameObjectPath": { "type": "string" },
+          "instanceId": { "type": "number" },
+          "mode": { "type": "string", "description": "regular | complete (default regular)." }
+        }
+      },
+      "result": { "type": "object", "properties": { "gameObjectPath": { "type": "string" }, "mode": { "type": "string" } } }
+    },
+    {
+      "name": "create_prefab_variant",
+      "category": "asset",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Create a prefab variant of a base prefab (E2). Provide basePrefabPath or baseGuid + variantPath (Assets/....prefab). Refuses an existing variantPath unless overwrite. Errors: NOT_FOUND (base), PATH_EXISTS.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "basePrefabPath": { "type": "string" },
+          "baseGuid": { "type": "string" },
+          "variantPath": { "type": "string" },
+          "overwrite": { "type": "boolean" }
+        },
+        "required": ["variantPath"]
+      },
+      "result": { "type": "object", "properties": { "variantPath": { "type": "string" }, "guid": { "type": "string" }, "basePrefabPath": { "type": "string" } } }
+    },
+    {
       "name": "get_editor_info",
       "category": "system",
       "sides": ["editor"],

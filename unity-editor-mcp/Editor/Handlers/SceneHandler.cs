@@ -22,6 +22,8 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                if (EditorApplication.isPlaying)
+                    return HandlerOutcome.Fail("scene mutations refuse in play mode", "PLAY_MODE");
                 // Get scene name (required)
                 var sceneName = parameters["sceneName"]?.ToString();
                 if (string.IsNullOrEmpty(sceneName))
@@ -276,6 +278,8 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                if (EditorApplication.isPlaying)
+                    return HandlerOutcome.Fail("scene mutations refuse in play mode", "PLAY_MODE");
                 // Get current scene
                 var currentScene = SceneManager.GetActiveScene();
                 

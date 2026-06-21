@@ -125,6 +125,9 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("modify_prefab", AssetManagementHandler.ModifyPrefab);
             dispatcher.Register("instantiate_prefab", AssetManagementHandler.InstantiatePrefab);
             dispatcher.Register("create_material", AssetManagementHandler.CreateMaterial);
+            dispatcher.Register("create_scriptable_object", AssetManagementHandler.CreateScriptableObject);
+            dispatcher.Register("unpack_prefab", AssetManagementHandler.UnpackPrefab);
+            dispatcher.Register("create_prefab_variant", AssetManagementHandler.CreatePrefabVariant);
             dispatcher.Register("modify_material", AssetManagementHandler.ModifyMaterial);
             dispatcher.Register("open_prefab", AssetManagementHandler.OpenPrefab);
             dispatcher.Register("exit_prefab_mode", AssetManagementHandler.ExitPrefabMode);

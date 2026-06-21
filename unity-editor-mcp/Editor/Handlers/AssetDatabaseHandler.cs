@@ -35,7 +35,8 @@ namespace UnityEditorMCP.Handlers
                         return CreateFolder(folderPath);
                     case "delete_asset":
                         var deleteAssetPath = parameters["assetPath"]?.ToString();
-                        return DeleteAsset(deleteAssetPath);
+                        var confirmDelete = parameters["confirm"]?.ToObject<bool>() ?? false;
+                        return DeleteAsset(deleteAssetPath, confirmDelete);
                     case "move_asset":
                         var fromPath = parameters["fromPath"]?.ToString();
                         var toPath = parameters["toPath"]?.ToString();
@@ -230,7 +231,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Delete an asset from the Asset Database
         /// </summary>
-        private static HandlerOutcome DeleteAsset(string assetPath)
+        private static HandlerOutcome DeleteAsset(string assetPath, bool confirm)
         {
             try
             {
@@ -244,6 +245,25 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail($"Asset not found: {assetPath}", "NOT_FOUND");
                 }
 
+                var dependents = FindDependents(assetPath);
+                // Destructive: dry-run by default — require an explicit confirm:true and surface what still
+                // references this asset, so an agent never blind-deletes something in use (H3).
+                if (!confirm)
+                {
+                    return HandlerOutcome.Ok(new
+                    {
+                        success = true,
+                        action = "delete_asset",
+                        confirmRequired = true,
+                        wouldDelete = assetPath,
+                        dependents = dependents,
+                        dependentCount = dependents.Count,
+                        message = dependents.Count > 0
+                            ? $"'{assetPath}' is referenced by {dependents.Count} asset(s). Re-call with confirm:true to delete."
+                            : $"Re-call with confirm:true to delete '{assetPath}'."
+                    });
+                }
+
                 if (!AssetDatabase.DeleteAsset(assetPath))
                 {
                     return HandlerOutcome.Fail($"Failed to delete asset: {assetPath}", "INVALID_STATE");
@@ -254,6 +274,8 @@ namespace UnityEditorMCP.Handlers
                     success = true,
                     action = "delete_asset",
                     assetPath = assetPath,
+                    deleted = assetPath,
+                    hadDependents = dependents.Count,
                     message = $"Asset deleted: {assetPath}"
                 });
             }
@@ -262,6 +284,20 @@ namespace UnityEditorMCP.Handlers
                 Debug.LogError($"[AssetDatabaseHandler] Error deleting asset '{assetPath}': {e.Message}");
                 return HandlerOutcome.Fail($"Failed to delete asset: {e.Message}");
             }
+        }
+
+        // Assets that directly reference assetPath (reverse dependency scan). O(N) over project assets — a
+        // pre-delete safety check, not a hot path.
+        private static List<string> FindDependents(string assetPath)
+        {
+            var result = new List<string>();
+            foreach (var p in AssetDatabase.GetAllAssetPaths())
+            {
+                if (p == assetPath || !p.StartsWith("Assets/") || AssetDatabase.IsValidFolder(p)) continue;
+                var deps = AssetDatabase.GetDependencies(p, false);
+                if (System.Array.IndexOf(deps, assetPath) >= 0) result.Add(p);
+            }
+            return result;
         }
 
         /// <summary>
