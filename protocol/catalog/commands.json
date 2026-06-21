@@ -676,6 +676,36 @@
       "result": { "type": "object", "properties": { "cleared": { "type": "boolean" } } }
     },
     {
+      "name": "find_missing_scripts",
+      "category": "analysis",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Find GameObjects in the active scene with missing-script MonoBehaviours — a deleted/moved .cs leaves a dangling component (a legacy-project staple, F5). Returns {objects:[{path,missingCount}], totalObjects, totalMissing}; capped by limit (default 200) with a truncated signal. Read-only — clean up with remove_missing_scripts.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "number", "description": "Max objects returned (default 200); the response signals truncated/totalObjects." }
+        }
+      },
+      "result": { "type": "object", "properties": { "objects": { "type": "array" }, "totalObjects": { "type": "number" }, "totalMissing": { "type": "number" }, "truncated": { "type": "boolean" } } }
+    },
+    {
+      "name": "remove_missing_scripts",
+      "category": "gameobject",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": true,
+      "description": "Remove missing-script MonoBehaviours from the active scene (F5) — all, or the specified gameObjectPaths. Registers Undo, marks the scene dirty, refuses in play mode (PLAY_MODE). Destructive; requires confirm:true (H3). Returns {removed, objectsAffected, notFound}.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "gameObjectPaths": { "type": "array", "items": { "type": "string" }, "description": "Specific GameObject hierarchy paths to clean; omit to clean the whole active scene." }
+        }
+      },
+      "result": { "type": "object", "properties": { "removed": { "type": "number" }, "objectsAffected": { "type": "number" }, "notFound": { "type": "array" }, "notFoundCount": { "type": "number" } } }
+    },
+    {
       "name": "get_editor_info",
       "category": "system",
       "sides": ["editor"],

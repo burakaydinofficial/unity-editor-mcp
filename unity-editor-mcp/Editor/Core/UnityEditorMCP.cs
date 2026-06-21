@@ -87,6 +87,8 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("analyze_scene_contents", SceneAnalysisHandler.AnalyzeSceneContents);
             dispatcher.Register("get_component_values", SceneAnalysisHandler.GetComponentValues);
             dispatcher.Register("find_by_component", SceneAnalysisHandler.FindByComponent);
+            dispatcher.Register("find_missing_scripts", MissingScriptHandler.FindMissingScripts);
+            dispatcher.Register("remove_missing_scripts", MissingScriptHandler.RemoveMissingScripts, requiresConfirm: true);
             dispatcher.Register("get_object_references", SceneAnalysisHandler.GetObjectReferences);
             dispatcher.Register("get_symbols", CodeIntelligenceHandler.GetSymbols);
             dispatcher.Register("find_symbol", CodeIntelligenceHandler.FindSymbol);
