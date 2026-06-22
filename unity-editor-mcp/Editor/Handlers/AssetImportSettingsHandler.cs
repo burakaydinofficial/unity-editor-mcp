@@ -40,6 +40,10 @@ namespace UnityEditorMCP.Handlers
                         return ApplyPreset(assetPath, preset);
                     case "reimport":
                         return ReimportAsset(assetPath);
+                    case "get_platform":
+                        return GetPlatformSettings(assetPath, parameters["platform"]?.ToString());
+                    case "set_platform":
+                        return SetPlatformSettings(assetPath, parameters);
                     default:
                         return HandlerOutcome.Fail($"Unknown action: {action}", "VALIDATION_ERROR");
                 }
@@ -385,6 +389,135 @@ namespace UnityEditorMCP.Handlers
             {
                 Debug.LogError($"[AssetImportSettingsHandler] Error reimporting '{assetPath}': {e.Message}");
                 return HandlerOutcome.Fail($"Failed to reimport asset: {e.Message}");
+            }
+        }
+
+        // ===== Per-platform texture overrides (E-tail) =====
+        private static readonly string[] CommonTexturePlatforms = { "Standalone", "Android", "iPhone", "WebGL" };
+
+        // Unity's texture-platform names differ from common usage; map the obvious aliases.
+        private static string NormalizePlatform(string platform)
+        {
+            if (string.IsNullOrEmpty(platform)) return platform;
+            if (platform.Equals("iOS", StringComparison.OrdinalIgnoreCase)) return "iPhone";
+            if (platform.Equals("Windows", StringComparison.OrdinalIgnoreCase)
+                || platform.Equals("OSX", StringComparison.OrdinalIgnoreCase)
+                || platform.Equals("macOS", StringComparison.OrdinalIgnoreCase))
+                return "Standalone";
+            return platform;
+        }
+
+        private static object DescribePlatform(TextureImporterPlatformSettings s)
+        {
+            return new
+            {
+                platform = s.name,
+                overridden = s.overridden,
+                maxTextureSize = s.maxTextureSize,
+                format = s.format.ToString(),
+                textureCompression = s.textureCompression.ToString(),
+                compressionQuality = s.compressionQuality,
+                crunchedCompression = s.crunchedCompression
+            };
+        }
+
+        private static HandlerOutcome GetPlatformSettings(string assetPath, string platform)
+        {
+            try
+            {
+                var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+                if (importer == null)
+                    return HandlerOutcome.Fail($"Platform overrides apply only to textures (not a TextureImporter): {assetPath}", "INVALID_STATE");
+
+                if (!string.IsNullOrEmpty(platform))
+                {
+                    var s = importer.GetPlatformTextureSettings(NormalizePlatform(platform));
+                    return HandlerOutcome.Ok(new { success = true, action = "get_platform", assetPath, platform = DescribePlatform(s) });
+                }
+
+                var list = new List<object>();
+                foreach (var name in CommonTexturePlatforms)
+                    list.Add(DescribePlatform(importer.GetPlatformTextureSettings(name)));
+                return HandlerOutcome.Ok(new
+                {
+                    success = true,
+                    action = "get_platform",
+                    assetPath,
+                    defaultPlatform = DescribePlatform(importer.GetDefaultPlatformTextureSettings()),
+                    platforms = list
+                });
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[AssetImportSettingsHandler] Error in get_platform for '{assetPath}': {e.Message}");
+                return HandlerOutcome.Fail($"Failed to get platform settings: {e.Message}");
+            }
+        }
+
+        private static HandlerOutcome SetPlatformSettings(string assetPath, JObject parameters)
+        {
+            try
+            {
+                var platform = parameters["platform"]?.ToString();
+                if (string.IsNullOrEmpty(platform))
+                    return HandlerOutcome.Fail("platform is required for set_platform", "VALIDATION_ERROR");
+
+                var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+                if (importer == null)
+                    return HandlerOutcome.Fail($"Platform overrides apply only to textures (not a TextureImporter): {assetPath}", "INVALID_STATE");
+
+                var resolved = NormalizePlatform(platform);
+                var s = importer.GetPlatformTextureSettings(resolved);
+                var applied = new Dictionary<string, object>();
+
+                s.overridden = parameters["overridden"]?.ToObject<bool>() ?? true;
+                applied["overridden"] = s.overridden;
+
+                if (parameters["maxTextureSize"] != null)
+                {
+                    s.maxTextureSize = parameters["maxTextureSize"].Value<int>();
+                    applied["maxTextureSize"] = s.maxTextureSize;
+                }
+                if (parameters["compressionQuality"] != null)
+                {
+                    s.compressionQuality = parameters["compressionQuality"].Value<int>();
+                    applied["compressionQuality"] = s.compressionQuality;
+                }
+                if (parameters["textureCompression"] != null)
+                {
+                    var tc = parameters["textureCompression"].ToString();
+                    if (!Enum.TryParse(tc, true, out TextureImporterCompression parsedTc))
+                        return HandlerOutcome.Fail($"Unknown TextureImporterCompression: {tc}", "VALIDATION_ERROR");
+                    s.textureCompression = parsedTc;
+                    applied["textureCompression"] = parsedTc.ToString();
+                }
+                if (parameters["format"] != null)
+                {
+                    var fmt = parameters["format"].ToString();
+                    if (!Enum.TryParse(fmt, true, out TextureImporterFormat parsedFmt))
+                        return HandlerOutcome.Fail($"Unknown TextureImporterFormat: {fmt}", "VALIDATION_ERROR");
+                    s.format = parsedFmt;
+                    applied["format"] = parsedFmt.ToString();
+                }
+
+                importer.SetPlatformTextureSettings(s);
+                importer.SaveAndReimport();
+
+                return HandlerOutcome.Ok(new
+                {
+                    success = true,
+                    action = "set_platform",
+                    assetPath,
+                    platform = resolved,
+                    applied,
+                    settings = DescribePlatform(importer.GetPlatformTextureSettings(resolved)),
+                    message = $"Platform override set for {resolved} on {assetPath}"
+                });
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[AssetImportSettingsHandler] Error in set_platform for '{assetPath}': {e.Message}");
+                return HandlerOutcome.Fail($"Failed to set platform settings: {e.Message}");
             }
         }
     }

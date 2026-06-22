@@ -2472,7 +2472,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": false,
-      "description": "Manage Unity asset import settings (get, modify, apply presets, reimport)",
+      "description": "Manage Unity asset import settings (get, modify, apply presets, reimport, per-platform texture overrides)",
       "params": {
         "type": "object",
         "properties": {
@@ -2482,7 +2482,9 @@
               "get",
               "modify",
               "apply_preset",
-              "reimport"
+              "reimport",
+              "get_platform",
+              "set_platform"
             ],
             "description": "The action to perform"
           },
@@ -2497,6 +2499,30 @@
           "preset": {
             "type": "string",
             "description": "Name of the preset to apply (required for apply_preset action)"
+          },
+          "platform": {
+            "type": "string",
+            "description": "Texture platform name for get_platform/set_platform (Standalone, Android, iPhone, WebGL, ...; aliases iOS->iPhone, Windows/OSX->Standalone). Omit on get_platform to list the default + common platforms."
+          },
+          "overridden": {
+            "type": "boolean",
+            "description": "set_platform: whether this platform overrides the default (default true)."
+          },
+          "maxTextureSize": {
+            "type": "number",
+            "description": "set_platform: per-platform max texture size (e.g. 512, 1024, 2048)."
+          },
+          "format": {
+            "type": "string",
+            "description": "set_platform: TextureImporterFormat (e.g. ASTC_6x6, ETC2_RGBA8, RGBA32, DXT5, Automatic)."
+          },
+          "textureCompression": {
+            "type": "string",
+            "description": "set_platform: TextureImporterCompression (Uncompressed, Compressed, CompressedHQ, CompressedLQ)."
+          },
+          "compressionQuality": {
+            "type": "number",
+            "description": "set_platform: compression quality 0-100."
           }
         },
         "required": [
