@@ -1157,5 +1157,173 @@ namespace UnityEditorMCP.Handlers
                 return HandlerOutcome.Fail($"Failed to save prefab: {e.Message}");
             }
         }
+
+        // ===== Granular prefab-override apply/revert (E-tail) — manage_prefab_overrides =====
+        public static HandlerOutcome ManagePrefabOverrides(JObject parameters)
+        {
+            try
+            {
+                string action = (parameters["action"]?.ToString() ?? "list").ToLowerInvariant();
+                string gameObjectPath = parameters["gameObjectPath"]?.ToString();
+                if (string.IsNullOrEmpty(gameObjectPath))
+                    return HandlerOutcome.Fail("gameObjectPath is required", "VALIDATION_ERROR");
+
+                var go = GameObject.Find(gameObjectPath);
+                if (go == null)
+                    return HandlerOutcome.Fail($"GameObject not found at path: {gameObjectPath}", "NOT_FOUND");
+                if (!PrefabUtility.IsPartOfPrefabInstance(go))
+                    return HandlerOutcome.Fail($"GameObject is not a prefab instance: {gameObjectPath}", "INVALID_STATE");
+
+                switch (action)
+                {
+                    case "list":
+                        return ListPrefabOverrides(go, gameObjectPath, parameters);
+                    case "apply_all":
+                    case "revert_all":
+                    case "apply_property":
+                    case "revert_property":
+                        if (EditorApplication.isPlaying)
+                            return HandlerOutcome.Fail("Prefab override mutations refuse in play mode", "PLAY_MODE");
+                        if (action == "apply_all") return ApplyAllOverrides(go, gameObjectPath);
+                        if (action == "revert_all") return RevertAllOverrides(go, gameObjectPath);
+                        return ApplyOrRevertProperty(go, gameObjectPath, parameters, action == "apply_property");
+                    default:
+                        return HandlerOutcome.Fail($"Unknown action '{action}'. Use list, apply_property, revert_property, apply_all, or revert_all.", "VALIDATION_ERROR");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[AssetManagementHandler] Error in ManagePrefabOverrides: {e.Message}");
+                return HandlerOutcome.Fail($"manage_prefab_overrides failed: {e.Message}");
+            }
+        }
+
+        private static HandlerOutcome ListPrefabOverrides(GameObject go, string gameObjectPath, JObject parameters)
+        {
+            int limit = parameters["limit"]?.ToObject<int?>() ?? 100;
+            if (limit < 1) limit = 1;
+
+            var mods = PrefabUtility.GetPropertyModifications(go) ?? new PropertyModification[0];
+            var modList = new List<object>();
+            int total = 0;
+            foreach (var m in mods)
+            {
+                if (m == null || m.target == null) continue;
+                total++;
+                if (modList.Count < limit)
+                {
+                    modList.Add(new
+                    {
+                        target = m.target.GetType().Name,
+                        propertyPath = m.propertyPath,
+                        value = m.value,
+                        objectReference = m.objectReference != null ? m.objectReference.name : null
+                    });
+                }
+            }
+
+            return HandlerOutcome.Ok(new
+            {
+                success = true,
+                action = "list",
+                gameObjectPath,
+                prefabPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(go),
+                propertyModifications = modList,
+                propertyModificationCount = total,
+                truncated = total > modList.Count,
+                addedComponents = PrefabUtility.GetAddedComponents(go).Count,
+                removedComponents = PrefabUtility.GetRemovedComponents(go).Count,
+                addedGameObjects = PrefabUtility.GetAddedGameObjects(go).Count
+            });
+        }
+
+        private static HandlerOutcome ApplyAllOverrides(GameObject go, string gameObjectPath)
+        {
+            int count = PrefabUtility.GetObjectOverrides(go, true).Count;
+            PrefabUtility.ApplyPrefabInstance(go, InteractionMode.UserAction);
+            return HandlerOutcome.Ok(new
+            {
+                success = true,
+                action = "apply_all",
+                gameObjectPath,
+                overridesApplied = count,
+                message = "Applied all overrides to the prefab source"
+            });
+        }
+
+        private static HandlerOutcome RevertAllOverrides(GameObject go, string gameObjectPath)
+        {
+            PrefabUtility.RevertPrefabInstance(go, InteractionMode.UserAction);
+            return HandlerOutcome.Ok(new
+            {
+                success = true,
+                action = "revert_all",
+                gameObjectPath,
+                message = "Reverted all overrides to the prefab source values"
+            });
+        }
+
+        private static HandlerOutcome ApplyOrRevertProperty(GameObject go, string gameObjectPath, JObject parameters, bool apply)
+        {
+            string propertyPath = parameters["propertyPath"]?.ToString();
+            if (string.IsNullOrEmpty(propertyPath))
+                return HandlerOutcome.Fail("propertyPath is required for apply_property/revert_property", "VALIDATION_ERROR");
+            string componentType = parameters["componentType"]?.ToString();
+
+            UnityEngine.Object target;
+            if (string.IsNullOrEmpty(componentType) || componentType.Equals("GameObject", StringComparison.OrdinalIgnoreCase))
+            {
+                target = go;
+            }
+            else
+            {
+                target = FindOverrideComponent(go, componentType);
+                if (target == null)
+                    return HandlerOutcome.Fail($"Component not found on instance: {componentType}", "NOT_FOUND");
+            }
+
+            var so = new SerializedObject(target);
+            var prop = so.FindProperty(propertyPath);
+            if (prop == null)
+                return HandlerOutcome.Fail($"Serialized property not found: {propertyPath} (on {componentType ?? "GameObject"})", "NOT_FOUND");
+
+            if (apply)
+            {
+                string prefabPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(go);
+                PrefabUtility.ApplyPropertyOverride(prop, prefabPath, InteractionMode.UserAction);
+                return HandlerOutcome.Ok(new
+                {
+                    success = true,
+                    action = "apply_property",
+                    gameObjectPath,
+                    componentType = componentType ?? "GameObject",
+                    propertyPath,
+                    prefabPath,
+                    message = $"Applied override '{propertyPath}' to the prefab source"
+                });
+            }
+
+            PrefabUtility.RevertPropertyOverride(prop, InteractionMode.UserAction);
+            return HandlerOutcome.Ok(new
+            {
+                success = true,
+                action = "revert_property",
+                gameObjectPath,
+                componentType = componentType ?? "GameObject",
+                propertyPath,
+                message = $"Reverted override '{propertyPath}' to the prefab source value"
+            });
+        }
+
+        private static Component FindOverrideComponent(GameObject go, string typeName)
+        {
+            foreach (var c in go.GetComponents<Component>())
+            {
+                if (c == null) continue;
+                var t = c.GetType();
+                if (t.Name == typeName || t.FullName == typeName) return c;
+            }
+            return null;
+        }
     }
 }

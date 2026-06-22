@@ -2894,6 +2894,26 @@
       }
     },
     {
+      "name": "manage_prefab_overrides",
+      "category": "asset",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Inspect and granularly apply/revert prefab-instance overrides (vs save_prefab's all-or-nothing). Requires gameObjectPath to a prefab instance. action=list (read-only) returns {propertyModifications:[{target,propertyPath,value,objectReference}], propertyModificationCount, truncated, addedComponents, removedComponents, addedGameObjects, prefabPath} (limit caps the listing, default 100). apply_property/revert_property take componentType (or 'GameObject') + propertyPath. apply_all/revert_all apply or revert the whole instance. Write actions refuse in play mode.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "action": { "type": "string", "enum": ["list", "apply_property", "revert_property", "apply_all", "revert_all"], "description": "Operation (default list)." },
+          "gameObjectPath": { "type": "string", "description": "Path to the prefab instance GameObject in the scene (required)." },
+          "componentType": { "type": "string", "description": "apply_property/revert_property: component type name (e.g. Transform, MeshRenderer) or 'GameObject' for the GameObject itself." },
+          "propertyPath": { "type": "string", "description": "apply_property/revert_property: serialized property path (e.g. m_LocalPosition.x, m_Name). The list action surfaces overridden paths." },
+          "limit": { "type": "number", "description": "list: max property modifications to return (default 100)." }
+        },
+        "required": ["gameObjectPath"]
+      },
+      "result": { "type": "object", "properties": { "success": { "type": "boolean" }, "action": { "type": "string" }, "message": { "type": "string" } } }
+    },
+    {
       "name": "get_compilation_state",
       "category": "compilation",
       "sides": ["editor"],

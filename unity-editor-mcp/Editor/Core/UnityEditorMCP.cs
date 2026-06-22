@@ -138,6 +138,7 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("open_prefab", AssetManagementHandler.OpenPrefab);
             dispatcher.Register("exit_prefab_mode", AssetManagementHandler.ExitPrefabMode);
             dispatcher.Register("save_prefab", AssetManagementHandler.SavePrefab);
+            dispatcher.Register("manage_prefab_overrides", AssetManagementHandler.ManagePrefabOverrides);
             dispatcher.Register("create_script", ScriptHandler.CreateScript);
             dispatcher.Register("read_script", ScriptHandler.ReadScript);
             dispatcher.Register("update_script", ScriptHandler.UpdateScript, requiresConfirm: true);
