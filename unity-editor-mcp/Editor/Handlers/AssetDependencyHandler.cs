@@ -26,10 +26,10 @@ namespace UnityEditorMCP.Handlers
                     case "get_dependencies":
                         var assetPath = parameters["assetPath"]?.ToString();
                         var recursive = parameters["recursive"]?.ToObject<bool>() ?? false;
-                        return GetDependencies(assetPath, recursive);
+                        return GetDependencies(assetPath, recursive, GetOffset(parameters), GetLimit(parameters));
                     case "get_dependents":
                         var dependentAssetPath = parameters["assetPath"]?.ToString();
-                        return GetDependents(dependentAssetPath);
+                        return GetDependents(dependentAssetPath, GetOffset(parameters), GetLimit(parameters));
                     case "analyze_circular":
                         return AnalyzeCircularDependencies();
                     case "find_unused":
@@ -51,10 +51,14 @@ namespace UnityEditorMCP.Handlers
             }
         }
 
+        // Paging helpers shared by get_dependencies / get_dependents (caps large dependency lists).
+        private static int GetLimit(JObject p) { int l = p["limit"]?.ToObject<int?>() ?? 100; return l < 1 ? 1 : l; }
+        private static int GetOffset(JObject p) { int o = p["offset"]?.ToObject<int?>() ?? 0; return o < 0 ? 0 : o; }
+
         /// <summary>
         /// Get dependencies of an asset
         /// </summary>
-        private static HandlerOutcome GetDependencies(string assetPath, bool recursive)
+        private static HandlerOutcome GetDependencies(string assetPath, bool recursive, int offset, int limit)
         {
             try
             {
@@ -68,13 +72,21 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail($"Asset not found: {assetPath}", "NOT_FOUND");
                 }
 
-                var dependencies = AssetDatabase.GetDependencies(assetPath, recursive);
+                var all = AssetDatabase.GetDependencies(assetPath, recursive);
+                var depPaths = new List<string>();
+                foreach (var d in all) if (d != assetPath) depPaths.Add(d);
+                int total = depPaths.Count;
+                // Direct-dependency set computed once (was an O(n^2) per-item call before).
+                System.Collections.Generic.HashSet<string> direct = recursive
+                    ? new System.Collections.Generic.HashSet<string>(AssetDatabase.GetDependencies(assetPath, false))
+                    : null;
                 var dependencyList = new List<object>();
                 int maxDepth = 1;
 
-                foreach (var depPath in dependencies)
+                int idx = offset;
+                for (; idx < total && dependencyList.Count < limit; idx++)
                 {
-                    if (depPath == assetPath) continue; // Skip self
+                    var depPath = depPaths[idx];
 
                     var asset = AssetDatabase.LoadMainAssetAtPath(depPath);
                     if (asset == null) continue;
@@ -85,11 +97,10 @@ namespace UnityEditorMCP.Handlers
                     
                     if (recursive)
                     {
-                        var directDeps = AssetDatabase.GetDependencies(assetPath, false);
-                        isDirectDependency = directDeps.Contains(depPath);
+                        isDirectDependency = direct.Contains(depPath);
                         if (!isDirectDependency)
                         {
-                            depth = 2; // Simplified depth calculation
+                            depth = 2;
                             maxDepth = Math.Max(maxDepth, depth);
                         }
                     }
@@ -111,6 +122,10 @@ namespace UnityEditorMCP.Handlers
                     recursive = recursive,
                     dependencies = dependencyList,
                     count = dependencyList.Count,
+                    total = total,
+                    offset = offset,
+                    limit = limit,
+                    hasMore = idx < total,
                     maxDepth = maxDepth
                 });
             }
@@ -124,7 +139,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Get assets that depend on the specified asset
         /// </summary>
-        private static HandlerOutcome GetDependents(string assetPath)
+        private static HandlerOutcome GetDependents(string assetPath, int offset, int limit)
         {
             try
             {
@@ -174,13 +189,21 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
+                int total = dependents.Count;
+                var page = new List<object>();
+                for (int i = offset; i < total && page.Count < limit; i++) page.Add(dependents[i]);
+
                 return HandlerOutcome.Ok(new
                 {
                     success = true,
                     action = "get_dependents",
                     assetPath = assetPath,
-                    dependents = dependents,
-                    count = dependents.Count
+                    dependents = page,
+                    count = page.Count,
+                    total = total,
+                    offset = offset,
+                    limit = limit,
+                    hasMore = offset + page.Count < total
                 });
             }
             catch (Exception e)
