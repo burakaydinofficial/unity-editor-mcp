@@ -12,16 +12,19 @@ namespace UnityEditorMCP.Core.Tests
     {
         private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
 
-        private static async Task<string> ReadOneFramedAsync(NetworkStream stream)
+        // Reads one framed message using a CALLER-OWNED framer + buffer, so bytes from a coalesced read are
+        // preserved across calls instead of discarded. The server can write several replies back-to-back and
+        // TCP may deliver them in a single read (common in CI, rarer on a fast local loopback) — a fresh framer
+        // per call would read both frames, return the first, and lose the rest, hanging the next read. Checking
+        // the framer FIRST also lets a second call return an already-buffered frame with no further socket read.
+        private static async Task<string> ReadOneFramedAsync(NetworkStream stream, MessageFramer framer, byte[] buf)
         {
-            var framer = new MessageFramer();
-            var buf = new byte[4096];
             while (true)
             {
+                if (framer.TryReadMessage(out var msg)) return msg;
                 int n = await stream.ReadAsync(buf, 0, buf.Length).WaitAsync(Timeout);
                 if (n == 0) throw new IOException("connection closed before a full frame");
                 framer.Append(buf, 0, n);
-                if (framer.TryReadMessage(out var msg)) return msg;
             }
         }
 
@@ -41,7 +44,7 @@ namespace UnityEditorMCP.Core.Tests
             var request = MessageFramer.Encode("hello");
             await stream.WriteAsync(request, 0, request.Length).WaitAsync(Timeout);
 
-            Assert.Equal("echo:hello", await ReadOneFramedAsync(stream));
+            Assert.Equal("echo:hello", await ReadOneFramedAsync(stream, new MessageFramer(), new byte[4096]));
         }
 
         [Fact]
@@ -63,8 +66,11 @@ namespace UnityEditorMCP.Core.Tests
             Buffer.BlockCopy(b, 0, both, a.Length, b.Length);
             await stream.WriteAsync(both, 0, both.Length).WaitAsync(Timeout);
 
-            Assert.Equal("ONE", await ReadOneFramedAsync(stream));
-            Assert.Equal("TWO", await ReadOneFramedAsync(stream));
+            // One framer shared across both reads — the two replies may arrive in a single coalesced read.
+            var framer = new MessageFramer();
+            var buf = new byte[4096];
+            Assert.Equal("ONE", await ReadOneFramedAsync(stream, framer, buf));
+            Assert.Equal("TWO", await ReadOneFramedAsync(stream, framer, buf));
         }
 
         [Fact]
