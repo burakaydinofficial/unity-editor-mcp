@@ -1,0 +1,46 @@
+# Publish the Node MCP server (@burakaydinofficial/unity-editor-mcp) to npm via OIDC Trusted Publishing —
+# no long-lived NPM_TOKEN, automatic provenance.
+#
+# ONE-TIME SETUP on npmjs.com (package → Settings → "Trusted Publisher" → add GitHub Actions):
+#   Organization or user : burakaydinofficial
+#   Repository           : unity-editor-mcp
+#   Workflow filename    : publish-npm.yml        <-- this file's name (no path)
+#   Environment          : (leave blank)
+# After that, this workflow can publish with the OIDC token alone — no secret needed.
+#
+# Fires when a GitHub release is PUBLISHED (cut a release -> npm publish), or via manual dispatch.
+# It publishes whatever version is in mcp-server/package.json; npm rejects republishing an existing version,
+# so bump the version before tagging/releasing.
+name: publish-npm
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # required for OIDC Trusted Publishing + provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      # Trusted Publishing needs npm >= 11.5.1 (newer than the runner's bundled npm).
+      - run: npm install -g npm@latest
+
+      # devDependencies are needed because `prepublishOnly` runs `npm run test:ci` before publishing.
+      - run: npm install
+
+      # OIDC -> no NODE_AUTH_TOKEN; publishConfig.access=public is already set; provenance is automatic.
+      - run: npm publish
