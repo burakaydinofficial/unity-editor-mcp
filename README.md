@@ -1,6 +1,7 @@
 # Unity Editor MCP
 
 [![CI](https://github.com/burakaydinofficial/unity-editor-mcp/actions/workflows/test-coverage.yml/badge.svg)](https://github.com/burakaydinofficial/unity-editor-mcp/actions/workflows/test-coverage.yml)
+[![floor-matrix (Unity 2020.3 · 2021.3 · 2022.3)](https://github.com/burakaydinofficial/unity-editor-mcp/actions/workflows/floor-matrix.yml/badge.svg?event=push)](https://github.com/burakaydinofficial/unity-editor-mcp/actions/workflows/floor-matrix.yml)
 [![codecov](https://codecov.io/gh/burakaydinofficial/unity-editor-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/burakaydinofficial/unity-editor-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm version](https://img.shields.io/npm/v/@burakaydinofficial/unity-editor-mcp)](https://www.npmjs.com/package/@burakaydinofficial/unity-editor-mcp)
