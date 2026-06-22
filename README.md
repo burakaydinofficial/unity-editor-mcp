@@ -79,13 +79,13 @@ Add the same configuration to Cursor's MCP settings
 ## Available Tools
 
 The MCP server advertises a **3-tool generic surface** — `list_unity_instances`, `list_unity_tools`, and
-`call_unity_tool`. Everything below is the **editor capability catalog** (**95 commands across 18 categories**):
+`call_unity_tool`. Everything below is the **editor capability catalog** (**97 commands across 18 categories**):
 the agent discovers each connected editor's real tools — with schemas, learned at runtime — via
 `list_unity_tools`, then invokes them by name via `call_unity_tool`.
 
 > **Why a generic surface (v0.5.0 — [ADR 0006](docs/adr/0006-no-default-instance-on-demand-discovery.md)):**
 > one server works with **any Unity version and several editors at once**, the client carries 3 tool
-> definitions instead of ~95, and **every call names its target editor explicitly** (a project path or
+> definitions instead of ~97, and **every call names its target editor explicitly** (a project path or
 > port — there is no default instance, so an agent can never act on the wrong project). The catalog below
 > documents what each editor exposes; those commands are reached through `call_unity_tool`, not advertised
 > as individual MCP tools.
@@ -142,25 +142,27 @@ the agent discovers each connected editor's real tools — with schemas, learned
 - **`modify_serialized_array`** — Structurally mutate array/list properties (resize/insert/remove/move/clear) with a size compare-and-swap.
 - **`save_assets`** — Persist all dirty assets to disk (`AssetDatabase.SaveAssets`).
 
-### Scene Management (5)
+### Scene Management (6)
 - **`create_scene`** — Create a new scene (build-settings integration, auto-load).
 - **`load_scene`** — Load a scene (Single or Additive).
 - **`save_scene`** — Save the current scene (with Save As).
 - **`list_scenes`** — List project scenes (filter + build-settings info).
 - **`get_scene_info`** — Detailed scene info including GameObject counts.
+- **`manage_build_settings`** — Manage the build scene list (`list`/`add`/`remove`/`move`/`set_enabled`/`clear`; `exists` flags dangling build paths).
 
-### Asset & Prefab Management (14)
+### Asset & Prefab Management (15)
 - **`create_prefab`** — Create a prefab from a GameObject or from scratch.
 - **`modify_prefab`** — Modify an existing prefab's properties (and instances).
 - **`instantiate_prefab`** — Instantiate a prefab in the scene.
 - **`open_prefab` / `exit_prefab_mode` / `save_prefab`** — Prefab-mode editing lifecycle (open, save/apply, exit).
 - **`create_prefab_variant`** — Create a prefab variant of a base prefab.
 - **`unpack_prefab`** — Unpack a prefab instance (`regular` outermost, or `complete`).
+- **`manage_prefab_overrides`** — Inspect + granularly apply/revert prefab-instance overrides (`list`, apply/revert one property, apply/revert all) — vs `save_prefab`'s all-or-nothing.
 - **`create_scriptable_object`** — Create a ScriptableObject of a named type and save it as an asset.
 - **`create_material` / `modify_material`** — Create/modify materials (shader + properties).
 - **`manage_asset_database`** — Asset DB ops: find, info, folders, move, copy, **delete (confirm-gated)**, refresh, save.
-- **`manage_asset_import_settings`** — Get/modify import settings, apply presets, reimport.
-- **`analyze_asset_dependencies`** — Dependencies, dependents, circular deps, unused assets, size impact.
+- **`manage_asset_import_settings`** — Get/modify import settings, apply presets, reimport, **per-platform texture overrides** (`get_platform`/`set_platform`).
+- **`analyze_asset_dependencies`** — Dependencies, dependents, circular deps, unused assets, size impact (dependency lists **paged** via `limit`/`offset`).
 
 ### Script Management (6)
 - **`create_script`** — Create a new C# script (templates + namespace).

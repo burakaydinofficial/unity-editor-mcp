@@ -6,6 +6,30 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; initial focus 2020.3–2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
+## [0.20.0] — Section E tail: build settings, platform overrides, granular prefab overrides, dependency paging
+
+Four section-E (asset/scene) capability slices, each verified on the 2020.3 floor (EditMode green) and dogfooded
+on the live bridge. Editor surface **97 commands across 18 categories** (was 95). All new APIs are floor-safe — no
+new `COMPATIBILITY.md` guards.
+
+- **`manage_build_settings`** (new, scene) — manage the build scene list (`EditorBuildSettings.scenes`):
+  `list` / `add` / `remove` / `move` / `set_enabled` / `clear`, with `exists` flagging dangling build paths.
+  No prior command managed the build scene list.
+- **`manage_prefab_overrides`** (new, asset) — inspect and granularly apply/revert prefab-instance overrides
+  (`list`, `apply_property` / `revert_property`, `apply_all` / `revert_all`) — vs `save_prefab`'s all-or-nothing.
+  Write actions refuse in play mode.
+- **`manage_asset_import_settings`** — added per-platform texture overrides (`get_platform` / `set_platform`):
+  per-platform `maxTextureSize`, `format`, `textureCompression`, `compressionQuality` (e.g. Android → ETC2/ASTC),
+  with `iOS`→`iPhone` / `Windows`/`OSX`→`Standalone` aliases.
+- **`analyze_asset_dependencies`** — `get_dependencies` / `get_dependents` now page via `limit` / `offset` and
+  return `total` / `hasMore` alongside the page; also fixes a latent O(n²) direct-dependency recomputation.
+
+### Fixed
+
+- **Core (C#) CI flake** — `TcpTransportTests` now shares one framer across reads, so coalesced socket reads
+  (common in CI, rare on a fast local loopback) no longer drop the second framed reply. The production
+  `TcpTransport` was already correct (drains all frames per read, serialises writes).
+
 ## [0.19.0] — Deployment prep
 
 First version prepared for publication. **npm + UPM aligned to 0.19.0** (previously stranded at 0.3.0 while the
