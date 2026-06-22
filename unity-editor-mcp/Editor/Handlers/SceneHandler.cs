@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -793,6 +794,119 @@ namespace UnityEditorMCP.Handlers
                 len = len / 1024;
             }
             return $"{len:0.#} {sizes[order]}";
+        }
+
+        // ===== Build-settings scene-list management (E-tail) — manage_build_settings =====
+        public static HandlerOutcome ManageBuildSettings(JObject parameters)
+        {
+            try
+            {
+                string action = (parameters["action"]?.ToString() ?? "list").ToLowerInvariant();
+                var scenes = EditorBuildSettings.scenes.ToList();
+
+                switch (action)
+                {
+                    case "list":
+                        return HandlerOutcome.Ok(BuildSceneList(scenes));
+
+                    case "add":
+                    {
+                        string scenePath = parameters["scenePath"]?.ToString()?.Replace('\\', '/');
+                        if (string.IsNullOrEmpty(scenePath))
+                            return HandlerOutcome.Fail("scenePath is required for add", "VALIDATION_ERROR");
+                        var guard = PathSafety.Guard(scenePath, "scenePath");
+                        if (guard != null) return guard;
+                        if (!scenePath.EndsWith(".unity") || !File.Exists(scenePath))
+                            return HandlerOutcome.Fail($"Scene not found (must be an existing .unity in the project): {scenePath}", "NOT_FOUND");
+                        if (scenes.Any(s => s.path == scenePath))
+                            return HandlerOutcome.Fail($"Scene already in build settings: {scenePath}", "ALREADY_EXISTS");
+                        var entry = new EditorBuildSettingsScene(scenePath, parameters["enabled"]?.ToObject<bool>() ?? true);
+                        int? index = parameters["index"]?.ToObject<int?>();
+                        if (index.HasValue && index.Value >= 0 && index.Value < scenes.Count) scenes.Insert(index.Value, entry);
+                        else scenes.Add(entry);
+                        EditorBuildSettings.scenes = scenes.ToArray();
+                        return HandlerOutcome.Ok(BuildSceneList(scenes, $"Added {scenePath}"));
+                    }
+
+                    case "remove":
+                    {
+                        int idx = ResolveBuildIndex(parameters, scenes, out string err);
+                        if (err != null) return HandlerOutcome.Fail(err, idx == -2 ? "VALIDATION_ERROR" : "NOT_FOUND");
+                        string removed = scenes[idx].path;
+                        scenes.RemoveAt(idx);
+                        EditorBuildSettings.scenes = scenes.ToArray();
+                        return HandlerOutcome.Ok(BuildSceneList(scenes, $"Removed {removed}"));
+                    }
+
+                    case "move":
+                    {
+                        int idx = ResolveBuildIndex(parameters, scenes, out string err);
+                        if (err != null) return HandlerOutcome.Fail(err, idx == -2 ? "VALIDATION_ERROR" : "NOT_FOUND");
+                        int? to = parameters["toIndex"]?.ToObject<int?>();
+                        if (!to.HasValue) return HandlerOutcome.Fail("toIndex is required for move", "VALIDATION_ERROR");
+                        int dest = Math.Max(0, Math.Min(to.Value, scenes.Count - 1));
+                        var entry = scenes[idx];
+                        scenes.RemoveAt(idx);
+                        scenes.Insert(dest, entry);
+                        EditorBuildSettings.scenes = scenes.ToArray();
+                        return HandlerOutcome.Ok(BuildSceneList(scenes, $"Moved {entry.path} to index {dest}"));
+                    }
+
+                    case "set_enabled":
+                    {
+                        int idx = ResolveBuildIndex(parameters, scenes, out string err);
+                        if (err != null) return HandlerOutcome.Fail(err, idx == -2 ? "VALIDATION_ERROR" : "NOT_FOUND");
+                        bool? enabled = parameters["enabled"]?.ToObject<bool?>();
+                        if (!enabled.HasValue) return HandlerOutcome.Fail("enabled (bool) is required for set_enabled", "VALIDATION_ERROR");
+                        string path = scenes[idx].path;
+                        scenes[idx] = new EditorBuildSettingsScene(path, enabled.Value);
+                        EditorBuildSettings.scenes = scenes.ToArray();
+                        return HandlerOutcome.Ok(BuildSceneList(scenes, $"{(enabled.Value ? "Enabled" : "Disabled")} {path}"));
+                    }
+
+                    case "clear":
+                        EditorBuildSettings.scenes = new EditorBuildSettingsScene[0];
+                        return HandlerOutcome.Ok(BuildSceneList(new List<EditorBuildSettingsScene>(), "Cleared build scene list"));
+
+                    default:
+                        return HandlerOutcome.Fail($"Unknown action '{action}'. Use list, add, remove, move, set_enabled, or clear.", "VALIDATION_ERROR");
+                }
+            }
+            catch (Exception e)
+            {
+                return HandlerOutcome.Fail($"manage_build_settings failed: {e.Message}");
+            }
+        }
+
+        // Resolves a build-scene index from `index` or `scenePath`. Sets err + returns -2 (validation) / -1 (not found).
+        private static int ResolveBuildIndex(JObject p, List<EditorBuildSettingsScene> scenes, out string err)
+        {
+            err = null;
+            int? index = p["index"]?.ToObject<int?>();
+            if (index.HasValue)
+            {
+                if (index.Value < 0 || index.Value >= scenes.Count) { err = $"index {index.Value} out of range (0..{scenes.Count - 1})"; return -2; }
+                return index.Value;
+            }
+            string scenePath = p["scenePath"]?.ToString()?.Replace('\\', '/');
+            if (string.IsNullOrEmpty(scenePath)) { err = "scenePath or index is required"; return -2; }
+            int i = scenes.FindIndex(s => s.path == scenePath);
+            if (i < 0) { err = $"Scene not in build settings: {scenePath}"; return -1; }
+            return i;
+        }
+
+        private static object BuildSceneList(List<EditorBuildSettingsScene> scenes, string message = null)
+        {
+            var list = new List<object>();
+            for (int i = 0; i < scenes.Count; i++)
+                list.Add(new { index = i, path = scenes[i].path, enabled = scenes[i].enabled, exists = File.Exists(scenes[i].path) });
+            return new
+            {
+                scenes = list,
+                count = scenes.Count,
+                enabledCount = scenes.Count(s => s.enabled),
+                message = message ?? $"{scenes.Count} build scene(s)"
+            };
         }
     }
 }
