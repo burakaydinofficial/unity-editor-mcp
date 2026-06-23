@@ -96,6 +96,9 @@ the agent discovers each connected editor's real tools — with schemas, learned
 > that trims the response to just those fields, GraphQL-style (array elements are transparent; omit for the
 > full result).
 
+**Full per-tool reference** — params + result for every command, generated from the contract:
+[`docs/tools-reference.md`](docs/tools-reference.md).
+
 <!-- The list below is generated from protocol/catalog/commands.json (the contract source of truth). -->
 
 ### Instance Management — the 3 advertised meta-tools (3)
