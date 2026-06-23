@@ -93,6 +93,8 @@ Add the same configuration to Cursor's MCP settings
 2. Check Unity Console for: `[Unity Editor MCP] Client connected`
 3. You're ready to go! 🎮
 
+> 🛠️ **Having trouble?** See the [troubleshooting matrix](docs/troubleshooting.md) — connection / `ECONNREFUSED`, ports & discovery, compile/command errors, Roslyn, and CI.
+
 ## Available Tools
 
 The MCP server advertises a **3-tool generic surface** — `list_unity_instances`, `list_unity_tools`, and
