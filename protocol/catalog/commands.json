@@ -5490,6 +5490,25 @@
       "result": null
     },
     {
+      "name": "invoke_static_method",
+      "category": "menu",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Invoke a static method by type + name with JSON args (G6). ARBITRARY CODE EXECUTION — gated by a DEFAULT-DENY allow-list (H2): INVOKE_DENIED unless 'FullType.Method' matches a pattern in the UNITY_MCP_INVOKE_ALLOW env var (comma-separated) or ProjectSettings/UnityEditorMcpInvokePolicy.json ({allowInvoke:[...]}); patterns: exact 'Ns.Type.Method', prefix 'Ns.Type.*', or '*'. Resolves the type across loaded assemblies, picks the static overload matching the arg count, marshals args via JSON, returns {type, method, returnType, isVoid, result}.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "typeName": { "type": "string", "description": "Full type name (e.g. 'MyTools.BuildUtils' or 'UnityEditor.EditorApplication')." },
+          "methodName": { "type": "string", "description": "Static method name." },
+          "args": { "type": "array", "description": "JSON args, marshaled to the method's parameter types in order (overload chosen by arg count)." },
+          "assemblyName": { "type": "string", "description": "Optional assembly name to disambiguate the type." }
+        },
+        "required": ["typeName", "methodName"]
+      },
+      "result": { "type": "object", "properties": { "success": { "type": "boolean" }, "type": { "type": "string" }, "method": { "type": "string" }, "returnType": { "type": "string" }, "isVoid": { "type": "boolean" } } }
+    },
+    {
       "name": "get_editor_state",
       "category": "playmode",
       "sides": ["editor"],

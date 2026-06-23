@@ -119,6 +119,7 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("capture_screenshot", ScreenshotHandler.CaptureScreenshot);
             dispatcher.Register("analyze_screenshot", ScreenshotHandler.AnalyzeScreenshot);
             dispatcher.Register("execute_menu_item", MenuHandler.ExecuteMenuItem);
+            dispatcher.Register("invoke_static_method", StaticInvokeHandler.InvokeStaticMethod);
             dispatcher.Register("clear_console", ConsoleHandler.ClearConsole);
             dispatcher.Register("enhanced_read_logs", ConsoleHandler.EnhancedReadLogs);
             // Batch B — core system commands (lifted from the legacy inline cases into SystemHandler).
