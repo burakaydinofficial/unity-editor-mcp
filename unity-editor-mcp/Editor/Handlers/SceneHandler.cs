@@ -921,6 +921,17 @@ namespace UnityEditorMCP.Handlers
             return string.IsNullOrEmpty(rel) ? p : rel;
         }
 
+        // Count OPEN-AND-LOADED scenes manually. The loaded-scene-count convenience property is NOT on the
+        // 2019.4–2020.3 floor (added later); only sceneCount + GetSceneAt + Scene.isLoaded are floor-ancient.
+        // Caught by a cold batch compile on the floor (an interactive incremental compile had masked it).
+        private static int CountLoadedScenes()
+        {
+            int n = 0;
+            for (int i = 0; i < EditorSceneManager.sceneCount; i++)
+                if (EditorSceneManager.GetSceneAt(i).isLoaded) n++;
+            return n;
+        }
+
         // ===== close_scene — selectively unload one open scene (vs load_scene Single, which closes ALL + reloads) =====
         public static HandlerOutcome CloseScene(JObject parameters)
         {
@@ -943,7 +954,7 @@ namespace UnityEditorMCP.Handlers
                 if (!found)
                     return HandlerOutcome.Fail($"Loaded scene not found: {scenePath ?? sceneName}", "NOT_FOUND");
 
-                if (EditorSceneManager.loadedSceneCount <= 1)
+                if (CountLoadedScenes() <= 1)
                     return HandlerOutcome.Fail("Cannot close the last loaded scene", "INVALID_STATE");
 
                 if (target.isDirty)
@@ -965,7 +976,7 @@ namespace UnityEditorMCP.Handlers
                     closedScene = closedPath,
                     name = closedName,
                     removed = removeScene,
-                    remainingLoaded = EditorSceneManager.loadedSceneCount,
+                    remainingLoaded = CountLoadedScenes(),
                     message = ok ? $"Closed scene: {closedName}" : $"Failed to close scene: {closedName}"
                 });
             }

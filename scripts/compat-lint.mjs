@@ -25,6 +25,7 @@ const RULES = [
   { re: /\.angularDamping\b/, api: 'Rigidbody.angularDamping', reason: 'renamed from .angularDrag in 6000' },
   { re: /\bLightType\.Rectangle\b/, api: 'LightType.Rectangle', reason: 'differs from legacy LightType.Area' },
   { re: /\.Contains\([^)]*,[^)]*StringComparison/, api: 'string.Contains(value, StringComparison)', reason: 'the 2-arg Contains overload is netstandard2.1+ — use IndexOf(value, StringComparison) >= 0 on the floor' },
+  { re: /\bloadedSceneCount\b/, api: 'SceneManager/EditorSceneManager.loadedSceneCount', reason: 'added after the 2020.3 floor — count loaded scenes via sceneCount + GetSceneAt + Scene.isLoaded' },
 ];
 
 // Known-safe exceptions: { file: '<repo-relative path>', line: <number> }.

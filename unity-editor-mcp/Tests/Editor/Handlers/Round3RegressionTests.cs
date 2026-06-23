@@ -23,7 +23,7 @@ namespace UnityEditorMCP.Tests
                 var r = SceneAnalysisHandler.GetObjectReferences(new JObject { ["gameObjectName"] = "__ref_target__" });
                 Assert.IsFalse(r.IsError, r.Error);
                 var data = JObject.FromObject(r.Payload);
-                Assert.Greater((int)data["totalReferencedBy"], 0, "the HingeJoint.connectedBody reference should be detected");
+                Assert.Greater((int)data["stats"]["totalReferencedBy"], 0, "the HingeJoint.connectedBody reference should be detected");
             }
             finally
             {
