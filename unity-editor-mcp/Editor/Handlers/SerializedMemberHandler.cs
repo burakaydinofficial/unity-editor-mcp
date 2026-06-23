@@ -51,8 +51,10 @@ namespace UnityEditorMCP.Handlers
             if (it == null) return arr;
             bool enterChildren = true;
             var startDepth = it.depth;
+            bool scoped = !string.IsNullOrEmpty(prefix); // with a prefix, emit only its subtree (no sibling leak)
             while (it.NextVisible(enterChildren))
             {
+                if (scoped && it.depth <= startDepth) break; // left the prefix's subtree — stop
                 if (it.propertyPath == "m_Script") { enterChildren = false; continue; }
                 // Struct types (Vector/Quaternion/Color/Rect/Bounds) are read/written as a UNIT by SerializedValue —
                 // emit their composite value and do NOT recurse into x/y/z, so a read round-trips into a write.

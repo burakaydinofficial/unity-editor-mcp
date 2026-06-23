@@ -4979,6 +4979,10 @@
           "includeChildren": {
             "type": "boolean",
             "description": "Whether to delete children (default: true)"
+          },
+          "confirm": {
+            "type": "boolean",
+            "description": "Required confirmation for this destructive op (H3) — must be true, else CONFIRMATION_REQUIRED."
           }
         },
         "required": []
@@ -5839,6 +5843,25 @@
           "summary"
         ]
       }
+    },
+    {
+      "name": "close_scene",
+      "category": "scene",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Close (unload) one open scene by scenePath or sceneName — selectively unload an additively-loaded scene, which load_scene Single cannot (it closes ALL scenes + reloads from disk). Refuses to close the last loaded scene. A scene with unsaved changes needs save:true (save then close) or force:true (discard), else CONFIRMATION_REQUIRED.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "scenePath": { "type": "string", "description": "Path of the loaded scene to close (scenePath or sceneName required)." },
+          "sceneName": { "type": "string", "description": "Name of the loaded scene to close." },
+          "save": { "type": "boolean", "description": "Save the scene before closing if it has unsaved changes (default false)." },
+          "force": { "type": "boolean", "description": "Discard unsaved changes when closing (default false)." },
+          "remove": { "type": "boolean", "description": "Remove the scene from the hierarchy (default true) vs keep it as an unloaded entry." }
+        }
+      },
+      "result": { "type": "object", "properties": { "success": { "type": "boolean" }, "closedScene": { "type": "string" }, "name": { "type": "string" }, "remainingLoaded": { "type": "number" }, "message": { "type": "string" } } }
     },
     {
       "name": "get_scene_info",
@@ -7875,13 +7898,9 @@
             "type": "string",
             "enum": [
               "click",
-              "doubleclick",
-              "rightclick",
-              "hover",
-              "focus",
               "type"
             ],
-            "description": "Type of input to simulate (for simple input)"
+            "description": "Simple-mode input type: 'click' (click the element) or 'type' (set its value to inputData). For richer interaction sequences use inputSequence."
           },
           "inputData": {
             "type": "string",

@@ -242,9 +242,25 @@ namespace UnityEditorMCP.Handlers
                 float waitBetween = parameters["waitBetween"]?.ToObject<float>() ?? 100f;
                 bool validateState = parameters["validateState"]?.ToObject<bool>() ?? true;
 
+                // Simple mode: a single {elementPath, inputType, inputData} translates to a one-action sequence.
+                if ((inputSequence == null || inputSequence.Count == 0) && !string.IsNullOrEmpty(parameters["elementPath"]?.ToString()))
+                {
+                    string simplePath = parameters["elementPath"].ToString();
+                    string simpleType = (parameters["inputType"]?.ToString() ?? "click").ToLowerInvariant();
+                    string simpleData = parameters["inputData"]?.ToString();
+                    JObject single;
+                    if (simpleType == "click")
+                        single = new JObject { ["type"] = "click", ["params"] = new JObject { ["elementPath"] = simplePath } };
+                    else if (simpleType == "type" || simpleType == "setvalue")
+                        single = new JObject { ["type"] = "setvalue", ["params"] = new JObject { ["elementPath"] = simplePath, ["value"] = simpleData } };
+                    else
+                        return HandlerOutcome.Fail($"Simple inputType '{simpleType}' is not supported — use 'click' or 'type', or pass an inputSequence.", "VALIDATION_ERROR");
+                    inputSequence = new JArray { single };
+                }
+
                 if (inputSequence == null || inputSequence.Count == 0)
                 {
-                    return HandlerOutcome.Fail("inputSequence is required and must not be empty", "VALIDATION_ERROR");
+                    return HandlerOutcome.Fail("Provide either an inputSequence, or elementPath + inputType (simple mode).", "VALIDATION_ERROR");
                 }
 
                 List<object> results = new List<object>();

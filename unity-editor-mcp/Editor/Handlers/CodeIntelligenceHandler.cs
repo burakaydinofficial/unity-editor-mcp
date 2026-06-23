@@ -264,16 +264,20 @@ namespace UnityEditorMCP.Handlers
                 var type = FindTypeByName(typeName, out int matchCount);
                 if (type == null) return Err($"Type not found: {typeName}", "NOT_FOUND");
 
+                int limit = p["limit"]?.ToObject<int?>() ?? 200; if (limit < 1) limit = 1;
                 var implementors = new JArray();
+                int total = 0;
                 // TypeCache.GetTypesDerivedFrom covers both subclasses and interface implementors.
                 foreach (var t in TypeCache.GetTypesDerivedFrom(type))
                 {
                     if (t.FullName == null) continue;
+                    total++;
+                    if (implementors.Count >= limit) continue; // cap the returned list; `total` still reflects all
                     implementors.Add(new JObject {
                         ["type"] = t.FullName, ["assembly"] = t.Assembly.GetName().Name,
                         ["kind"] = t.IsInterface ? "interface" : (t.IsAbstract ? "abstract" : "class") });
                 }
-                var result = new JObject { ["type"] = type.FullName, ["count"] = implementors.Count, ["implementors"] = implementors };
+                var result = new JObject { ["type"] = type.FullName, ["count"] = implementors.Count, ["total"] = total, ["limit"] = limit, ["truncated"] = total > implementors.Count, ["implementors"] = implementors };
                 if (matchCount > 1) { result["ambiguous"] = true; result["ambiguousMatches"] = matchCount; }
                 return HandlerOutcome.Ok(result);
             }

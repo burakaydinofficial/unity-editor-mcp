@@ -8,8 +8,14 @@ package `com.burakk.unity-editor-mcp` ship together at the same version.
 
 ## [0.20.1] — Dogfood bugfixes
 
-Fixes from a full live dogfood of the bridge — a fresh agent built and tore down a scene through the MCP tools
-and reported friction. All five verified on the 2020.3 floor, with regression tests.
+Fixes from two live dogfood passes — fresh agents drove the bridge end-to-end and reported friction. All verified
+on the 2020.3 floor with regression tests. Editor surface **99 commands** (close_scene added).
+
+### Added
+
+- **`close_scene`** — selectively unload one open scene (by scenePath / sceneName). Previously the only way to drop
+  an additively-loaded scene was `load_scene` Single (which closes ALL scenes + reloads from disk). Refuses to
+  close the last loaded scene; a dirty scene needs `save:true` (save then close) or `force:true` (discard).
 
 ### Fixed
 
@@ -28,6 +34,13 @@ and reported friction. All five verified on the 2020.3 floor, with regression te
   genuinely granular.
 - **`capture_screenshot captureMode:"game"`** returned a `NullReferenceException` when no rendering Game View was
   available; it now returns a clear `INVALID_STATE` that points to the `camera` / `scene` modes.
+- **`find_implementations` had no result cap** — a common base type (ScriptableObject → 772 subtypes) overflowed
+  the response channel. Added `limit` (default 200) + `total` / `truncated`.
+- **`simulate_ui_input` simple mode was broken** — the schema advertised `elementPath`+`inputType`+`inputData` but
+  the handler required `inputSequence`. Simple mode now works (translated to a one-action sequence); the
+  `inputType` enum is trimmed to the supported `click` / `type`.
+- **`inspect_serialized_object` `pathPrefix` leaked sibling properties** — it now strictly scopes to the subtree.
+- **`delete_gameobject` `confirm`** is now documented in its schema (it was required but undocumented).
 
 ## [0.20.0] — Section E tail + static-method invoke (G6)
 

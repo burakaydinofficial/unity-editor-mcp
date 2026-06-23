@@ -113,13 +113,13 @@ Add it to `.mcp.json` in your project root (or run `claude mcp add unity-editor-
 ## Available Tools
 
 The MCP server advertises a **3-tool generic surface** — `list_unity_instances`, `list_unity_tools`, and
-`call_unity_tool`. Everything below is the **editor capability catalog** (**98 commands across 18 categories**):
+`call_unity_tool`. Everything below is the **editor capability catalog** (**99 commands across 18 categories**):
 the agent discovers each connected editor's real tools — with schemas, learned at runtime — via
 `list_unity_tools`, then invokes them by name via `call_unity_tool`.
 
 > **Why a generic surface (v0.5.0 — [ADR 0006](docs/adr/0006-no-default-instance-on-demand-discovery.md)):**
 > one server works with **any Unity version and several editors at once**, the client carries 3 tool
-> definitions instead of ~98, and **every call names its target editor explicitly** (a project path or
+> definitions instead of ~99, and **every call names its target editor explicitly** (a project path or
 > port — there is no default instance, so an agent can never act on the wrong project). The catalog below
 > documents what each editor exposes; those commands are reached through `call_unity_tool`, not advertised
 > as individual MCP tools.
@@ -179,13 +179,14 @@ the agent discovers each connected editor's real tools — with schemas, learned
 - **`modify_serialized_array`** — Structurally mutate array/list properties (resize/insert/remove/move/clear) with a size compare-and-swap.
 - **`save_assets`** — Persist all dirty assets to disk (`AssetDatabase.SaveAssets`).
 
-### Scene Management (6)
+### Scene Management (7)
 - **`create_scene`** — Create a new scene (build-settings integration, auto-load).
 - **`load_scene`** — Load a scene (Single or Additive).
 - **`save_scene`** — Save the current scene (with Save As).
 - **`list_scenes`** — List project scenes (filter + build-settings info).
 - **`get_scene_info`** — Detailed scene info including GameObject counts.
 - **`manage_build_settings`** — Manage the build scene list (`list`/`add`/`remove`/`move`/`set_enabled`/`clear`; `exists` flags dangling build paths).
+- **`close_scene`** — Selectively unload one open scene (vs `load_scene` Single, which closes all + reloads); refuses the last loaded scene; dirty scenes need `save`/`force`.
 
 ### Asset & Prefab Management (15)
 - **`create_prefab`** — Create a prefab from a GameObject or from scratch.

@@ -84,6 +84,7 @@ namespace UnityEditorMCP.Core
             dispatcher.Register("list_scenes", SceneHandler.ListScenes);
             dispatcher.Register("get_scene_info", SceneHandler.GetSceneInfo);
             dispatcher.Register("manage_build_settings", SceneHandler.ManageBuildSettings);
+            dispatcher.Register("close_scene", SceneHandler.CloseScene);
             dispatcher.Register("get_gameobject_details", SceneAnalysisHandler.GetGameObjectDetails);
             dispatcher.Register("analyze_scene_contents", SceneAnalysisHandler.AnalyzeSceneContents);
             dispatcher.Register("get_component_values", SceneAnalysisHandler.GetComponentValues);

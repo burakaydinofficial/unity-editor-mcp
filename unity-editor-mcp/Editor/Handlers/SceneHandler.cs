@@ -920,5 +920,59 @@ namespace UnityEditorMCP.Handlers
             var rel = FileUtil.GetProjectRelativePath(p);
             return string.IsNullOrEmpty(rel) ? p : rel;
         }
+
+        // ===== close_scene — selectively unload one open scene (vs load_scene Single, which closes ALL + reloads) =====
+        public static HandlerOutcome CloseScene(JObject parameters)
+        {
+            try
+            {
+                string scenePath = parameters["scenePath"]?.ToString();
+                string sceneName = parameters["sceneName"]?.ToString();
+                if (string.IsNullOrEmpty(scenePath) && string.IsNullOrEmpty(sceneName))
+                    return HandlerOutcome.Fail("scenePath or sceneName is required", "VALIDATION_ERROR");
+
+                UnityEngine.SceneManagement.Scene target = default;
+                bool found = false;
+                for (int i = 0; i < EditorSceneManager.sceneCount; i++)
+                {
+                    var s = EditorSceneManager.GetSceneAt(i);
+                    if ((!string.IsNullOrEmpty(scenePath) && s.path == scenePath) ||
+                        (!string.IsNullOrEmpty(sceneName) && s.name == sceneName))
+                    { target = s; found = true; break; }
+                }
+                if (!found)
+                    return HandlerOutcome.Fail($"Loaded scene not found: {scenePath ?? sceneName}", "NOT_FOUND");
+
+                if (EditorSceneManager.loadedSceneCount <= 1)
+                    return HandlerOutcome.Fail("Cannot close the last loaded scene", "INVALID_STATE");
+
+                if (target.isDirty)
+                {
+                    bool save = parameters["save"]?.ToObject<bool>() ?? false;
+                    bool force = parameters["force"]?.ToObject<bool>() ?? false;
+                    if (save) EditorSceneManager.SaveScene(target);
+                    else if (!force)
+                        return HandlerOutcome.Fail($"Scene '{target.name}' has unsaved changes — pass save:true to save, or force:true to discard.", "CONFIRMATION_REQUIRED");
+                }
+
+                bool removeScene = parameters["remove"]?.ToObject<bool>() ?? true;
+                string closedPath = target.path;
+                string closedName = target.name;
+                bool ok = EditorSceneManager.CloseScene(target, removeScene);
+                return HandlerOutcome.Ok(new
+                {
+                    success = ok,
+                    closedScene = closedPath,
+                    name = closedName,
+                    removed = removeScene,
+                    remainingLoaded = EditorSceneManager.loadedSceneCount,
+                    message = ok ? $"Closed scene: {closedName}" : $"Failed to close scene: {closedName}"
+                });
+            }
+            catch (Exception e)
+            {
+                return HandlerOutcome.Fail($"close_scene failed: {e.Message}");
+            }
+        }
     }
 }

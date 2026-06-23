@@ -3,7 +3,7 @@
 > **Generated** from `protocol/catalog/commands.json` (protocol `1.0.0`) — do not edit by hand.
 > Regenerate with `node protocol/scripts/generate-tools-reference.mjs`.
 
-**98 commands across 18 categories.** Each is reached via the generic
+**99 commands across 18 categories.** Each is reached via the generic
 `call_unity_tool(instance, name, params)` meta-tool after on-demand discovery with `list_unity_tools` —
 the connected editor advertises these, not the MCP server (ADR 0006). Two internal commands are omitted.
 
@@ -503,6 +503,7 @@ Delete GameObject(s) from Unity scene. Requires confirm:true (H3).
   - `path` (string) — Path to a single GameObject to delete
   - `paths` (array) — Array of paths to multiple GameObjects to delete
   - `includeChildren` (boolean) — Whether to delete children (default: true)
+  - `confirm` (boolean) — Required confirmation for this destructive op (H3) — must be true, else CONFIRMATION_REQUIRED.
 - **Result:** `deletedCount`, `deleted`, `notFound`, `notFoundCount`, `error`
 
 ### `find_gameobject`
@@ -629,7 +630,18 @@ Stop Unity play mode and return to edit mode
   - _none_
 - **Result:** `status`, `message`, `state`
 
-## Scene (6)
+## Scene (7)
+
+### `close_scene`
+Close (unload) one open scene by scenePath or sceneName — selectively unload an additively-loaded scene, which load_scene Single cannot (it closes ALL scenes + reloads from disk). Refuses to close the last loaded scene. A scene with unsaved changes needs save:true (save then close) or force:true (discard), else CONFIRMATION_REQUIRED.
+
+- **Params:**
+  - `scenePath` (string) — Path of the loaded scene to close (scenePath or sceneName required).
+  - `sceneName` (string) — Name of the loaded scene to close.
+  - `save` (boolean) — Save the scene before closing if it has unsaved changes (default false).
+  - `force` (boolean) — Discard unsaved changes when closing (default false).
+  - `remove` (boolean) — Remove the scene from the hierarchy (default true) vs keep it as an unloaded entry.
+- **Result:** `success`, `closedScene`, `name`, `remainingLoaded`, `message`
 
 ### `create_scene`
 Create a new scene in Unity
@@ -976,7 +988,7 @@ Simulate complex UI interactions and input sequences
 
 - **Params:**
   - `elementPath` (string) — Target UI element path (for simple input)
-  - `inputType` (string) — Type of input to simulate (for simple input) — one of: click, doubleclick, rightclick, hover, focus, type
+  - `inputType` (string) — Simple-mode input type: 'click' (click the element) or 'type' (set its value to inputData). For richer interaction sequences use inputSequence. — one of: click, type
   - `inputData` (string) — Data for input (e.g., text to type)
   - `inputSequence` (array) — Array of input actions to perform (for complex input)
   - `waitBetween` (number) — Delay between actions in milliseconds
