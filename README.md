@@ -47,7 +47,7 @@ but is not in the CI matrix. **Unity 6 (6000.x)** is guarded; a CI host project 
 
 - ✅ Unity 2020.3 LTS or newer (the tested floor; 2019.4 is a guarded best-effort target — see `COMPATIBILITY.md`)
 - ✅ Node.js 18.0.0 or newer  
-- ✅ Claude Desktop or Cursor
+- ✅ An MCP client — Claude Code, Claude Desktop, or Cursor
 
 ### Installation
 
@@ -85,7 +85,22 @@ Add to your config file:
 
 **For Cursor:**
 
-Add the same configuration to Cursor's MCP settings
+Add the same configuration to Cursor's MCP settings.
+
+**For Claude Code:**
+
+Add it to `.mcp.json` in your project root (or run `claude mcp add unity-editor-mcp -- npx @burakaydinofficial/unity-editor-mcp@latest`):
+
+```json
+{
+  "mcpServers": {
+    "unity-editor-mcp": {
+      "command": "npx",
+      "args": ["@burakaydinofficial/unity-editor-mcp@latest"]
+    }
+  }
+}
+```
 
 #### ✅ Step 3: Verify Connection
 

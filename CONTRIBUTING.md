@@ -2,6 +2,22 @@
 
 Thank you for your interest in contributing to Unity Editor MCP! This document provides guidelines and instructions for contributing to the project.
 
+## Compatibility policy — read this first
+
+This fork's identity is being **floor-true for older Unity** (2019 → latest; tested floor 2020.3 LTS). Two rules
+are non-negotiable:
+
+- **Guards, not floors.** Every version-divergent Unity API goes behind `#if UNITY_X_Y_OR_NEWER` with **both
+  branches maintained** — never raise the floor to dodge a divergence. Catalog every guard in
+  [`COMPATIBILITY.md`](COMPATIBILITY.md).
+- **Stay within the floor's language/runtime.** Unity-side C# is **C# 8 / netstandard 2.0** (the 2020.3 Mono
+  reality); code that must compile on 2019.4 is **C# 7.3**. No UI Toolkit editor APIs in core paths (IMGUI-safe).
+  The Node server stays **pure JS, no native modules** (Node ≥ 18).
+
+`node scripts/compat-lint.mjs` flags floor-divergent Unity APIs used outside a guard, and the
+[floor-matrix CI](.github/workflows/floor-matrix.yml) compiles + runs the EditMode suite on 2020.3 / 2021.3 /
+2022.3 on every release. See [`CLAUDE.md`](CLAUDE.md) for the architecture and the rest of the compatibility notes.
+
 ## Getting Started
 
 1. Fork the repository
@@ -64,12 +80,19 @@ Add GameObject search by component type
 - Include inactive object filtering
 ```
 
-## Testing
+## Testing — the gate suite
 
-- Write tests for new features
-- Ensure all tests pass before submitting PR
-- Test both Node.js and Unity components
-- Include integration tests when appropriate
+Before submitting, the same checks CI runs should pass locally:
+
+- **Node server:** `cd mcp-server && npm run test:ci`
+- **Protocol contract (no drift):** `node protocol/scripts/check-drift.mjs`
+- **Compatibility lint:** `node scripts/compat-lint.mjs`
+- **Unity-independent Core:** `dotnet test dotnet/UnityEditorMCP.Core.Tests/UnityEditorMCP.Core.Tests.csproj`
+- **Editor (NUnit EditMode):** run via the Unity Test Runner in an editor — the floor-matrix CI runs these on every floor.
+
+Write tests for new features (Node unit/integration; an EditMode test per editor handler). Any command/tool
+change must keep `check-drift.mjs` green and regenerate `docs/tools-reference.md`
+(`node protocol/scripts/generate-tools-reference.mjs`).
 
 ## Pull Request Process
 
