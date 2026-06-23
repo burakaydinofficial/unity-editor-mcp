@@ -5,7 +5,7 @@ MCP (Model Context Protocol) server for Unity Editor integration. Enables AI ass
 ## Features
 
 - **Version-agnostic generic surface** - the server learns each connected editor's tools (with schemas, at runtime) and exposes them through three meta-tools, so one server works with **any Unity version** and **several editors at once**
-- **~97 editor tools** spanning GameObjects, components, scenes, scene analysis, assets (prefabs/materials/import settings), scripts, code intelligence, play mode, UI automation, the Test Runner, and editor operations
+- **~98 editor tools** spanning GameObjects, components, scenes, scene analysis, assets (prefabs/materials/import settings), scripts, code intelligence, play mode, UI automation, the Test Runner, and editor operations
 - **Multi-instance routing** - discover every running editor and target any of them by project path or port
 - **Pure ESM, zero native modules** - `npx`-friendly; the only runtime dependency is the MCP SDK
 
@@ -76,7 +76,7 @@ Add to your `claude_desktop_config.json`:
 
 This is what lets one server drive **any Unity version** and **several editors at once**. The agent discovers each editor's tools on demand via `list_unity_tools` and invokes them by name with `call_unity_tool` — there is no per-tool advertised surface (ADR 0006).
 
-The editor exposes ~97 tools spanning GameObjects, components, scenes, scene analysis, **deep serialization**, assets (prefabs / materials / import settings / ScriptableObjects), scripts, **semantic code intelligence**, play mode, UI automation, **visual capture**, the Test Runner, and editor operations — plus safety rails (a confirm-gate, a project-folder path sandbox, and a mutation audit log). The complete, categorized catalog lives in the [project README](https://github.com/burakaydinofficial/unity-editor-mcp#available-tools).
+The editor exposes ~98 tools spanning GameObjects, components, scenes, scene analysis, **deep serialization**, assets (prefabs / materials / import settings / ScriptableObjects), scripts, **semantic code intelligence**, play mode, UI automation, **visual capture**, the Test Runner, and editor operations — plus safety rails (a confirm-gate, a project-folder path sandbox, and a mutation audit log). The complete, categorized catalog lives in the [project README](https://github.com/burakaydinofficial/unity-editor-mcp#available-tools).
 
 ### Roslyn backend (optional)
 

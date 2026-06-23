@@ -6,11 +6,11 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; initial focus 2020.3–2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
-## [0.20.0] — Section E tail: build settings, platform overrides, granular prefab overrides, dependency paging
+## [0.20.0] — Section E tail + static-method invoke (G6)
 
-Four section-E (asset/scene) capability slices, each verified on the 2020.3 floor (EditMode green) and dogfooded
-on the live bridge. Editor surface **97 commands across 18 categories** (was 95). All new APIs are floor-safe — no
-new `COMPATIBILITY.md` guards.
+The section-E (asset/scene) tail plus static-method invoke — five capability slices, each verified on the 2020.3
+floor (EditMode green) and dogfooded on the live bridge. Editor surface **98 commands across 18 categories** (was
+95). All new APIs are floor-safe — no new `COMPATIBILITY.md` guards.
 
 - **`manage_build_settings`** (new, scene) — manage the build scene list (`EditorBuildSettings.scenes`):
   `list` / `add` / `remove` / `move` / `set_enabled` / `clear`, with `exists` flagging dangling build paths.
@@ -23,12 +23,19 @@ new `COMPATIBILITY.md` guards.
   with `iOS`→`iPhone` / `Windows`/`OSX`→`Standalone` aliases.
 - **`analyze_asset_dependencies`** — `get_dependencies` / `get_dependents` now page via `limit` / `offset` and
   return `total` / `hasMore` alongside the page; also fixes a latent O(n²) direct-dependency recomputation.
+- **`invoke_static_method`** (new, menu) — **G6**: invoke a static method by type + name with JSON args. Arbitrary
+  code execution, so it ships behind **H2 default-deny** (`InvokePolicy`): denied (`INVOKE_DENIED`) unless
+  `FullType.Method` matches an allow pattern from the `UNITY_MCP_INVOKE_ALLOW` env var or
+  `ProjectSettings/UnityEditorMcpInvokePolicy.json`. Patterns: exact, `Ns.Type.*`, or `*`.
 
 ### Fixed
 
 - **Core (C#) CI flake** — `TcpTransportTests` now shares one framer across reads, so coalesced socket reads
   (common in CI, rare on a fast local loopback) no longer drop the second framed reply. The production
   `TcpTransport` was already correct (drains all frames per read, serialises writes).
+- **Code-review hardening (E-tail)** — `manage_build_settings` canonicalizes scene paths to project-relative (an
+  absolute in-project path no longer bypasses the duplicate check); `get_dependencies` includes unloadable deps so
+  a page can't return `count<limit` while `hasMore`; `analyze_asset_dependencies` now path-guards its `assetPath`.
 
 ## [0.19.0] — Deployment prep
 

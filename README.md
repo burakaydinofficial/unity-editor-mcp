@@ -79,13 +79,13 @@ Add the same configuration to Cursor's MCP settings
 ## Available Tools
 
 The MCP server advertises a **3-tool generic surface** — `list_unity_instances`, `list_unity_tools`, and
-`call_unity_tool`. Everything below is the **editor capability catalog** (**97 commands across 18 categories**):
+`call_unity_tool`. Everything below is the **editor capability catalog** (**98 commands across 18 categories**):
 the agent discovers each connected editor's real tools — with schemas, learned at runtime — via
 `list_unity_tools`, then invokes them by name via `call_unity_tool`.
 
 > **Why a generic surface (v0.5.0 — [ADR 0006](docs/adr/0006-no-default-instance-on-demand-discovery.md)):**
 > one server works with **any Unity version and several editors at once**, the client carries 3 tool
-> definitions instead of ~97, and **every call names its target editor explicitly** (a project path or
+> definitions instead of ~98, and **every call names its target editor explicitly** (a project path or
 > port — there is no default instance, so an agent can never act on the wrong project). The catalog below
 > documents what each editor exposes; those commands are reached through `call_unity_tool`, not advertised
 > as individual MCP tools.
@@ -210,8 +210,9 @@ the agent discovers each connected editor's real tools — with schemas, learned
 - **`manage_windows`** — Manage editor windows (list, focus, get state).
 - **`manage_tools`** — Manage editor tools/plugins (list, activate, deactivate).
 
-### Menu (1)
+### Menu (2)
 - **`execute_menu_item`** — Execute an editor menu item (errors when the item didn't run, rather than reporting a false success).
+- **`invoke_static_method`** — Invoke a static method by type + name with JSON args. **Default-deny** (arbitrary code execution) — allow-list via `UNITY_MCP_INVOKE_ALLOW` or `ProjectSettings/UnityEditorMcpInvokePolicy.json`.
 
 ### Console (2)
 - **`clear_console`** — Clear the editor console.
