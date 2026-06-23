@@ -28,7 +28,8 @@ namespace UnityEditorMCP.Handlers
                         var searchInFolders = parameters["searchInFolders"]?.ToObject<string[]>();
                         foreach (var sf in searchInFolders ?? System.Array.Empty<string>())
                             { var g = PathSafety.Guard(sf, "searchInFolders"); if (g != null) return g; } // H4
-                        return FindAssets(filter, searchInFolders);
+                        var findLimit = parameters["limit"]?.ToObject<int?>() ?? 100;
+                        return FindAssets(filter, searchInFolders, findLimit < 1 ? 1 : findLimit);
                     case "get_asset_info":
                         var assetPath = parameters["assetPath"]?.ToString();
                         { var g = PathSafety.Guard(assetPath, "assetPath"); if (g != null) return g; } // H4
@@ -70,7 +71,7 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Find assets using AssetDatabase search filters
         /// </summary>
-        private static HandlerOutcome FindAssets(string filter, string[] searchInFolders)
+        private static HandlerOutcome FindAssets(string filter, string[] searchInFolders, int limit)
         {
             try
             {
@@ -81,9 +82,11 @@ namespace UnityEditorMCP.Handlers
 
                 var guids = AssetDatabase.FindAssets(filter, searchInFolders);
                 var assets = new List<object>();
+                bool truncated = false;
 
                 foreach (var guid in guids)
                 {
+                    if (assets.Count >= limit) { truncated = true; break; }
                     var path = AssetDatabase.GUIDToAssetPath(guid);
                     var asset = AssetDatabase.LoadMainAssetAtPath(path);
 
@@ -109,7 +112,10 @@ namespace UnityEditorMCP.Handlers
                     filter = filter,
                     searchInFolders = searchInFolders ?? new string[0],
                     assets = assets,
-                    count = assets.Count
+                    count = assets.Count,
+                    total = guids.Length,
+                    limit = limit,
+                    truncated = truncated
                 });
             }
             catch (Exception e)

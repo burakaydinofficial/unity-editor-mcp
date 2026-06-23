@@ -2186,6 +2186,10 @@
             },
             "description": "Folders to search in for find_assets (optional)"
           },
+          "limit": {
+            "type": "number",
+            "description": "find_assets: max results (default 100); the response signals total + truncated. Scope with searchInFolders to avoid scanning all packages."
+          },
           "assetPath": {
             "type": "string",
             "description": "Path to the asset (must start with \"Assets/\")"

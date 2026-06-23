@@ -149,6 +149,7 @@ Manage Unity Asset Database operations (find, info, create folders, move, copy, 
   - `action` (string, required) — The action to perform — one of: find_assets, get_asset_info, create_folder, delete_asset, move_asset, copy_asset, refresh, save
   - `filter` (string) — Search filter for find_assets (e.g., "t:Texture2D", "l:UI")
   - `searchInFolders` (array) — Folders to search in for find_assets (optional)
+  - `limit` (number) — find_assets: max results (default 100); the response signals total + truncated. Scope with searchInFolders to avoid scanning all packages.
   - `assetPath` (string) — Path to the asset (must start with "Assets/")
   - `folderPath` (string) — Path for folder creation (must start with "Assets/")
   - `fromPath` (string) — Source path for move/copy operations

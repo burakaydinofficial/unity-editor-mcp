@@ -304,6 +304,15 @@ namespace UnityEditorMCP.Handlers
                         modified = true;
                     }
                 }
+
+                // A reparent above uses worldPositionStays=true (preserves world coords, recomputes local). So if
+                // the caller asked for a LOCAL-space transform AND changed the parent, re-apply it now relative to
+                // the NEW parent — otherwise the local values would be computed against the old parent.
+                if (local && parameters.ContainsKey("parentPath"))
+                {
+                    if (position.HasValue) obj.transform.localPosition = position.Value;
+                    if (rotation.HasValue) obj.transform.localEulerAngles = rotation.Value;
+                }
                 
                 if (modified)
                 {
@@ -319,7 +328,9 @@ namespace UnityEditorMCP.Handlers
                     name = obj.name,
                     path = GetGameObjectPath(obj),
                     position = new { x = obj.transform.position.x, y = obj.transform.position.y, z = obj.transform.position.z },
+                    localPosition = new { x = obj.transform.localPosition.x, y = obj.transform.localPosition.y, z = obj.transform.localPosition.z },
                     rotation = new { x = obj.transform.rotation.eulerAngles.x, y = obj.transform.rotation.eulerAngles.y, z = obj.transform.rotation.eulerAngles.z },
+                    localRotation = new { x = obj.transform.localEulerAngles.x, y = obj.transform.localEulerAngles.y, z = obj.transform.localEulerAngles.z },
                     scale = new { x = obj.transform.localScale.x, y = obj.transform.localScale.y, z = obj.transform.localScale.z },
                     tag = obj.tag,
                     layer = obj.layer,

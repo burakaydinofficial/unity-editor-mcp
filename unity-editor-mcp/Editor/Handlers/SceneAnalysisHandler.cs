@@ -367,21 +367,35 @@ namespace UnityEditorMCP.Handlers
         /// </summary>
         private static object SerializeValue(object value)
         {
+            if (value == null) return null;
             switch (value)
             {
                 case Vector3 v:
                     return SerializeVector3(v);
                 case Vector2 v:
                     return new { x = v.x, y = v.y };
+                case Vector4 v:
+                    return new { x = v.x, y = v.y, z = v.z, w = v.w };
                 case Color c:
                     return SerializeColor(c);
                 case Quaternion q:
                     return new { x = q.x, y = q.y, z = q.z, w = q.w };
+                case Bounds b:
+                    return new { center = SerializeVector3(b.center), size = SerializeVector3(b.size) };
                 case Enum e:
                     return e.ToString();
-                default:
-                    return value;
+                case UnityEngine.Object uo:
+                    // A reference summary — NEVER recurse into a Unity object (cyclic graphs: gameObject back-refs etc.).
+                    if (uo == null) return null; // destroyed / fake-null
+                    return new { name = uo.name, type = uo.GetType().Name, instanceId = uo.GetInstanceID() };
             }
+            var t = value.GetType();
+            if (t.IsPrimitive || value is string || value is decimal)
+                return value; // JSON-safe scalar
+            // Everything else (Matrix4x4, Rect, custom structs/classes, arrays) -> a safe string. Returning these
+            // raw lets the response serializer recurse into cyclic computed properties (e.g.
+            // Matrix4x4.rotation.eulerAngles.normalized) and throw "Self referencing loop detected".
+            return value.ToString();
         }
 
         /// <summary>

@@ -117,6 +117,10 @@ namespace UnityEditorMCP.Handlers
                 // on the main thread to wait for it — freezing the whole editor on every screenshot.
                 // CaptureScreenshotAsTexture returns immediately, no file wait, no sleep. (Audit #30.)
                 Texture2D captured = ScreenCapture.CaptureScreenshotAsTexture();
+                if (captured == null)
+                {
+                    return HandlerOutcome.Fail("Game View capture produced no image — no rendering Game View is available (common when the editor is unfocused, in batch mode, or no Game View is open). Try captureMode 'camera' or 'scene'.", "INVALID_STATE");
+                }
                 try
                 {
                     byte[] imageBytes = captured.EncodeToPNG();

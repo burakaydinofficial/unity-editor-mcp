@@ -269,6 +269,12 @@ namespace UnityEditorMCP.Handlers
                     instance.name = name;
                 }
 
+                // Record the transform/name as durable prefab-instance overrides. Script-set values aren't
+                // auto-registered, so without this a later prefab sync (e.g. reverting an unrelated property via
+                // manage_prefab_overrides) discards them and the instance snaps back to the prefab's name/position.
+                PrefabUtility.RecordPrefabInstancePropertyModifications(instance.transform);
+                PrefabUtility.RecordPrefabInstancePropertyModifications(instance);
+
                 // Register undo
                 Undo.RegisterCreatedObjectUndo(instance, "Instantiate Prefab");
 

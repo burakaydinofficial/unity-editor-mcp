@@ -6,6 +6,29 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; initial focus 2020.3–2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
+## [0.20.1] — Dogfood bugfixes
+
+Fixes from a full live dogfood of the bridge — a fresh agent built and tore down a scene through the MCP tools
+and reported friction. All five verified on the 2020.3 floor, with regression tests.
+
+### Fixed
+
+- **`get_component_values` crashed on built-in components** — it dumped every public property and the response
+  serializer then hit cyclic Unity graphs (e.g. `Matrix4x4.rotation.eulerAngles.normalized`), returning a
+  "Self referencing loop" error string for Transform/Rigidbody/Light/etc. `SerializeValue` is now loop-proof
+  (structured for known types, a reference-summary for Unity objects, `ToString()` otherwise).
+- **`manage_asset_database` `find_assets` had no result cap** — an unscoped query could dump tens of thousands of
+  lines. Added `limit` (default 100) plus `total` / `truncated` in the response.
+- **`modify_gameobject` local space** — the result now reports `localPosition` / `localRotation` (not only
+  world), and a reparent + `space:"local"` in one call now stores the local value relative to the NEW parent (it
+  was computed against the old parent, since the reparent preserves world position).
+- **`manage_prefab_overrides revert_property` collateral revert** — `instantiate_prefab` set name/position on the
+  instance without recording them as overrides, so reverting an unrelated property discarded them (the instance
+  snapped back to the prefab). It now records the transform/name overrides, so a single-property revert is
+  genuinely granular.
+- **`capture_screenshot captureMode:"game"`** returned a `NullReferenceException` when no rendering Game View was
+  available; it now returns a clear `INVALID_STATE` that points to the `camera` / `scene` modes.
+
 ## [0.20.0] — Section E tail + static-method invoke (G6)
 
 The section-E (asset/scene) tail plus static-method invoke — five capability slices, each verified on the 2020.3
