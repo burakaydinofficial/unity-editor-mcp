@@ -49,6 +49,18 @@ namespace UnityEditorMCP.Handlers
             var arr = new JArray();
             var it = string.IsNullOrEmpty(prefix) ? so.GetIterator() : so.FindProperty(prefix);
             if (it == null) return arr;
+            // A pathPrefix pointing at a leaf property (no visible children — e.g. m_Name, m_Intensity,
+            // m_ConnectedBody) emits that property itself; the subtree-scoped walk below would otherwise step
+            // straight to a sibling and return nothing.
+            if (!string.IsNullOrEmpty(prefix) && !it.hasVisibleChildren)
+            {
+                var leaf = new JObject { ["propertyPath"] = it.propertyPath, ["propertyType"] = it.propertyType.ToString() };
+                if (it.isArray && it.propertyType != SerializedPropertyType.String) leaf["arraySize"] = it.arraySize;
+                if (it.propertyType == SerializedPropertyType.ManagedReference) { leaf["managedReferenceFullTypename"] = it.managedReferenceFullTypename; leaf["managedReferenceFieldTypename"] = it.managedReferenceFieldTypename; }
+                if (includeValues) leaf["value"] = SerializedValue.Read(it);
+                arr.Add(leaf);
+                return arr;
+            }
             bool enterChildren = true;
             var startDepth = it.depth;
             bool scoped = !string.IsNullOrEmpty(prefix); // with a prefix, emit only its subtree (no sibling leak)

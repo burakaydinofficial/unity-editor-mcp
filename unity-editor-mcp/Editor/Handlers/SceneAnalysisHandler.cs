@@ -1505,67 +1505,34 @@ namespace UnityEditorMCP.Handlers
         {
             var references = new List<(string propertyName, string referenceType)>();
             
-            var type = component.GetType();
-            var fields = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-            
-            foreach (var field in fields)
+            // Iterate the component's SerializedObject (not C# reflection) so native-backed and private
+            // [SerializeField] object references are caught — reflection over managed fields misses e.g.
+            // Joint.connectedBody (a property backed by the serialized m_ConnectedBody), which made
+            // get_object_references falsely report an object as unreferenced.
+            try
             {
-                try
+                using (var so = new SerializedObject(component))
                 {
-                    var fieldValue = field.GetValue(component);
-                    if (fieldValue == null) continue;
-
-                    // Direct GameObject reference
-                    if (ReferenceEquals(fieldValue, targetObject))
+                    var it = so.GetIterator();
+                    bool enterChildren = true;
+                    while (it.NextVisible(enterChildren))
                     {
-                        references.Add((field.Name, "direct"));
+                        enterChildren = true;
+                        if (it.propertyType != SerializedPropertyType.ObjectReference) continue;
+                        var refObj = it.objectReferenceValue;
+                        if (refObj == null) continue;
+                        if (ReferenceEquals(refObj, targetObject) || (refObj is GameObject rgo && rgo == targetObject))
+                            references.Add((it.propertyPath, "direct"));
+                        else if (refObj is Component rc && targetComponents.Contains(rc))
+                            references.Add((it.propertyPath, rc is Transform ? "transform" : "component"));
                     }
-                    // Component reference
-                    else if (fieldValue is Component comp && targetComponents.Contains(comp))
-                    {
-                        references.Add((field.Name, comp is Transform ? "transform" : "component"));
-                    }
-                    // Array/List of GameObjects
-                    else if (fieldValue is GameObject[] goArray)
-                    {
-                        if (goArray.Contains(targetObject))
-                        {
-                            references.Add((field.Name, "array"));
-                        }
-                    }
-                    else if (fieldValue is List<GameObject> goList)
-                    {
-                        if (goList.Contains(targetObject))
-                        {
-                            references.Add((field.Name, "list"));
-                        }
-                    }
-                    // Array/List of Components
-                    else if (fieldValue is Component[] compArray)
-                    {
-                        if (compArray.Any(c => c != null && targetComponents.Contains(c)))
-                        {
-                            references.Add((field.Name, "array"));
-                        }
-                    }
-                    else if (fieldValue is IList list && list.Count > 0 && list[0] is Component)
-                    {
-                        foreach (Component item in list)
-                        {
-                            if (item != null && targetComponents.Contains(item))
-                            {
-                                references.Add((field.Name, "list"));
-                                break;
-                            }
-                        }
-                    }
-                }
-                catch
-                {
-                    // Skip fields that throw exceptions
                 }
             }
-            
+            catch
+            {
+                // Some components can't be wrapped in a SerializedObject — skip rather than fail the whole scan.
+            }
+
             return references;
         }
     }

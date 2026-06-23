@@ -3469,16 +3469,6 @@
             "type": "boolean",
             "default": true,
             "description": "Clear console when building"
-          },
-          "preserveWarnings": {
-            "type": "boolean",
-            "default": false,
-            "description": "Preserve warning messages when clearing"
-          },
-          "preserveErrors": {
-            "type": "boolean",
-            "default": false,
-            "description": "Preserve error messages when clearing"
           }
         },
         "required": []

@@ -111,12 +111,12 @@ namespace UnityEditorMCP.Handlers
                 int clearedCount = totalBefore;
                 int remainingCount = 0;
 
-                // Handle preservation logic (simplified - Unity doesn't natively support selective clearing)
+                // Unity's console clear is all-or-nothing — there is no native selective clear. The old code
+                // logged a warning and then cleared EVERYTHING anyway (silently destroying the errors/warnings
+                // the caller asked to keep). Refuse instead, so callers aren't misled into losing data.
                 if (preserveWarnings || preserveErrors)
                 {
-                    // Note: Unity doesn't provide native selective clearing
-                    // This is a placeholder for the response structure
-                    Debug.LogWarning("[ConsoleHandler] Selective log preservation is not fully implemented in Unity's console API");
+                    return HandlerOutcome.Fail("preserveWarnings/preserveErrors are not supported — Unity's console API has no selective clear. Omit them to clear everything, or read/filter with enhanced_read_logs first.", "VALIDATION_ERROR");
                 }
 
                 // Clear the console
@@ -359,22 +359,24 @@ namespace UnityEditorMCP.Handlers
             {
                 string key = "unknown";
                 
-                if (log is Dictionary<string, object> dict)
+                // Entries may be a Dictionary (detailed/json format) OR an anonymous object (compact format) —
+                // normalize via JObject so the key is found regardless of shape. The old Dictionary-only check
+                // silently bucketed every compact-format entry under "unknown".
+                Newtonsoft.Json.Linq.JObject jo = null;
+                try { jo = log as Newtonsoft.Json.Linq.JObject ?? Newtonsoft.Json.Linq.JObject.FromObject(log); } catch { jo = null; }
+                if (jo != null)
                 {
                     switch (groupBy)
                     {
                         case "type":
-                            key = dict.ContainsKey("logType") ? dict["logType"].ToString() : "unknown";
+                            key = jo["logType"]?.ToString() ?? "unknown";
                             break;
                         case "file":
-                            key = dict.ContainsKey("file") ? dict["file"].ToString() : "unknown";
+                            key = jo["file"]?.ToString() ?? "unknown";
                             break;
                         case "time":
-                            // Group by hour for simplicity
-                            if (dict.ContainsKey("timestamp") && DateTime.TryParse(dict["timestamp"].ToString(), out DateTime time))
-                            {
+                            if (DateTime.TryParse(jo["timestamp"]?.ToString(), out DateTime time))
                                 key = time.ToString("yyyy-MM-dd HH:00");
-                            }
                             break;
                     }
                 }

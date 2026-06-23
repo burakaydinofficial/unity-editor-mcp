@@ -385,8 +385,6 @@ Clear Unity Editor console logs
   - `clearOnPlay` (boolean) — Clear console when entering play mode
   - `clearOnRecompile` (boolean) — Clear console on script recompilation
   - `clearOnBuild` (boolean) — Clear console when building
-  - `preserveWarnings` (boolean) — Preserve warning messages when clearing
-  - `preserveErrors` (boolean) — Preserve error messages when clearing
 - **Result:** `success`, `message`, `clearedCount`, `remainingCount`, `settingsUpdated`, `clearOnPlay`, `clearOnRecompile`, `clearOnBuild`, `timestamp`, `preservedWarnings`, `preservedErrors`
 
 ### `enhanced_read_logs`

@@ -8,8 +8,8 @@ package `com.burakk.unity-editor-mcp` ship together at the same version.
 
 ## [0.20.1] — Dogfood bugfixes
 
-Fixes from two live dogfood passes — fresh agents drove the bridge end-to-end and reported friction. All verified
-on the 2020.3 floor with regression tests. Editor surface **99 commands** (close_scene added).
+Fixes from three live dogfood passes — fresh agents drove the bridge end-to-end and reported friction, with
+regression tests for each. Editor surface **99 commands** (close_scene added).
 
 ### Added
 
@@ -41,6 +41,16 @@ on the 2020.3 floor with regression tests. Editor surface **99 commands** (close
   `inputType` enum is trimmed to the supported `click` / `type`.
 - **`inspect_serialized_object` `pathPrefix` leaked sibling properties** — it now strictly scopes to the subtree.
 - **`delete_gameobject` `confirm`** is now documented in its schema (it was required but undocumented).
+- **`get_object_references` missed component object-references** — it reflected over C# fields, so native serialized
+  refs (e.g. `HingeJoint.connectedBody` / `m_ConnectedBody`) went undetected and an object looked unreferenced. It
+  now scans the component's `SerializedObject` ObjectReference properties.
+- **`clear_console` `preserveWarnings`/`preserveErrors` were a silent no-op** — they cleared everything (incl.
+  errors) anyway. Unity has no native selective clear, so the flags are removed and the command now refuses them
+  rather than destroying data.
+- **`enhanced_read_logs` `groupBy:"type"` bucketed everything under "unknown"** — the grouper only handled the
+  detailed (Dictionary) entry shape, not the compact (anonymous-object) one; it now normalizes via JObject.
+- **`inspect_serialized_object` `pathPrefix` on a leaf returned `[]`** — a follow-up to the subtree-scope fix; a
+  leaf prefix (e.g. `m_Name`, `m_Intensity`) now emits that property itself.
 
 ## [0.20.0] — Section E tail + static-method invoke (G6)
 
