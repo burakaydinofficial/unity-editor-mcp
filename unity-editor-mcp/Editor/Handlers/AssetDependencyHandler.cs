@@ -66,6 +66,7 @@ namespace UnityEditorMCP.Handlers
                 {
                     return HandlerOutcome.Fail("Asset path not specified", "VALIDATION_ERROR");
                 }
+                { var g = PathSafety.Guard(assetPath, "assetPath"); if (g != null) return g; }
 
                 if (!AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath))
                 {
@@ -89,7 +90,6 @@ namespace UnityEditorMCP.Handlers
                     var depPath = depPaths[idx];
 
                     var asset = AssetDatabase.LoadMainAssetAtPath(depPath);
-                    if (asset == null) continue;
 
                     // Calculate depth for recursive dependencies
                     int depth = 1;
@@ -108,7 +108,7 @@ namespace UnityEditorMCP.Handlers
                     dependencyList.Add(new
                     {
                         path = depPath,
-                        type = asset.GetType().Name,
+                        type = asset != null ? asset.GetType().Name : "Unknown",
                         isDirectDependency = isDirectDependency,
                         depth = depth
                     });
@@ -147,6 +147,7 @@ namespace UnityEditorMCP.Handlers
                 {
                     return HandlerOutcome.Fail("Asset path not specified", "VALIDATION_ERROR");
                 }
+                { var g = PathSafety.Guard(assetPath, "assetPath"); if (g != null) return g; }
 
                 if (!AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath))
                 {
@@ -369,6 +370,7 @@ namespace UnityEditorMCP.Handlers
                 {
                     return HandlerOutcome.Fail("Asset path not specified", "VALIDATION_ERROR");
                 }
+                { var g = PathSafety.Guard(assetPath, "assetPath"); if (g != null) return g; }
 
                 if (!AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath))
                 {

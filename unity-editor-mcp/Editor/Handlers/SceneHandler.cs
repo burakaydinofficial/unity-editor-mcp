@@ -811,7 +811,7 @@ namespace UnityEditorMCP.Handlers
 
                     case "add":
                     {
-                        string scenePath = parameters["scenePath"]?.ToString()?.Replace('\\', '/');
+                        string scenePath = NormalizeScenePath(parameters["scenePath"]?.ToString());
                         if (string.IsNullOrEmpty(scenePath))
                             return HandlerOutcome.Fail("scenePath is required for add", "VALIDATION_ERROR");
                         var guard = PathSafety.Guard(scenePath, "scenePath");
@@ -888,7 +888,7 @@ namespace UnityEditorMCP.Handlers
                 if (index.Value < 0 || index.Value >= scenes.Count) { err = $"index {index.Value} out of range (0..{scenes.Count - 1})"; return -2; }
                 return index.Value;
             }
-            string scenePath = p["scenePath"]?.ToString()?.Replace('\\', '/');
+            string scenePath = NormalizeScenePath(p["scenePath"]?.ToString());
             if (string.IsNullOrEmpty(scenePath)) { err = "scenePath or index is required"; return -2; }
             int i = scenes.FindIndex(s => s.path == scenePath);
             if (i < 0) { err = $"Scene not in build settings: {scenePath}"; return -1; }
@@ -907,6 +907,18 @@ namespace UnityEditorMCP.Handlers
                 enabledCount = scenes.Count(s => s.enabled),
                 message = message ?? $"{scenes.Count} build scene(s)"
             };
+        }
+
+        // Canonicalize a scene path to project-relative ("Assets/..."), so the duplicate check, FindIndex, and
+        // EditorBuildSettingsScene all use the form Unity stores. An absolute in-project path becomes relative;
+        // anything else is returned as-is (then caught by PathSafety / File.Exists).
+        private static string NormalizeScenePath(string p)
+        {
+            if (string.IsNullOrEmpty(p)) return p;
+            p = p.Replace('\\', '/');
+            if (p.StartsWith("Assets/")) return p;
+            var rel = FileUtil.GetProjectRelativePath(p);
+            return string.IsNullOrEmpty(rel) ? p : rel;
         }
     }
 }

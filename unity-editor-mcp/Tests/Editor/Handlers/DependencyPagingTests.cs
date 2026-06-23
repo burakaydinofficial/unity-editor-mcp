@@ -92,5 +92,13 @@ namespace UnityEditorMCP.Tests
             Assert.GreaterOrEqual((int)data["total"], 1);
             Assert.IsNotNull(data["hasMore"]);
         }
+
+        [Test]
+        public void GetDependencies_OutOfProjectPath_ValidationError()
+        {
+            var r = AssetDependencyHandler.HandleCommand("get_dependencies", new JObject { ["assetPath"] = "../evil.asset" });
+            Assert.IsTrue(r.IsError);
+            Assert.AreEqual("VALIDATION_ERROR", r.Code);
+        }
     }
 }
