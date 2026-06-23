@@ -346,7 +346,7 @@ List all components on a GameObject in Unity
 - **Result:** `success`, `gameObjectPath`, `components`, `componentCount`, `message`
 
 ### `modify_component`
-Modify properties of a component on a GameObject in Unity
+Modify component properties via reflection on public fields/properties — the FALLBACK path (refuses scene mutation in play mode). For serialized fields — private [SerializeField], Inspector-accurate writes with Undo, nested structs/arrays, [SerializeReference] — prefer set_serialized_properties (the SerializedObject core); reflection cannot reach those and silently no-ops nested value-type writes.
 
 - **Params:**
   - `gameObjectPath` (string, required) — Path to the GameObject (e.g., "/Player" or "/Canvas/Button")

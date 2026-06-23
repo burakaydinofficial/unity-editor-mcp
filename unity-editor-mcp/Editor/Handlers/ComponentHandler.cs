@@ -276,7 +276,11 @@ namespace UnityEditorMCP.Handlers
         }
 
         /// <summary>
-        /// Modifies properties of an existing component
+        /// Modifies properties of an existing component via reflection (public fields/properties) — the legacy
+        /// FALLBACK path (D12). The Inspector-accurate core is SerializedMemberHandler (set_serialized_properties),
+        /// which reaches private [SerializeField], nested structs/arrays, and [SerializeReference] correctly with
+        /// Undo; reflection cannot, and silently no-ops nested value-type writes (the boxed-copy note below).
+        /// Prefer set_serialized_properties for serialized data; this remains for public/non-serialized members.
         /// </summary>
         public static HandlerOutcome ModifyComponent(JObject parameters)
         {
