@@ -28,6 +28,13 @@ floor (EditMode green) and dogfooded on the live bridge. Editor surface **98 com
   `FullType.Method` matches an allow pattern from the `UNITY_MCP_INVOKE_ALLOW` env var or
   `ProjectSettings/UnityEditorMcpInvokePolicy.json`. Patterns: exact, `Ns.Type.*`, or `*`.
 
+### Docs & DX
+
+- Generated **per-tool reference** (`docs/tools-reference.md`) from the contract (J1); the README **support table**
+  is now generated from the floor-matrix CI (A2); added a **troubleshooting matrix** (`docs/troubleshooting.md`, J3).
+- `CONTRIBUTING.md` gains the **compatibility policy** + the gate suite, plus a **PR template** with the compat
+  checklist (A8); the README adds a **Claude Code** quickstart (J2).
+
 ### Fixed
 
 - **Core (C#) CI flake** — `TcpTransportTests` now shares one framer across reads, so coalesced socket reads
