@@ -177,6 +177,16 @@ namespace UnityEditorMCP.Tests
                 var sp = AssetManagementHandler.SavePrefab(new JObject());
                 Assert.IsFalse(sp.IsError, sp.Error);
                 Assert.IsTrue((bool)JObject.FromObject(sp.Payload)["savedInPrefabMode"]);
+
+                // code-review HIGH: a same-named main-scene object must NOT shadow the stage object — the stage wins.
+                var decoy = new GameObject("__ps_root__"); // created in the main/active scene (same name as the stage root)
+                try
+                {
+                    var resolved = GameObjectHandler.FindGameObjectStageAware("/__ps_root__");
+                    Assert.AreNotSame(decoy, resolved, "the stage object must win over a same-named main-scene object");
+                    Assert.AreEqual(AssetManagementHandler.GetOpenPrefabStageScene().Value, resolved.scene, "resolved object must be the one in the prefab stage");
+                }
+                finally { Object.DestroyImmediate(decoy); }
             }
             finally
             {

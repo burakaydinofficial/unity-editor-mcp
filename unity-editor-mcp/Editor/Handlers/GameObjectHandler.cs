@@ -13,16 +13,19 @@ namespace UnityEditorMCP.Handlers
     /// </summary>
     public static class GameObjectHandler
     {
-        // Stage-aware GameObject lookup: GameObject.Find doesn't traverse an open prefab stage's preview scene, so
-        // a parentPath / reparent target inside the open prefab was reported NOT_FOUND. Fall back to the stage scene.
+        // Stage-aware GameObject lookup. When a prefab stage is open, resolve against IT FIRST — otherwise a
+        // same-named main-scene object would shadow the stage object and a by-path mutation would silently hit the
+        // wrong target while the user is editing the prefab (code-review HIGH). Fall back to the main scene
+        // (GameObject.Find) only when the path isn't in the stage, or when no stage is open.
         public static GameObject FindGameObjectStageAware(string path)
         {
-            var go = GameObject.Find(path);
-            if (go != null) return go;
             var stageScene = AssetManagementHandler.GetOpenPrefabStageScene();
             if (stageScene.HasValue && stageScene.Value.IsValid())
-                return FindByPathInScene(stageScene.Value, path);
-            return null;
+            {
+                var inStage = FindByPathInScene(stageScene.Value, path);
+                if (inStage != null) return inStage;
+            }
+            return GameObject.Find(path);
         }
 
         private static GameObject FindByPathInScene(UnityEngine.SceneManagement.Scene scene, string path)
