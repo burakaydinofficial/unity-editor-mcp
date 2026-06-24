@@ -456,7 +456,8 @@ namespace UnityEditorMCP.Handlers
             try
             {
                 string category = parameters?["category"]?.ToString();
-                string search = parameters?["search"]?.ToString();
+                // Accept search / searchTerm / query (the result echoes it as `searchTerm`; callers reasonably guess any of these).
+                string search = parameters?["search"]?.ToString() ?? parameters?["searchTerm"]?.ToString() ?? parameters?["query"]?.ToString();
                 bool onlyAddable = parameters?["onlyAddable"]?.ToObject<bool>() ?? false;
 
                 var baseType = typeof(Component);

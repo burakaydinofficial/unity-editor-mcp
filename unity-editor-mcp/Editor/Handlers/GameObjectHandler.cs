@@ -261,19 +261,15 @@ namespace UnityEditorMCP.Handlers
                     modified = true;
                 }
                 
-                // Tag
+                // Tag — assigning an undefined tag throws (Unity); we used to swallow that and still report
+                // success (a false-success that left the object Untagged). Pre-check the defined tags and fail.
                 string tag = parameters["tag"]?.ToString();
                 if (!string.IsNullOrEmpty(tag) && tag != obj.tag)
                 {
-                    try
-                    {
-                        obj.tag = tag;
-                        modified = true;
-                    }
-                    catch (Exception)
-                    {
-                        Debug.LogWarning($"Invalid tag: {tag}");
-                    }
+                    if (System.Array.IndexOf(UnityEditorInternal.InternalEditorUtility.tags, tag) < 0)
+                        return HandlerOutcome.Fail($"Tag '{tag}' is not defined. Create it first via manage_tags (action: add).", "VALIDATION_ERROR");
+                    obj.tag = tag;
+                    modified = true;
                 }
                 
                 // Layer

@@ -166,7 +166,9 @@ namespace UnityEditorMCP.Handlers
 
                 // Extract parameters
                 int count = parameters["count"]?.ToObject<int>() ?? 100;
-                var logTypes = (parameters["logTypes"] as JArray)?.Select(t => t.ToString()).ToList() ?? new List<string> { "All" };
+                // Accept logTypes (array) or logType (singular string) — the singular was silently ignored before.
+                var logTypes = (parameters["logTypes"] as JArray)?.Select(t => t.ToString()).ToList()
+                    ?? (parameters["logType"] != null ? new List<string> { parameters["logType"].ToString() } : new List<string> { "All" });
                 string filterText = parameters["filterText"]?.ToString();
                 bool includeStackTrace = parameters["includeStackTrace"]?.ToObject<bool>() ?? true;
                 string format = parameters["format"]?.ToString() ?? "detailed";
@@ -229,7 +231,17 @@ namespace UnityEditorMCP.Handlers
                         LogType logType = GetLogTypeFromMode(mode);
                         string logTypeString = logType.ToString();
 
-                        // Update statistics
+                        // Filter by type
+                        if (!logTypes.Contains(logTypeString))
+                            continue;
+
+                        // Filter by text
+                        if (!string.IsNullOrEmpty(filterText) &&
+                            message.IndexOf(filterText, StringComparison.OrdinalIgnoreCase) < 0)
+                            continue;
+
+                        // Update statistics AFTER the filters, so they describe the FILTERED set — they used to be
+                        // incremented before filtering, reporting a misleading whole-buffer tally.
                         switch (logType)
                         {
                             case LogType.Error: statistics["errors"]++; break;
@@ -238,15 +250,6 @@ namespace UnityEditorMCP.Handlers
                             case LogType.Assert: statistics["asserts"]++; break;
                             case LogType.Exception: statistics["exceptions"]++; break;
                         }
-
-                        // Filter by type
-                        if (!logTypes.Contains(logTypeString))
-                            continue;
-
-                        // Filter by text
-                        if (!string.IsNullOrEmpty(filterText) && 
-                            message.IndexOf(filterText, StringComparison.OrdinalIgnoreCase) < 0)
-                            continue;
 
                         // Extract stack trace if present
                         string stackTrace = null;
