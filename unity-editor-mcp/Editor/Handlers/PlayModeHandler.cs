@@ -38,6 +38,18 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                // round-6 bug #1: in -batchmode there is no editor update loop during play mode, so the moment play
+                // mode's domain reload happens the bridge's command pump (EditorApplication.update += ProcessCommandQueue)
+                // and heartbeat stop ticking — the connection freezes UNRECOVERABLY (stop_game cannot get through; the
+                // editor process must be restarted). Refuse rather than hang. Play mode works normally in a GUI editor.
+                if (Application.isBatchMode)
+                {
+                    return HandlerOutcome.Fail(
+                        "play_game is unsupported in -batchmode: entering play mode stops the editor update loop that " +
+                        "drives the bridge, freezing the connection until the editor process is restarted (stop_game " +
+                        "cannot recover it). Run play mode in a GUI editor instead.",
+                        "UNSUPPORTED_IN_BATCHMODE");
+                }
                 string message;
                 if (!EditorApplication.isPlaying)
                 {

@@ -129,6 +129,19 @@ namespace UnityEditorMCP.Tests
             Assert.IsTrue(found, "read_logs must surface the editor console (it should contain the freshly-logged marker)");
         }
 
+        // round-6 bug #1: entering play mode in -batchmode freezes the bridge's update-loop command pump
+        // UNRECOVERABLY (the editor process must be restarted). The handler must refuse in batchmode, not hang. CI
+        // runs EditMode tests in -batchmode, so this asserts the guard in the exact hostile environment.
+        [Test]
+        public void PlayGame_InBatchMode_Refused()
+        {
+            if (!Application.isBatchMode) Assert.Ignore("only meaningful in -batchmode (a GUI editor can enter play mode safely)");
+            var r = PlayModeHandler.HandleCommand("play_game", new JObject());
+            Assert.IsTrue(r.IsError, "play_game must refuse in batchmode, not enter play mode");
+            Assert.AreEqual("UNSUPPORTED_IN_BATCHMODE", r.Code);
+            Assert.IsFalse(UnityEditor.EditorApplication.isPlaying, "must NOT have entered play mode");
+        }
+
 #if UNITY_2021_2_OR_NEWER
         // Regression guards for the prefab-stage fixes (get_hierarchy + create_gameobject stage-awareness), verified
         // live on 2022.3. [UnityTest] + poll-until-current because OpenPrefab doesn't make the stage the CURRENT

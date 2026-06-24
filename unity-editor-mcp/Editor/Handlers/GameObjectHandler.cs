@@ -52,6 +52,10 @@ namespace UnityEditorMCP.Handlers
             {
                 // Parse parameters
                 string name = parameters["name"]?.ToString() ?? "GameObject";
+                // round-6 bug #3: an explicit empty/whitespace name creates a GameObject whose path is "/", which
+                // cannot be addressed, selected, or deleted by path (orphaned until scene reload). Reject it.
+                if (string.IsNullOrWhiteSpace(name))
+                    return HandlerOutcome.Fail("name must be a non-empty string — an empty name yields path \"/\", which cannot be addressed or deleted by path.", "VALIDATION_ERROR");
                 string primitiveType = parameters["primitiveType"]?.ToString();
 
                 // Parse transform
@@ -384,6 +388,10 @@ namespace UnityEditorMCP.Handlers
             try
             {
                 string name = parameters["name"]?.ToString();
+                // round-6 bug #2: an explicit empty name was treated as "no name filter", so find {name:""} matched
+                // EVERY object. Reject an explicit-but-empty name; omit `name` entirely to search by tag/layer only.
+                if (parameters["name"] != null && string.IsNullOrEmpty(name))
+                    return HandlerOutcome.Fail("name must be non-empty when provided (an empty name matched every object). Omit `name` to search by tag/layer only.", "VALIDATION_ERROR");
                 string tag = parameters["tag"]?.ToString();
                 int? layer = parameters["layer"]?.ToObject<int>();
                 bool exactMatch = parameters["exactMatch"]?.ToObject<bool>() ?? true;
