@@ -30,6 +30,14 @@ namespace UnityEditorMCP.Handlers
             if (p["target"] is JObject t)
                 foreach (var k in new[] { "scenePath", "assetPath", "guid", "instanceId" })
                     if (t[k] != null) return t[k].ToString();
+            // round-7 FR4: serialization mutators (set_serialized_properties / modify_serialized_array) nest the
+            // target in edits[].target or use a match selector — surface a useful hint instead of an empty target.
+            if (p["edits"] is JArray edits && edits.Count > 0 && edits[0] is JObject e0 && e0["target"] is JObject et)
+                foreach (var k in new[] { "scenePath", "assetPath", "guid", "instanceId" })
+                    if (et[k] != null) return et[k].ToString();
+            if (p["match"] is JObject mm)
+                foreach (var k in new[] { "componentType", "tag", "prefab" })
+                    if (mm[k] != null) return "match:" + mm[k];
             return "";
         }
     }

@@ -129,6 +129,27 @@ namespace UnityEditorMCP.Handlers
                     newObject.layer = layer.Value;
                 }
 
+                // round-7 FR2: support a `components` array (was silently dropped — created only a Transform). Add each
+                // by type name; an unknown type is a VALIDATION_ERROR (not a silent drop), and the half-built object is
+                // discarded so the call is all-or-nothing.
+                var addedComponents = new List<string>();
+                if (parameters["components"] is JArray componentsToAdd)
+                {
+                    foreach (var c in componentsToAdd)
+                    {
+                        var compTypeName = c?.ToString();
+                        if (string.IsNullOrEmpty(compTypeName)) continue;
+                        var compType = ComponentHandler.ResolveComponentType(compTypeName);
+                        if (compType == null)
+                        {
+                            UnityEngine.Object.DestroyImmediate(newObject);
+                            return HandlerOutcome.Fail($"Unknown component type in 'components': {compTypeName}", "VALIDATION_ERROR");
+                        }
+                        newObject.AddComponent(compType);
+                        addedComponents.Add(compType.Name);
+                    }
+                }
+
                 // Register undo
                 Undo.RegisterCreatedObjectUndo(newObject, $"Create {name}");
 
@@ -146,7 +167,8 @@ namespace UnityEditorMCP.Handlers
                     scale = new { x = scale.x, y = scale.y, z = scale.z },
                     tag = newObject.tag,
                     layer = newObject.layer,
-                    isActive = newObject.activeSelf
+                    isActive = newObject.activeSelf,
+                    components = addedComponents
                 });
             }
             catch (Exception ex)

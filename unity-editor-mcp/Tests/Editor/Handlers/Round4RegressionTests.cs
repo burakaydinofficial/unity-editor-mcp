@@ -256,6 +256,22 @@ namespace UnityEditorMCP.Tests
             finally { Object.DestroyImmediate(go); }
         }
 
+        // round-7 FR2: create_gameobject `components` array adds them (was silently dropped — only a Transform).
+        [Test]
+        public void CreateGameObject_ComponentsArray_AddsThem()
+        {
+            var r = GameObjectHandler.CreateGameObject(new JObject { ["name"] = "__r7_comps__", ["components"] = new JArray { "Light", "Rigidbody" } });
+            try
+            {
+                Assert.IsFalse(r.IsError, r.Error);
+                var go = GameObject.Find("__r7_comps__");
+                Assert.IsNotNull(go);
+                Assert.IsNotNull(go.GetComponent<Light>(), "Light from `components` must be added");
+                Assert.IsNotNull(go.GetComponent<Rigidbody>(), "Rigidbody from `components` must be added");
+            }
+            finally { var g = GameObject.Find("__r7_comps__"); if (g != null) Object.DestroyImmediate(g); }
+        }
+
 #if UNITY_2021_2_OR_NEWER
         // Regression guards for the prefab-stage fixes (get_hierarchy + create_gameobject stage-awareness), verified
         // live on 2022.3. [UnityTest] + poll-until-current because OpenPrefab doesn't make the stage the CURRENT
