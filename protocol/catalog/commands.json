@@ -3836,7 +3836,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": false,
-      "description": "Manage Unity project layers (add, remove, list, convert)",
+      "description": "Manage Unity project layers (add, remove, get, convert)",
       "params": {
         "type": "object",
         "properties": {
@@ -4236,7 +4236,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": false,
-      "description": "Manage Unity project tags (add, remove, list)",
+      "description": "Manage Unity project tags (add, remove, get)",
       "params": {
         "type": "object",
         "properties": {
@@ -4364,7 +4364,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": false,
-      "description": "Manage Unity Editor tools and plugins (list, activate, deactivate, refresh)",
+      "description": "Manage Unity Editor tools and plugins (get, activate, deactivate, refresh)",
       "params": {
         "type": "object",
         "properties": {
@@ -4543,7 +4543,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": false,
-      "description": "Manage Unity Editor windows (list, focus, get state)",
+      "description": "Manage Unity Editor windows (get, focus, get state)",
       "params": {
         "type": "object",
         "properties": {
