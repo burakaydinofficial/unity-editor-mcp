@@ -89,5 +89,27 @@ namespace UnityEditorMCP.Tests
             }
             finally { UnityEditor.AssetDatabase.DeleteAsset(path); }
         }
+
+        // modify_material silently dropped a color given as an object {r,g,b,a} into propertiesFailed (only the
+        // array form [r,g,b,a] was handled). Both forms must apply.
+        [Test]
+        public void ModifyMaterial_ColorAsObject_Applied()
+        {
+            const string matPath = "Assets/__r6_mat__.mat";
+            UnityEditor.AssetDatabase.CreateAsset(new Material(Shader.Find("Standard")), matPath);
+            try
+            {
+                var r = AssetManagementHandler.ModifyMaterial(new JObject
+                {
+                    ["materialPath"] = matPath,
+                    ["properties"] = new JObject { ["_Color"] = new JObject { ["r"] = 1f, ["g"] = 0f, ["b"] = 0f, ["a"] = 1f } }
+                });
+                Assert.IsFalse(r.IsError, r.Error);
+                var failed = (JArray)JObject.FromObject(r.Payload)["propertiesFailed"];
+                Assert.AreEqual(0, failed.Count, "object-form {r,g,b,a} color must apply, not land in propertiesFailed");
+                Assert.AreEqual(Color.red, UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(matPath).GetColor("_Color"));
+            }
+            finally { UnityEditor.AssetDatabase.DeleteAsset(matPath); }
+        }
     }
 }

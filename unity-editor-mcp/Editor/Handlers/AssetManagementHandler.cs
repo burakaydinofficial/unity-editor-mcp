@@ -757,6 +757,31 @@ namespace UnityEditorMCP.Handlers
                         }
                     }
                 }
+                else if (value.Type == JTokenType.Object)
+                {
+                    // Color/Vector as an object — accept {r,g,b,a} (the array form [r,g,b,a] is handled above) and
+                    // {x,y,z,w}; callers reasonably pass either shape. An object used to silently fall through to
+                    // propertiesFailed with no reason.
+                    var obj = (JObject)value;
+                    if (obj["r"] != null || obj["g"] != null || obj["b"] != null)
+                    {
+                        material.SetColor(propId, new Color(
+                            obj["r"]?.ToObject<float>() ?? 0f,
+                            obj["g"]?.ToObject<float>() ?? 0f,
+                            obj["b"]?.ToObject<float>() ?? 0f,
+                            obj["a"]?.ToObject<float>() ?? 1f));
+                        return true;
+                    }
+                    if (obj["x"] != null || obj["y"] != null || obj["z"] != null || obj["w"] != null)
+                    {
+                        material.SetVector(propId, new Vector4(
+                            obj["x"]?.ToObject<float>() ?? 0f,
+                            obj["y"]?.ToObject<float>() ?? 0f,
+                            obj["z"]?.ToObject<float>() ?? 0f,
+                            obj["w"]?.ToObject<float>() ?? 0f));
+                        return true;
+                    }
+                }
                 else if (value.Type == JTokenType.Float || value.Type == JTokenType.Integer)
                 {
                     // Float property
