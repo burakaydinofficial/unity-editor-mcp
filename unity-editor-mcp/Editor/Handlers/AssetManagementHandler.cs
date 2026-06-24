@@ -1094,8 +1094,9 @@ namespace UnityEditorMCP.Handlers
                 string prefabPath = PrefabStageAssetPath(currentStage);
                 bool changesSaved = false;
 
-                // Save changes if requested
-                if (saveChanges && currentStage.scene.isDirty)
+                // Save changes if requested. Don't gate on isDirty — the prefab stage auto-saves edits as they're
+                // made, so isDirty is usually false even with edits present; SaveAsPrefabAsset is idempotent.
+                if (saveChanges)
                 {
                     try
                     {
@@ -1146,28 +1147,21 @@ namespace UnityEditorMCP.Handlers
                     // Save current prefab in prefab mode
                     string prefabPath = PrefabStageAssetPath(currentStage);
 
-                    if (currentStage.scene.isDirty)
+                    // Always save on an explicit save_prefab call. isDirty is usually FALSE here because the prefab
+                    // stage auto-saves edits as they're made — so the old "No changes to save" was misleading (the
+                    // edits WERE persisted, just not by this call). SaveAsPrefabAsset is idempotent.
+                    bool hadUnsaved = currentStage.scene.isDirty;
+                    PrefabUtility.SaveAsPrefabAsset(currentStage.prefabContentsRoot, prefabPath);
+                    return HandlerOutcome.Ok(new
                     {
-                        PrefabUtility.SaveAsPrefabAsset(currentStage.prefabContentsRoot, prefabPath);
-
-                        return HandlerOutcome.Ok(new
-                        {
-                            success = true,
-                            savedInPrefabMode = true,
-                            prefabPath = prefabPath,
-                            message = "Prefab changes saved successfully"
-                        });
-                    }
-                    else
-                    {
-                        return HandlerOutcome.Ok(new
-                        {
-                            success = true,
-                            savedInPrefabMode = true,
-                            prefabPath = prefabPath,
-                            message = "No changes to save"
-                        });
-                    }
+                        success = true,
+                        savedInPrefabMode = true,
+                        prefabPath = prefabPath,
+                        hadUnsavedChanges = hadUnsaved,
+                        message = hadUnsaved
+                            ? "Prefab changes saved."
+                            : "Prefab saved (no unsaved changes — the prefab stage auto-saves edits as they're made)."
+                    });
                 }
                 else if (!string.IsNullOrEmpty(gameObjectPath))
                 {

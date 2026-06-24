@@ -172,6 +172,11 @@ namespace UnityEditorMCP.Tests
                 Assert.IsFalse(lc.IsError, lc.Error);
                 var mg = GameObjectHandler.ModifyGameObject(new JObject { ["path"] = "/__ps_root__/__ps_child__", ["position"] = new JObject { ["x"] = 1f, ["y"] = 0f, ["z"] = 0f } });
                 Assert.IsFalse(mg.IsError, mg.Error);
+
+                // round-5 bug #2: save_prefab always succeeds on an explicit in-stage call (no misleading "No changes to save")
+                var sp = AssetManagementHandler.SavePrefab(new JObject());
+                Assert.IsFalse(sp.IsError, sp.Error);
+                Assert.IsTrue((bool)JObject.FromObject(sp.Payload)["savedInPrefabMode"]);
             }
             finally
             {
