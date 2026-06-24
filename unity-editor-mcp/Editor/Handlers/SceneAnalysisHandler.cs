@@ -1508,14 +1508,17 @@ namespace UnityEditorMCP.Handlers
             // Iterate the component's SerializedObject (not C# reflection) so native-backed and private
             // [SerializeField] object references are caught — reflection over managed fields misses e.g.
             // Joint.connectedBody (a property backed by the serialized m_ConnectedBody), which made
-            // get_object_references falsely report an object as unreferenced.
+            // get_object_references falsely report an object as unreferenced. Use Next (EVERY property), NOT
+            // NextVisible: some object references are hidden from the Inspector by a custom editor — notably
+            // Joint.m_ConnectedBody on 2022.3+ — and NextVisible skips non-visible properties, so the scan
+            // missed them there entirely (the ref was present but never visited).
             try
             {
                 using (var so = new SerializedObject(component))
                 {
                     var it = so.GetIterator();
                     bool enterChildren = true;
-                    while (it.NextVisible(enterChildren))
+                    while (it.Next(enterChildren))
                     {
                         enterChildren = true;
                         if (it.propertyType != SerializedPropertyType.ObjectReference) continue;
