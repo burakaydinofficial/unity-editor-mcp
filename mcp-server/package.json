@@ -1,6 +1,6 @@
 {
   "name": "@burakaydinofficial/unity-editor-mcp",
-  "version": "0.20.2",
+  "version": "0.20.3",
   "description": "MCP server for Unity Editor integration - enables AI assistants to control Unity Editor",
   "type": "module",
   "main": "src/core/server.js",

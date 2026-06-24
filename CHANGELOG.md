@@ -6,6 +6,32 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; initial focus 2020.3–2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
+## [0.20.3] — Prefab-stage editing + round-5 dogfood
+
+Two more live dogfood passes turned prefab-stage editing into a complete, consistent capability and fixed the
+error-detail path. All CI-verified across 2019.4 / 2020.3 / 2021.3 / 2022.3.
+
+### Prefab-stage editing (now end-to-end)
+
+- **`get_hierarchy`** sees the open prefab stage's contents (not just the main scene).
+- **`create_gameobject`** creates *into* the open stage — `parentPath` resolves stage objects, and a no-parent
+  create lands under the prefab root so it joins the prefab.
+- **All by-path resolvers are now stage-aware** — `add_component`, `list_components`, `get_gameobject_details`,
+  `modify_gameobject`, `remove_component`, `reorder_component`, `get_component_values`, `delete_gameobject` resolve
+  stage paths (they returned NOT_FOUND before). The open→create→add-components→modify→save flow works via the bridge.
+- **`save_prefab` / `exit_prefab_mode`** save on explicit request with accurate messages (the prefab stage
+  auto-saves, which had made them report "No changes to save"). Guarded by a `[UnityTest]`.
+
+### Other fixes
+
+- **Error responses** now carry the handler's structured `details` + `remediation` to the client (e.g. a confirm
+  gate's dependents list) — they were dropped, leaving only message + code.
+- **`reorder_component`** reports an honest `moved:0` message; documented the 2020.3-batch `ComponentUtility` no-op
+  (it works on 2021.3+).
+- **`create_scene`** rejects a `.unity` file path with a clear message (the path is the target folder).
+- **`get_gameobject_details`** accepts a path-only call (no longer wrongly requires `gameObjectName`).
+- **`manage_tags` / `manage_layers` / `manage_windows` / `manage_tools`** descriptions say `get` (the actual action), not `list`.
+
 ## [0.20.2] — Dogfood bugfixes (round 4)
 
 A fourth live dogfood pass (a fresh agent driving the 2020.3 bridge) plus fixes for the silent-wrong-answer /
