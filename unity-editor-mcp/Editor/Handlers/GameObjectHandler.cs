@@ -25,7 +25,21 @@ namespace UnityEditorMCP.Handlers
                 var inStage = FindByPathInScene(stageScene.Value, path);
                 if (inStage != null) return inStage;
             }
-            return GameObject.Find(path);
+            var go = GameObject.Find(path);
+            if (go != null) return go;
+            // round-8: GameObject.Find misses INACTIVE objects, which strands them (you can't reactivate or delete an
+            // inactive object by path). FindByPathInScene walks roots + transform.Find — both traverse inactive — so
+            // resolve any loaded scene by path as a final fallback.
+            for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
+            {
+                var s = UnityEngine.SceneManagement.SceneManager.GetSceneAt(i);
+                if (s.isLoaded)
+                {
+                    var found = FindByPathInScene(s, path);
+                    if (found != null) return found;
+                }
+            }
+            return null;
         }
 
         private static GameObject FindByPathInScene(UnityEngine.SceneManagement.Scene scene, string path)
@@ -168,7 +182,7 @@ namespace UnityEditorMCP.Handlers
                     tag = newObject.tag,
                     layer = newObject.layer,
                     isActive = newObject.activeSelf,
-                    components = addedComponents
+                    addedComponents = addedComponents
                 });
             }
             catch (Exception ex)

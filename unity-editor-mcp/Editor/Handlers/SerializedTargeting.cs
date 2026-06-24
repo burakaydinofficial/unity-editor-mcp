@@ -92,7 +92,16 @@ namespace UnityEditorMCP.Handlers
         }
 
         private static GameObject LoadPrefab(string s) => s != null && s.StartsWith("Assets/") ? AssetDatabase.LoadAssetAtPath<GameObject>(s) : AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(s));
-        private static IEnumerable<GameObject> LoadedRootObjects() { for (int i = 0; i < SceneManager.sceneCount; i++) { var sc = SceneManager.GetSceneAt(i); if (sc.isLoaded) foreach (var r in sc.GetRootGameObjects()) yield return r; } }
+        private static IEnumerable<GameObject> LoadedRootObjects()
+        {
+            // round-8: include the open prefab stage's roots so the serialization tools (inspect/set via scenePath or
+            // match) reach stage objects — otherwise they silently target the background main scene while a prefab is
+            // open. Stage first (matches the by-path resolvers' stage-first preference).
+            var stage = AssetManagementHandler.GetOpenPrefabStageScene();
+            if (stage.HasValue && stage.Value.IsValid())
+                foreach (var r in stage.Value.GetRootGameObjects()) yield return r;
+            for (int i = 0; i < SceneManager.sceneCount; i++) { var sc = SceneManager.GetSceneAt(i); if (sc.isLoaded) foreach (var r in sc.GetRootGameObjects()) yield return r; }
+        }
         private static IEnumerable<GameObject> AllGameObjects(IEnumerable<GameObject> roots) { foreach (var r in roots) foreach (var t in r.GetComponentsInChildren<Transform>(true)) yield return t.gameObject; }
         private static GameObject FindByScenePath(string path) => AllGameObjects(LoadedRootObjects()).FirstOrDefault(g => ScenePath(g) == path);
         public static string ScenePath(GameObject go) { var s = "/" + go.name; var t = go.transform; while (t.parent != null) { t = t.parent; s = "/" + t.name + s; } return s; }

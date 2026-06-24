@@ -272,6 +272,17 @@ namespace UnityEditorMCP.Tests
             finally { var g = GameObject.Find("__r7_comps__"); if (g != null) Object.DestroyImmediate(g); }
         }
 
+        // round-8 limitation 1: an INACTIVE GameObject must still be resolvable by path (else it's stranded — can't be
+        // reactivated or deleted by path). GameObject.Find is active-only; the resolver now path-walks loaded scenes.
+        [Test]
+        public void FindGameObjectStageAware_FindsInactive()
+        {
+            var go = new GameObject("__r8_inactive__");
+            go.SetActive(false);
+            try { Assert.AreSame(go, GameObjectHandler.FindGameObjectStageAware("/__r8_inactive__"), "an inactive object must be resolvable by path"); }
+            finally { Object.DestroyImmediate(go); }
+        }
+
 #if UNITY_2021_2_OR_NEWER
         // Regression guards for the prefab-stage fixes (get_hierarchy + create_gameobject stage-awareness), verified
         // live on 2022.3. [UnityTest] + poll-until-current because OpenPrefab doesn't make the stage the CURRENT
@@ -330,6 +341,11 @@ namespace UnityEditorMCP.Tests
                     Assert.AreEqual(AssetManagementHandler.GetOpenPrefabStageScene().Value, resolved.scene, "resolved object must be the one in the prefab stage");
                 }
                 finally { Object.DestroyImmediate(decoy); }
+
+                // round-8 limitation 2: serialization targeting must see prefab-stage objects by scenePath (it used to
+                // resolve against the background main scene only → TARGET_NOT_FOUND for stage paths).
+                Assert.IsTrue(SerializedTargeting.ResolveSingle(new JObject { ["scenePath"] = "/__ps_root__" }, new JObject(), out var srt, out _, out var smsg), smsg ?? "serialization targeting must resolve the stage root by scenePath");
+                Assert.AreEqual("__ps_root__", srt.Obj.name);
             }
             finally
             {
