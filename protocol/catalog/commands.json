@@ -5852,6 +5852,22 @@
       "result": { "type": "object", "properties": { "success": { "type": "boolean" }, "closedScene": { "type": "string" }, "name": { "type": "string" }, "remainingLoaded": { "type": "number" }, "message": { "type": "string" } } }
     },
     {
+      "name": "set_active_scene",
+      "category": "scene",
+      "sides": ["editor"],
+      "internal": false,
+      "destructive": false,
+      "description": "Set the ACTIVE scene among the currently loaded scenes (by scenePath or sceneName). New GameObjects/creates target the active scene, so use this to build into a non-active additively-loaded scene. The scene must already be loaded; NOT_FOUND otherwise.",
+      "params": {
+        "type": "object",
+        "properties": {
+          "scenePath": { "type": "string", "description": "Asset path of the loaded scene to activate (scenePath or sceneName required)." },
+          "sceneName": { "type": "string", "description": "Name of the loaded scene to activate (alternative to scenePath)." }
+        }
+      },
+      "result": { "type": "object", "properties": { "success": { "type": "boolean" }, "activeScene": { "type": "string", "description": "Asset path of the now-active scene" }, "name": { "type": "string" }, "message": { "type": "string" } } }
+    },
+    {
       "name": "get_scene_info",
       "category": "scene",
       "sides": ["editor"],

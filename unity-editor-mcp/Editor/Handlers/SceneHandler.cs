@@ -992,5 +992,44 @@ namespace UnityEditorMCP.Handlers
                 return HandlerOutcome.Fail($"close_scene failed: {e.Message}");
             }
         }
+
+        // round-6 #9: set the ACTIVE scene among the loaded scenes — the companion to multi-scene get_hierarchy.
+        // New creates target the active scene, so this is how you build into a non-active additively-loaded scene.
+        public static HandlerOutcome SetActiveScene(JObject parameters)
+        {
+            try
+            {
+                string scenePath = parameters["scenePath"]?.ToString();
+                string sceneName = parameters["sceneName"]?.ToString();
+                if (string.IsNullOrEmpty(scenePath) && string.IsNullOrEmpty(sceneName))
+                    return HandlerOutcome.Fail("scenePath or sceneName is required", "VALIDATION_ERROR");
+
+                UnityEngine.SceneManagement.Scene target = default;
+                bool found = false;
+                for (int i = 0; i < EditorSceneManager.sceneCount; i++)
+                {
+                    var s = EditorSceneManager.GetSceneAt(i);
+                    if (!s.isLoaded) continue;
+                    if ((!string.IsNullOrEmpty(scenePath) && s.path == scenePath) ||
+                        (!string.IsNullOrEmpty(sceneName) && s.name == sceneName))
+                    { target = s; found = true; break; }
+                }
+                if (!found)
+                    return HandlerOutcome.Fail($"Loaded scene not found: {scenePath ?? sceneName}", "NOT_FOUND");
+
+                bool ok = UnityEngine.SceneManagement.SceneManager.SetActiveScene(target);
+                return HandlerOutcome.Ok(new
+                {
+                    success = ok,
+                    activeScene = target.path,
+                    name = target.name,
+                    message = ok ? $"Active scene set to: {(string.IsNullOrEmpty(target.name) ? "(unsaved)" : target.name)}" : "Failed to set active scene"
+                });
+            }
+            catch (Exception e)
+            {
+                return HandlerOutcome.Fail($"set_active_scene failed: {e.Message}");
+            }
+        }
     }
 }

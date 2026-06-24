@@ -179,6 +179,39 @@ namespace UnityEditorMCP.Tests
             }
         }
 
+        // round-6 #9: set_active_scene changes which loaded scene is active (so creates can target a non-active scene).
+        [Test]
+        public void SetActiveScene_ChangesActiveScene()
+        {
+            var original = UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene();
+            var extra = UnityEditor.SceneManagement.EditorSceneManager.NewScene(
+                UnityEditor.SceneManagement.NewSceneSetup.EmptyScene,
+                UnityEditor.SceneManagement.NewSceneMode.Additive);
+            const string extraPath = "Assets/__sas_extra__.unity";
+            try
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.SaveScene(extra, extraPath);
+                var r = SceneHandler.SetActiveScene(new JObject { ["scenePath"] = extraPath });
+                Assert.IsFalse(r.IsError, r.Error);
+                Assert.AreEqual(extraPath, UnityEditor.SceneManagement.EditorSceneManager.GetActiveScene().path, "the extra scene must become active");
+            }
+            finally
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.SetActiveScene(original);
+                UnityEditor.SceneManagement.EditorSceneManager.CloseScene(extra, true);
+                UnityEditor.AssetDatabase.DeleteAsset(extraPath);
+            }
+        }
+
+        // round-6 #4: deleting a path that matches nothing is a NOT_FOUND error (audits ok:false), not a 0-count "success".
+        [Test]
+        public void DeleteGameObject_NothingFound_Errors()
+        {
+            var r = GameObjectHandler.DeleteGameObject(new JObject { ["path"] = "/__r6_no_such_object__" });
+            Assert.IsTrue(r.IsError, "deleting a non-existent path must error, not 'succeed' with deletedCount:0");
+            Assert.AreEqual("NOT_FOUND", r.Code);
+        }
+
 #if UNITY_2021_2_OR_NEWER
         // Regression guards for the prefab-stage fixes (get_hierarchy + create_gameobject stage-awareness), verified
         // live on 2022.3. [UnityTest] + poll-until-current because OpenPrefab doesn't make the stage the CURRENT

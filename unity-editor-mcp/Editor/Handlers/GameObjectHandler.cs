@@ -528,6 +528,12 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
                 
+                // round-6 #4: a delete that found NOTHING is a NOT_FOUND error, not a "success" that deleted 0 — so
+                // it audits as ok:false (consistent with delete_asset). A partial delete (some found) stays a success.
+                if (deleted.Count == 0 && notFound.Count > 0)
+                    return HandlerOutcome.Fail($"No GameObject(s) found to delete: {string.Join(", ", notFound)}", "NOT_FOUND",
+                        details: new { notFound = notFound, notFoundCount = notFound.Count });
+
                 return HandlerOutcome.Ok(new
                 {
                     deletedCount = deleted.Count,
