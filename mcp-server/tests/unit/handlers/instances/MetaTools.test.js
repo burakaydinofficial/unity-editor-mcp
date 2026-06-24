@@ -28,13 +28,15 @@ const throwingManager = (msg) => ({
 });
 
 describe('list_unity_tools', () => {
-  it('returns name/category/description by default (no extra params — lazy)', async () => {
+  it('returns name/category/description + paramNames by default (no full schemas — lazy)', async () => {
     const h = new ListUnityToolsToolHandler(fakeManager());
     const r = await h.execute({ instance: '7000' });
     const names = r.tools.map((t) => t.name);
     assert.ok(names.includes('create_gameobject') && names.includes('ping'), 'editor tools present');
     assert.equal(r.tools.find((t) => t.name === 'ping').category, 'system');
     assert.ok(!('params' in r.tools.find((t) => t.name === 'ping')));
+    // ...but the compact `paramNames` (parameter keys) ARE surfaced, so agents need not guess them.
+    assert.deepEqual(r.tools.find((t) => t.name === 'create_gameobject').paramNames, ['name', 'primitiveType']);
     // Roslyn capability commands are advertised dynamically (Plan 2); gated ones carry requires + available.
     const rename = r.tools.find((t) => t.name === 'rename_symbol');
     assert.ok(rename && rename.requires === 'roslyn' && rename.available === false);

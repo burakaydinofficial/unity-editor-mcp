@@ -14,7 +14,7 @@ export class ListUnityToolsToolHandler extends BaseToolHandler {
   constructor(manager, roslynMgr = roslynManager) {
     super(
       'list_unity_tools',
-      'List the tools a connected Unity editor actually supports, with their schemas (learned from the editor at runtime). Discover what call_unity_tool can invoke on a given instance. Returns names + descriptions by default; pass "name" for one tool\'s full parameter schema AND result-field hints (its response shape — read these to drive call_unity_tool\'s `fields` projection), or "category" to filter.',
+      'List the tools a connected Unity editor actually supports, with their schemas (learned from the editor at runtime). Discover what call_unity_tool can invoke on a given instance. Returns names + descriptions + paramNames (each tool\'s parameter keys, so you need not guess them) by default; pass "name" for one tool\'s full parameter schema AND result-field hints (its response shape — read these to drive call_unity_tool\'s `fields` projection), or "category" to filter.',
       {
         type: 'object',
         properties: {
@@ -51,7 +51,15 @@ export class ListUnityToolsToolHandler extends BaseToolHandler {
     return {
       instance: params.instance ?? null,
       count: tools.length,
-      tools: tools.map((t) => ({ name: t.name, category: t.category ?? null, description: t.description ?? '', ...(t.requires ? { requires: t.requires, available: t.available !== false } : {}) })),
+      // Bulk list stays compact (no full schemas), but include `paramNames` — the parameter keys — so agents
+      // don't have to guess names (the #1 dogfood friction); pass `name` for one tool's full param/result schema.
+      tools: tools.map((t) => ({
+        name: t.name,
+        category: t.category ?? null,
+        description: t.description ?? '',
+        ...(t.params && t.params.properties ? { paramNames: Object.keys(t.params.properties) } : {}),
+        ...(t.requires ? { requires: t.requires, available: t.available !== false } : {}),
+      })),
       schemasAvailable: hasSchemas,
     };
   }
