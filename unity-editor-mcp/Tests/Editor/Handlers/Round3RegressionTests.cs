@@ -17,7 +17,14 @@ namespace UnityEditorMCP.Tests
             var rb = target.AddComponent<Rigidbody>();
             var source = new GameObject("__ref_source__");
             var joint = source.AddComponent<HingeJoint>(); // auto-adds a Rigidbody to source
-            joint.connectedBody = rb;
+            // Wire connectedBody via SerializedObject so the serialized m_ConnectedBody is definitely committed
+            // before the scan reads it — the C# setter's native->serialized sync isn't reliably synchronous on
+            // 2022.3+ (the scan opens a fresh SerializedObject, which read null there).
+            using (var so = new UnityEditor.SerializedObject(joint))
+            {
+                so.FindProperty("m_ConnectedBody").objectReferenceValue = rb;
+                so.ApplyModifiedProperties();
+            }
             try
             {
                 var r = SceneAnalysisHandler.GetObjectReferences(new JObject { ["gameObjectName"] = "__ref_target__" });
@@ -54,12 +61,12 @@ namespace UnityEditorMCP.Tests
                 {
                     ["target"] = new JObject { ["instanceId"] = go.GetInstanceID() },
                     ["component"] = "Transform",
-                    ["pathPrefix"] = "m_RootOrder" // an int leaf
+                    ["pathPrefix"] = "m_LocalPosition.x" // a float leaf present on every floor (m_RootOrder isn't serialized on 2022.3+)
                 });
                 Assert.IsFalse(r.IsError, r.Error);
                 var props = (JArray)JObject.FromObject(r.Payload)["object"]["properties"];
                 Assert.AreEqual(1, props.Count);
-                Assert.AreEqual("m_RootOrder", (string)props[0]["propertyPath"]);
+                Assert.AreEqual("m_LocalPosition.x", (string)props[0]["propertyPath"]);
             }
             finally { Object.DestroyImmediate(go); }
         }
