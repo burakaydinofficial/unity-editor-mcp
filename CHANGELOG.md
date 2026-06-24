@@ -6,6 +6,26 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; initial focus 2020.3–2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
+## [0.20.2] — Dogfood bugfixes (round 4)
+
+A fourth live dogfood pass (a fresh agent driving the 2020.3 bridge) plus fixes for the silent-wrong-answer /
+ignored-input issues it surfaced, each with a regression test:
+
+- **`modify_gameobject`** — an undefined tag now fails (`VALIDATION_ERROR`) instead of false-succeeding while the
+  object stayed Untagged.
+- **`get_component_types`** — the name filter now accepts `searchTerm`/`query` aliases (not only `search`).
+- **`enhanced_read_logs`** — honors the singular `logType`; statistics are scoped to the filtered set (were a
+  whole-buffer tally).
+- **`modify_prefab`** — a `name` modification is rejected with guidance (a prefab root name follows the .prefab
+  file name; use `move_asset`) rather than reporting a no-op rename as success.
+- **`modify_material`** — accepts a color/vector as an object (`{r,g,b,a}` / `{x,y,z,w}`), not only an array.
+- **`read_logs` / `clear_logs`** — now read/clear the real editor console (`LogEntries`), like
+  `enhanced_read_logs` / `clear_console`, instead of a capture buffer that reset on every domain reload.
+- **`list_unity_tools`** — the bulk listing now includes each tool's `paramNames`, so agents need not guess
+  parameter names.
+
+Verified on the floor-matrix (2019.4 / 2020.3 / 2021.3 / 2022.3) and the Node test suite.
+
 ## [0.20.1] — Dogfood bugfixes
 
 Fixes from three live dogfood passes — fresh agents drove the bridge end-to-end and reported friction, with
