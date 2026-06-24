@@ -367,6 +367,7 @@ export class UnityConnection extends EventEmitter {
                 const err = new Error(result.error);
                 err.code = result.code || 'EDITOR_ERROR';
                 if (result.details !== undefined) err.details = result.details; // parity with the native error path (audit)
+                if (result.remediation !== undefined) err.remediation = result.remediation;
                 logger.warn(`[Unity] Command ${response.id} returned a handler-level error under a success envelope: ${result.error}`);
                 pending.reject(err);
               } else {
@@ -378,6 +379,7 @@ export class UnityConnection extends EventEmitter {
               const err = new Error(response.error || 'Command failed');
               if (response.code) err.code = response.code;
               if (response.details !== undefined) err.details = response.details;
+              if (response.remediation !== undefined) err.remediation = response.remediation;
               pending.reject(err);
             } else {
               // Unknown format

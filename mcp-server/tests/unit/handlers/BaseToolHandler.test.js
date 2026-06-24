@@ -154,9 +154,28 @@ describe('BaseToolHandler', () => {
       });
       
       const result = await errorHandler.handle({ requiredParam: 'test' });
-      
+
       assert.equal(result.status, 'error');
       assert.equal(result.code, 'CUSTOM_ERROR');
+    });
+
+    it('should preserve the editor/handler structured details + remediation on the error (F4)', async () => {
+      const errorHandler = new TestToolHandler(() => {
+        const error = new Error('Confirmation required');
+        error.code = 'CONFIRMATION_REQUIRED';
+        error.details = { wouldDelete: 'Assets/X.prefab', dependents: ['Assets/Y.mat'], dependentCount: 1 };
+        error.remediation = 'Re-call with confirm:true';
+        throw error;
+      });
+
+      const result = await errorHandler.handle({ requiredParam: 'test' });
+
+      assert.equal(result.status, 'error');
+      assert.equal(result.code, 'CONFIRMATION_REQUIRED');
+      // the editor's structured details reach the client (used to be dropped, leaving only message + code)
+      assert.deepEqual(result.details.handlerDetails, { wouldDelete: 'Assets/X.prefab', dependents: ['Assets/Y.mat'], dependentCount: 1 });
+      assert.equal(result.details.remediation, 'Re-call with confirm:true');
+      assert.equal(result.details.tool, 'test_tool'); // call context still present
     });
 
     it('should include stack trace in development mode', async () => {

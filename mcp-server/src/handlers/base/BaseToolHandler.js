@@ -74,6 +74,10 @@ export class BaseToolHandler {
         details: {
           tool: this.name,
           params: this.summarizeParams(params),
+          // Preserve the editor/handler's structured details + remediation (e.g. a confirm-gate's dependents)
+          // so they reach the agent — they used to be dropped here, leaving only the message + code.
+          ...(error.details !== undefined ? { handlerDetails: error.details } : {}),
+          ...(error.remediation ? { remediation: error.remediation } : {}),
           stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         }
       };
