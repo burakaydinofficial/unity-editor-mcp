@@ -57,17 +57,23 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
-                var logs = LogCapture.GetLogs(count, filterType);
+                // Read the editor console (LogEntries) — the same buffer enhanced_read_logs uses — not the legacy
+                // LogCapture buffer, which reset on every domain reload and missed editor-internal logs (read_logs
+                // returned ~1 entry next to enhanced_read_logs' full console). The editor console exposes no
+                // per-entry wall-clock via this reflection, so `timestamp` is the read time (best-effort).
+                var entries = ConsoleHandler.ReadConsoleEntries(count, filterType);
+                if (entries == null)
+                    return HandlerOutcome.Fail("Console reflection not available", "INVALID_STATE");
+                string readAt = DateTime.UtcNow.ToString("o");
                 var logData = new List<object>();
-
-                foreach (var log in logs)
+                foreach (var e in entries)
                 {
                     logData.Add(new
                     {
-                        message = log.message,
-                        stackTrace = log.stackTrace,
-                        logType = log.logType.ToString(),
-                        timestamp = log.timestamp.ToString("o")
+                        message = e["message"],
+                        stackTrace = e["stackTrace"],
+                        logType = e["logType"],
+                        timestamp = readAt
                     });
                 }
 
@@ -75,7 +81,7 @@ namespace UnityEditorMCP.Handlers
                 {
                     logs = logData,
                     count = logData.Count,
-                    totalCaptured = logs.Count
+                    totalCaptured = logData.Count
                 });
             }
             catch (Exception e) { return HandlerOutcome.Fail($"Error reading logs: {e.Message}"); }
@@ -85,6 +91,9 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                // Clear the editor console (LogEntries) — the buffer read_logs now reads — so clear_logs and
+                // read_logs stay consistent; also clear the legacy LogCapture buffer.
+                ConsoleHandler.ClearConsoleEntries();
                 LogCapture.ClearLogs();
                 return HandlerOutcome.Ok(new
                 {

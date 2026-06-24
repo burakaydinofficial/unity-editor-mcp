@@ -151,6 +151,56 @@ namespace UnityEditorMCP.Handlers
         }
 
         /// <summary>
+        /// Reads the editor console (UnityEditor.LogEntries) — the buffer enhanced_read_logs uses, which survives
+        /// domain reloads — as a simple newest-first list, optionally filtered by type. Shared so read_logs no
+        /// longer reads the reload-resetting LogCapture buffer. Returns null if console reflection is unavailable.
+        /// </summary>
+        public static List<Dictionary<string, object>> ReadConsoleEntries(int count, LogType? filterType)
+        {
+            if (!IsReflectionInitialized()) return null;
+            var entries = new List<Dictionary<string, object>>();
+            _startGettingEntriesMethod.Invoke(null, null);
+            try
+            {
+                int total = (int)_getCountMethod.Invoke(null, null);
+                Type logEntryType = typeof(EditorApplication).Assembly.GetType("UnityEditor.LogEntry");
+                object entry = Activator.CreateInstance(logEntryType);
+                for (int i = total - 1; i >= 0 && entries.Count < count; i--)
+                {
+                    _getEntryMethod.Invoke(null, new object[] { i, entry });
+                    int mode = (int)_modeField.GetValue(entry);
+                    string message = (string)_messageField.GetValue(entry);
+                    if (string.IsNullOrEmpty(message)) continue;
+                    LogType lt = GetLogTypeFromMode(mode);
+                    if (filterType.HasValue && lt != filterType.Value) continue;
+                    string stack = ExtractStackTrace(message);
+                    string head = !string.IsNullOrEmpty(stack)
+                        ? message.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)[0]
+                        : message;
+                    entries.Add(new Dictionary<string, object>
+                    {
+                        ["message"] = head,
+                        ["stackTrace"] = stack,
+                        ["logType"] = lt.ToString(),
+                        ["file"] = (string)_fileField.GetValue(entry),
+                        ["line"] = (int)_lineField.GetValue(entry),
+                    });
+                }
+            }
+            finally { _endGettingEntriesMethod.Invoke(null, null); }
+            return entries;
+        }
+
+        /// <summary>Clears the editor console (UnityEditor.LogEntries) — the buffer read_logs now reads. Returns
+        /// false if console reflection is unavailable.</summary>
+        public static bool ClearConsoleEntries()
+        {
+            if (_clearMethod == null) return false;
+            _clearMethod.Invoke(null, null);
+            return true;
+        }
+
+        /// <summary>
         /// Reads console logs with enhanced filtering
         /// </summary>
         /// <param name="parameters">Command parameters</param>

@@ -111,5 +111,20 @@ namespace UnityEditorMCP.Tests
             }
             finally { UnityEditor.AssetDatabase.DeleteAsset(matPath); }
         }
+
+        // read_logs read the LogCapture buffer (reset every domain reload → ~1 entry); it now reads the editor
+        // console (LogEntries), like enhanced_read_logs. A freshly-logged warning must appear.
+        [Test]
+        public void ReadLogs_SurfacesEditorConsole()
+        {
+            var marker = "R7_readlogs_" + System.Guid.NewGuid().ToString("N");
+            Debug.LogWarning(marker);
+            var r = SystemHandler.ReadLogs(new JObject { ["count"] = 500 });
+            Assert.IsFalse(r.IsError, r.Error);
+            var logs = (JArray)JObject.FromObject(r.Payload)["logs"];
+            bool found = false;
+            foreach (var l in logs) { if (((string)l["message"] ?? "").Contains(marker)) { found = true; break; } }
+            Assert.IsTrue(found, "read_logs must surface the editor console (it should contain the freshly-logged marker)");
+        }
     }
 }
