@@ -7,15 +7,16 @@ version-divergent Unity API sits behind a `#if UNITY_X_Y_OR_NEWER` guard with
 
 ## Policy
 
-- **Tested floor:** Unity **2020.3 LTS**. The Unity package manifest
-  (`unity-editor-mcp/package.json` → `"unity"`) and this document must agree with
-  what the code actually compiles against.
-- **C# language / runtime:** stay within **C# 8 / netstandard 2.0** (the 2020.3
-  Mono reality). Code intended to also compile on 2019.4 is limited to **C# 7.3**.
-  This also rules out **netstandard 2.1+ BCL APIs** — e.g. `string.Contains(value,
-  StringComparison)` and the `char` `Contains`/`StartsWith`/`EndsWith` overloads
-  (use `IndexOf(value, StringComparison) >= 0` instead). The compat-lint guards
-  the curated cases; the rest surface on the 2020.3 compile.
+- **Tested floor:** Unity **2019.4 LTS** — the lowest version in the floor-matrix CI
+  (2019.4 / 2020.3 / 2021.3 / 2022.3, EditMode green on each). The Unity package
+  manifest (`unity-editor-mcp/package.json` → `"unity"` = `2019.4`) and this document
+  must agree with what the code actually compiles against.
+- **C# language / runtime:** stay within **C# 7.3 / netstandard 2.0** (the 2019.4
+  floor's Mono — older than 2020.3's C# 8). This also rules out **netstandard 2.1+
+  BCL APIs** — e.g. `string.Contains(value, StringComparison)` and the `char`
+  `Contains`/`StartsWith`/`EndsWith` overloads (use `IndexOf(value, StringComparison)
+  >= 0` instead). The compat-lint guards the curated cases; the rest surface on the
+  floor-matrix cold compile.
 - **No UI Toolkit editor APIs in core paths** (IMGUI-safe) unless guarded.
 - **Node server:** pure JS, no native modules; the protocol tooling
   (`protocol/`) is dependency-free.
@@ -42,14 +43,15 @@ in sync when you add or remove a guard.
 
 Tracked openly so the list is the work list:
 
-1. **Floor not fully CI-verified.** Two cheap, pure-Node PR gates now guard the
-   floor: the **compat-lint** (`scripts/compat-lint.mjs`) flags floor-divergent
-   Unity APIs used outside an `#if` guard (it would have caught the PrefabStage
-   break), and the **Core `dotnet test`** lane verifies the Unity-independent
-   spine. What neither does is actually *compile* the Unity package on each editor:
-   a full game-ci matrix on 2020.3 / 2021.3 / 2022.3 / 6000 (requirement A3)
-   remains the gold standard — heavyweight (Unity license + minutes), a deliberate
-   later step, with local in-editor checks in the interim.
+1. **Floor CI-verified (2019.4–2022.3); Unity 6 pending.** The **floor-matrix**
+   (`.github/workflows/floor-matrix.yml`) cold-compiles the package and runs the full
+   EditMode suite on **2019.4 / 2020.3 / 2021.3 / 2022.3** (GameCI, per-version host
+   projects under `ci/unity-host-<ver>/`) on every release tag and on PRs touching the
+   package. Backed by two pure-Node PR gates: **compat-lint** (`scripts/compat-lint.mjs`,
+   flags unguarded floor-divergent APIs) and the **Core `dotnet test`** lane. Still
+   open: a **Unity 6 (6000.x)** host in the matrix (the API is guarded; the host
+   project is pending). Lesson: floor-compat needs a *cold* compile — an interactive
+   editor's incremental compile can hide a floor break with a stale assembly.
 2. **Test Runner wiring — fixed and verified live.** Added the
    `UnityEditor.TestRunner` assembly reference to `UnityEditorMCP.Editor.asmdef`,
    declared `com.unity.test-framework` (>= 1.1.33; UPM resolves higher on newer
@@ -73,15 +75,18 @@ Tracked openly so the list is the work list:
    (2019.3+), `managedReferenceFullTypename` (2019.3+), `managedReferenceFieldTypename`
    (2020.1+) — are all available on the 2020.3 floor, so no guard is needed.
 
-5. **2019.4 floor now cold-compiles (locally, batch-mode verified — not yet in CI).** A cold **batch-mode** compile
-   on 2019.4.41f2 surfaced four floor breaks the interactive editor's incremental compile had masked, now resolved:
-   `loadedSceneCount` (avoided — manual count via `sceneCount`/`GetSceneAt`/`isLoaded`), `PrefabStage.assetPath` and
-   `FindObjectsOfType<T>(includeInactive)` (guarded with `UNITY_2020_1_OR_NEWER`, see the table), and
-   `AnimationWindow` (`internal` on 2019.4 — referenced by full type name via reflection in `ToolManagementHandler`'s
-   `IsEditorWindowOpen`/`FindEditorWindowType`, a single version-agnostic path with no `#if`). The **tested floor
-   remains 2020.3** (the CI matrix); 2019.4 is a guarded best-effort target, verified locally by a batch compile +
-   EditMode run. Lesson: floor-compat needs a **cold** compile — an interactive editor's incremental compile can
-   reuse a stale assembly and hide a floor break.
+5. **Floor verified across 2019.4–2022.3 (the fork's "floor-true" mission, made real).** Cold batch + CI compiles
+   surfaced floor breaks the interactive editor's incremental compile had masked, now resolved:
+   - **2019.4:** `loadedSceneCount` (avoided — manual count via `sceneCount`/`GetSceneAt`/`isLoaded`),
+     `PrefabStage.assetPath` + `FindObjectsOfType<T>(includeInactive)` (guarded `UNITY_2020_1_OR_NEWER`, see the
+     table), and `AnimationWindow` (`internal` on 2019.4 — referenced by full type name via reflection in
+     `ToolManagementHandler`, version-agnostic, no `#if`).
+   - **2022.3:** `get_object_references` missed `Joint.m_ConnectedBody` — hidden from the Inspector by a custom
+     editor on 2022.3+, so the `NextVisible` reference scan skipped it; switched the walk to `Next` (every
+     serialized property, regardless of visibility).
+   2019.4 is now the package's declared floor (`unity` = `2019.4`) and in the floor-matrix CI (EditMode green on
+   all four). Lesson: floor-compat needs a **cold** compile — an interactive editor's incremental compile can reuse
+   a stale assembly and hide a floor break.
 
 ## Adding a guard
 

@@ -9,7 +9,8 @@ package `com.burakk.unity-editor-mcp` ship together at the same version.
 ## [0.20.1] — Dogfood bugfixes
 
 Fixes from three live dogfood passes — fresh agents drove the bridge end-to-end and reported friction, with
-regression tests for each. Editor surface **99 commands** (close_scene added).
+regression tests for each. Editor surface **99 commands** (close_scene added). **Floor lowered to Unity 2019.4**,
+now CI-verified — the floor-matrix cold-compiles + runs EditMode on 2019.4 / 2020.3 / 2021.3 / 2022.3.
 
 ### Added
 

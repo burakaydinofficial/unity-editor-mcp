@@ -88,7 +88,7 @@ Name-based code intelligence (`resolve_symbol`, `get_type_members`, `find_implem
 
 ## Requirements
 
-- **Unity**: 2020.3 LTS or newer
+- **Unity**: 2019.4 LTS or newer
 - **Node.js**: 18.0.0 or newer
 - **MCP Client**: Claude Desktop, Cursor, or compatible client
 

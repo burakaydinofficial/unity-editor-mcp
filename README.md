@@ -1,14 +1,14 @@
 # Unity Editor MCP
 
 [![CI](https://github.com/burakaydinofficial/unity-editor-mcp/actions/workflows/test-coverage.yml/badge.svg)](https://github.com/burakaydinofficial/unity-editor-mcp/actions/workflows/test-coverage.yml)
-[![floor-matrix (Unity 2020.3 · 2021.3 · 2022.3)](https://github.com/burakaydinofficial/unity-editor-mcp/actions/workflows/floor-matrix.yml/badge.svg?event=push)](https://github.com/burakaydinofficial/unity-editor-mcp/actions/workflows/floor-matrix.yml)
+[![floor-matrix (Unity 2019.4 · 2020.3 · 2021.3 · 2022.3)](https://github.com/burakaydinofficial/unity-editor-mcp/actions/workflows/floor-matrix.yml/badge.svg?event=push)](https://github.com/burakaydinofficial/unity-editor-mcp/actions/workflows/floor-matrix.yml)
 [![codecov](https://codecov.io/gh/burakaydinofficial/unity-editor-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/burakaydinofficial/unity-editor-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm version](https://img.shields.io/npm/v/@burakaydinofficial/unity-editor-mcp)](https://www.npmjs.com/package/@burakaydinofficial/unity-editor-mcp)
 
 > ⚠️ **This project is in beta (0.x) and under heavy development.** Features and APIs may change. Use at your own discretion.
 
-Unity Editor MCP (Model Context Protocol) enables AI assistants like Claude and Cursor to interact directly with the Unity Editor, allowing for AI-assisted game development and automation. This is a fork focused on being **the deep, floor-true bridge for older Unity projects** — Unity **2020.3 LTS and newer is the tested floor**, with both branches of every version-divergent API kept under guards down to 2019.4 (see [`COMPATIBILITY.md`](COMPATIBILITY.md)).
+Unity Editor MCP (Model Context Protocol) enables AI assistants like Claude and Cursor to interact directly with the Unity Editor, allowing for AI-assisted game development and automation. This is a fork focused on being **the deep, floor-true bridge for older Unity projects** — **Unity 2019.4 LTS is the tested floor** (CI cold-compiles + runs EditMode on 2019.4 / 2020.3 / 2021.3 / 2022.3), with both branches of every version-divergent API kept under guards (see [`COMPATIBILITY.md`](COMPATIBILITY.md)).
 
 ## 🚀 Key Features
 
@@ -22,7 +22,7 @@ Unity Editor MCP (Model Context Protocol) enables AI assistants like Claude and 
 - **🏃 Play mode & tests** — drive play mode, run EditMode/PlayMode tests, read results
 - **🖱️ UI automation** — click / set / inspect uGUI elements (Undo-tracked)
 - **🛡️ Safety rails** — a confirm-gate on irreversible commands, a project-folder path sandbox, and a local mutation audit log
-- **🔌 Version-agnostic surface** — one server works with **any Unity 2020.3+ editor** (guarded to 2019.4) and several editors at once; the client learns each editor's real tools at runtime
+- **🔌 Version-agnostic surface** — one server works with **any Unity 2019.4+ editor** and several editors at once; the client learns each editor's real tools at runtime
 
 ## ✅ Supported Unity versions
 
@@ -31,21 +31,22 @@ Unity Editor MCP (Model Context Protocol) enables AI assistants like Claude and 
 
 | Unity LTS | CI patch | Editor C# + EditMode |
 |---|---|---|
+| 2019.4 LTS | `2019.4.41f2` | ✅ compiles + EditMode tests green |
 | 2020.3 LTS | `2020.3.49f1` | ✅ compiles + EditMode tests green |
 | 2021.3 LTS | `2021.3.45f2` | ✅ compiles + EditMode tests green |
 | 2022.3 LTS | `2022.3.62f2` | ✅ compiles + EditMode tests green |
 
-**Floor = 2020.3 LTS.** The versions above run the full EditMode suite in the
-[floor-matrix CI](.github/workflows/floor-matrix.yml) on every release tag. **2019.4** is a guarded best-effort
-target — both branches of each version-divergent API are kept under `#if` (see [`COMPATIBILITY.md`](COMPATIBILITY.md)) —
-but is not in the CI matrix. **Unity 6 (6000.x)** is guarded; a CI host project is pending.
+**Floor = 2019.4 LTS** — the lowest version in the CI matrix. The versions above run the full EditMode suite in
+the [floor-matrix CI](.github/workflows/floor-matrix.yml) on every release tag, each version-divergent API
+guarded under `#if` with both branches (see [`COMPATIBILITY.md`](COMPATIBILITY.md)). **Unity 6 (6000.x)** is
+guarded; a CI host project is pending.
 <!-- SUPPORT-TABLE:END -->
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- ✅ Unity 2020.3 LTS or newer (the tested floor; 2019.4 is a guarded best-effort target — see `COMPATIBILITY.md`)
+- ✅ Unity 2019.4 LTS or newer (the tested floor — CI-verified on 2019.4–2022.3; see `COMPATIBILITY.md`)
 - ✅ Node.js 18.0.0 or newer  
 - ✅ An MCP client — Claude Code, Claude Desktop, or Cursor
 

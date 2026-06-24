@@ -9,22 +9,23 @@ This repository is the base of a fork whose mission is defined in
 projects**. That document is the authoritative roadmap (requirements A1–K6, prioritized P0/P1/P2).
 Consult it before designing or implementing any feature.
 
-Compatibility target: **Unity 2019 through the latest versions**, with the initial focus on the
-**2020.3 – 2022.3 LTS range**. Supporting very old editors (down to 2019) is the purpose of this
-fork — never silently raise the version floor:
+Compatibility target: **Unity 2019 through the latest versions**. The **floor-matrix CI compiles + runs the
+EditMode suite on 2019.4 / 2020.3 / 2021.3 / 2022.3** — **2019.4 is the declared floor**. Supporting old editors
+(down to 2019.4) is the purpose of this fork — never silently raise the version floor:
 
 - Every version-divergent Unity API goes behind `#if UNITY_X_Y_OR_NEWER` guards with **both
   branches maintained** — guards, not floors.
-- Unity-side C# must stay within **C# 8 / netstandard 2.0** (the 2020.3 Mono reality); code that
-  must compile on 2019.4 is limited to **C# 7.3**. No UI Toolkit editor APIs in core paths
-  (IMGUI-safe).
+- Unity-side C# must stay within **C# 7.3 / netstandard 2.0** (the 2019.4 floor's Mono — older than 2020.3's
+  C# 8; the whole codebase compiles on 2019.4). No UI Toolkit editor APIs in core paths (IMGUI-safe).
 - Node server stays **pure JS, no native modules** (npx friction-free), Node >= 18.
 - All guarded API sites are cataloged in **`COMPATIBILITY.md`** (keep it in sync when adding a
-  guard). Current guards: Rigidbody drag/damping renames (`UNITY_6000_0_OR_NEWER`) and the
-  `PrefabStageUtility` namespace move (`UNITY_2021_2_OR_NEWER`, `AssetManagementHandler.cs`).
-- The Unity package `unity` field (`unity-editor-mcp/package.json`, currently `2020.3`), the README
-  support claims, and actual code compatibility must agree. There is **no CI matrix compiling the C#
-  on the floor yet** — the largest open compatibility risk (see `COMPATIBILITY.md`).
+  guard). Current guards: Rigidbody drag/damping + `LightType.Rectangle` (`UNITY_6000_0_OR_NEWER`), the
+  `PrefabStageUtility` namespace move (`UNITY_2021_2_OR_NEWER`), and `PrefabStage.assetPath` +
+  `FindObjectsOfType<T>(includeInactive)` (`UNITY_2020_1_OR_NEWER`).
+- The Unity package `unity` field (`unity-editor-mcp/package.json`, `2019.4`), the README support claims, and
+  actual code compatibility must agree. The **floor-matrix CI** (`.github/workflows/floor-matrix.yml`) now
+  cold-compiles + EditMode-tests **2019.4–2022.3** every release tag (a Unity 6 host is still pending); see
+  `COMPATIBILITY.md`.
 
 ## Repository Layout
 

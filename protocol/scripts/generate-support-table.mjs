@@ -35,10 +35,10 @@ const table = [
   '|---|---|---|',
   rows,
   '',
-  '**Floor = 2020.3 LTS.** The versions above run the full EditMode suite in the',
-  '[floor-matrix CI](.github/workflows/floor-matrix.yml) on every release tag. **2019.4** is a guarded best-effort',
-  'target — both branches of each version-divergent API are kept under `#if` (see [`COMPATIBILITY.md`](COMPATIBILITY.md)) —',
-  'but is not in the CI matrix. **Unity 6 (6000.x)** is guarded; a CI host project is pending.',
+  '**Floor = 2019.4 LTS** — the lowest version in the CI matrix. The versions above run the full EditMode suite in',
+  'the [floor-matrix CI](.github/workflows/floor-matrix.yml) on every release tag, each version-divergent API',
+  'guarded under `#if` with both branches (see [`COMPATIBILITY.md`](COMPATIBILITY.md)). **Unity 6 (6000.x)** is',
+  'guarded; a CI host project is pending.',
   '<!-- SUPPORT-TABLE:END -->',
 ].join('\n');
 
