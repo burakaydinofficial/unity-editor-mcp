@@ -147,6 +147,12 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail("modifications object is required and cannot be empty", "VALIDATION_ERROR");
                 }
 
+                // "name" can't be honored here: a prefab asset's root name follows the .prefab FILE name, and
+                // SaveAsPrefabAsset re-derives it on save — so a name set via LoadPrefabContents silently vanishes.
+                // Reject with guidance instead of false-succeeding (it used to report modifiedProperties:["name"]).
+                if (modifications.Properties().Any(p => string.Equals(p.Name, "name", StringComparison.OrdinalIgnoreCase)))
+                    return HandlerOutcome.Fail("modify_prefab cannot rename a prefab — the root name follows the .prefab file name. Use move_asset to rename the file (which renames the root), or set_serialized_properties on the asset's m_Name.", "VALIDATION_ERROR");
+
                 // Load the prefab
                 GameObject prefabAsset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
                 if (prefabAsset == null)

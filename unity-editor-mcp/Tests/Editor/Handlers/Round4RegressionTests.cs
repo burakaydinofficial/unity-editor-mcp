@@ -67,5 +67,27 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual(0, (int)stats["logs"], "statistics must be scoped to the filtered set, not the whole buffer");
             Assert.AreEqual(0, (int)stats["warnings"], "statistics must be scoped to the filtered set, not the whole buffer");
         }
+
+        // modify_prefab reported success + modifiedProperties:["name"] for a rename that did nothing — a prefab
+        // root's name follows the .prefab file name (SaveAsPrefabAsset re-derives it). It must reject, not false-succeed.
+        [Test]
+        public void ModifyPrefab_Rename_RejectedNotFalseSuccess()
+        {
+            var src = new GameObject("__r5_prefab_src__");
+            const string path = "Assets/__r5_modprefab__.prefab";
+            UnityEditor.PrefabUtility.SaveAsPrefabAsset(src, path);
+            Object.DestroyImmediate(src);
+            try
+            {
+                var r = AssetManagementHandler.ModifyPrefab(new JObject
+                {
+                    ["prefabPath"] = path,
+                    ["modifications"] = new JObject { ["name"] = "__r5_renamed__" }
+                });
+                Assert.IsTrue(r.IsError, "renaming via modify_prefab must be rejected, not false-succeed");
+                Assert.AreEqual("VALIDATION_ERROR", r.Code);
+            }
+            finally { UnityEditor.AssetDatabase.DeleteAsset(path); }
+        }
     }
 }
