@@ -88,6 +88,13 @@ Tracked openly so the list is the work list:
    all four). Lesson: floor-compat needs a **cold** compile — an interactive editor's incremental compile can reuse
    a stale assembly and hide a floor break.
 
+6. **`reorder_component` is a no-op in some older editors' batch mode (Unity limitation, not ours).** It calls
+   `ComponentUtility.MoveComponentUp/Down`, which returns `false` (no movement) in **2020.3 batch mode** — so
+   `reorder_component` reports `moved: 0`. Verified live: it works on **2021.3 / 2022.3** (the component order
+   genuinely changes — `[Transform, Rigidbody, BoxCollider]` → `[Transform, BoxCollider, Rigidbody]`). The handler
+   now says so in its `moved: 0` message. No public batch-safe alternative exists (component order is
+   engine-internal), so this is documented rather than worked around.
+
 ## Adding a guard
 
 1. Wrap the divergent call in `#if UNITY_X_Y_OR_NEWER … #else … #endif` (or a

@@ -265,7 +265,9 @@ namespace UnityEditorMCP.Handlers
                     componentType = type.Name,
                     direction = direction,
                     moved = moved,
-                    message = $"Moved {type.Name} {direction} {moved} step(s)"
+                    message = moved > 0
+                        ? $"Moved {type.Name} {direction} {moved} step(s)"
+                        : $"{type.Name} did not move — it is already at the {(direction == "up" ? "top" : "bottom")}, or component reordering is unavailable in this editor (ComponentUtility.MoveComponent* is a no-op in some older editors' batch mode, e.g. 2020.3; it works 2021.3+)."
                 });
             }
             catch (Exception ex)
