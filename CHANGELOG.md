@@ -6,6 +6,15 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; initial focus 2020.3–2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
+## [0.20.4] — Prefab-stage same-name shadowing fix
+
+Corrects a bug in the 0.20.3 prefab-stage work, found by code review: `FindGameObjectStageAware` resolved the main
+scene *before* the open prefab stage, so a same-named main-scene object would shadow the stage object — a by-path
+mutation (`add_component`/`modify_gameobject`/`delete_gameobject`/…) could silently hit the wrong target while
+editing a prefab. It now resolves the open stage **first**, falling back to the main scene only when the path isn't
+in the stage. Guarded by a `[UnityTest]`. (0.20.3 reached OpenUPM only — npm skipped it — so 0.20.4 brings both
+registries back in lockstep on the corrected code.)
+
 ## [0.20.3] — Prefab-stage editing + round-5 dogfood
 
 Two more live dogfood passes turned prefab-stage editing into a complete, consistent capability and fixed the
