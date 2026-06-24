@@ -44,6 +44,13 @@ namespace UnityEditorMCP.Handlers
                 var loadScene = parameters["loadScene"]?.ToObject<bool>() ?? true;
                 var addToBuildSettings = parameters["addToBuildSettings"]?.ToObject<bool>() ?? false;
 
+                // A common mistake: passing a .unity FILE path. `path` is the target FOLDER; the file is named from
+                // sceneName. Reject clearly instead of building "Assets/Foo.unity/Foo.unity" and failing on save.
+                if (path.EndsWith(".unity"))
+                {
+                    return HandlerOutcome.Fail("path must be a folder (e.g. \"Assets/Scenes/\"), not a .unity file — the scene file is named from sceneName.", "VALIDATION_ERROR");
+                }
+
                 // Ensure path ends with /
                 if (!path.EndsWith("/"))
                 {

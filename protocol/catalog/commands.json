@@ -1256,9 +1256,7 @@
             "description": "Maximum depth for child traversal. Default: 3, Range: 0-10"
           }
         },
-        "required": [
-          "gameObjectName"
-        ]
+        "required": []
       },
       "result": {
         "type": "object",
