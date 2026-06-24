@@ -45,6 +45,14 @@ namespace UnityEditorMCP.Handlers
             return stage != null ? stage.scene : (UnityEngine.SceneManagement.Scene?)null;
         }
 
+        // The open prefab-stage's root GameObject (the prefab being edited), or null if none. New objects added to
+        // the prefab must be parented under this — a bare stage-scene sibling of it would NOT be saved into the prefab.
+        public static GameObject GetOpenPrefabStageRoot()
+        {
+            var stage = PrefabStageUtility.GetCurrentPrefabStage();
+            return stage != null ? stage.prefabContentsRoot : null;
+        }
+
         /// <summary>
         /// Creates a new prefab from a GameObject or from scratch
         /// </summary>

@@ -13,6 +13,33 @@ namespace UnityEditorMCP.Handlers
     /// </summary>
     public static class GameObjectHandler
     {
+        // Stage-aware GameObject lookup: GameObject.Find doesn't traverse an open prefab stage's preview scene, so
+        // a parentPath / reparent target inside the open prefab was reported NOT_FOUND. Fall back to the stage scene.
+        private static GameObject FindGameObjectStageAware(string path)
+        {
+            var go = GameObject.Find(path);
+            if (go != null) return go;
+            var stageScene = AssetManagementHandler.GetOpenPrefabStageScene();
+            if (stageScene.HasValue && stageScene.Value.IsValid())
+                return FindByPathInScene(stageScene.Value, path);
+            return null;
+        }
+
+        private static GameObject FindByPathInScene(UnityEngine.SceneManagement.Scene scene, string path)
+        {
+            var parts = path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) return null;
+            GameObject current = null;
+            foreach (var root in scene.GetRootGameObjects())
+                if (root.name == parts[0]) { current = root; break; }
+            for (int i = 1; current != null && i < parts.Length; i++)
+            {
+                var child = current.transform.Find(parts[i]);
+                current = child != null ? child.gameObject : null;
+            }
+            return current;
+        }
+
         /// <summary>
         /// Creates a new GameObject based on parameters
         /// </summary>
@@ -34,11 +61,17 @@ namespace UnityEditorMCP.Handlers
                 GameObject parent = null;
                 if (!string.IsNullOrEmpty(parentPath))
                 {
-                    parent = GameObject.Find(parentPath);
+                    parent = FindGameObjectStageAware(parentPath); // also searches an open prefab stage's scene
                     if (parent == null)
                     {
                         return HandlerOutcome.Fail($"Parent GameObject not found: {parentPath}", "NOT_FOUND");
                     }
+                }
+                else
+                {
+                    // No explicit parent: if a prefab is open in stage mode, add the new object UNDER the prefab
+                    // root so it becomes part of the prefab (a bare scene root in the stage would not be saved).
+                    parent = AssetManagementHandler.GetOpenPrefabStageRoot();
                 }
 
                 // Create GameObject
@@ -287,7 +320,7 @@ namespace UnityEditorMCP.Handlers
                     GameObject newParent = null;
                     if (!string.IsNullOrEmpty(parentPath))
                     {
-                        newParent = GameObject.Find(parentPath);
+                        newParent = FindGameObjectStageAware(parentPath); // also searches an open prefab stage's scene
                         if (newParent == null)
                         {
                             return HandlerOutcome.Fail($"Parent GameObject not found: {parentPath}", "NOT_FOUND");
