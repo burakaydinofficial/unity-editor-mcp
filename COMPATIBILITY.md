@@ -35,6 +35,8 @@ in sync when you add or remove a guard.
 | `unity-editor-mcp/Editor/Handlers/SceneAnalysisHandler.cs:250` | `UNITY_6000_0_OR_NEWER` | `Rigidbody` damping ⇄ drag (read) | |
 | `unity-editor-mcp/Editor/Handlers/SceneAnalysisHandler.cs:555` | `UNITY_6000_0_OR_NEWER` | `LightType.Rectangle` ⇄ `LightType.Area` | Area-light enum rename. |
 | `unity-editor-mcp/Tests/Editor/Handlers/ComponentHandlerTests.cs:239` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping` ⇄ `drag` | Test mirror of the write guard. |
+| `unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs` (`PrefabStageAssetPath`) | `UNITY_2020_1_OR_NEWER` | `PrefabStage.assetPath` ⇄ `PrefabStage.prefabAssetPath` | Path of the prefab being edited; centralized in the `PrefabStageAssetPath` helper (call sites in open/exit/save prefab). Also adds a guarded `PrefabStage` type alias next to `PrefabStageUtility`. Caught by a 2019.4 cold compile (CS1061). |
+| `unity-editor-mcp/Editor/Handlers/GameObjectHandler.cs` (`FindGameObjects`) | `UNITY_2020_1_OR_NEWER` | `FindObjectsOfType<T>(includeInactive)` ⇄ `Resources.FindObjectsOfTypeAll<T>()` (scene-filtered) | The `includeInactive` overload is 2020.1+. Caught by a 2019.4 cold compile (CS1501). |
 
 ## Known compatibility / packaging issues
 
@@ -70,6 +72,16 @@ Tracked openly so the list is the work list:
    a crash). The `[SerializeReference]` APIs it sits beside — `managedReferenceValue`
    (2019.3+), `managedReferenceFullTypename` (2019.3+), `managedReferenceFieldTypename`
    (2020.1+) — are all available on the 2020.3 floor, so no guard is needed.
+
+5. **2019.4 floor now cold-compiles (locally, batch-mode verified — not yet in CI).** A cold **batch-mode** compile
+   on 2019.4.41f2 surfaced four floor breaks the interactive editor's incremental compile had masked, now resolved:
+   `loadedSceneCount` (avoided — manual count via `sceneCount`/`GetSceneAt`/`isLoaded`), `PrefabStage.assetPath` and
+   `FindObjectsOfType<T>(includeInactive)` (guarded with `UNITY_2020_1_OR_NEWER`, see the table), and
+   `AnimationWindow` (`internal` on 2019.4 — referenced by full type name via reflection in `ToolManagementHandler`'s
+   `IsEditorWindowOpen`/`FindEditorWindowType`, a single version-agnostic path with no `#if`). The **tested floor
+   remains 2020.3** (the CI matrix); 2019.4 is a guarded best-effort target, verified locally by a batch compile +
+   EditMode run. Lesson: floor-compat needs a **cold** compile — an interactive editor's incremental compile can
+   reuse a stale assembly and hide a floor break.
 
 ## Adding a guard
 

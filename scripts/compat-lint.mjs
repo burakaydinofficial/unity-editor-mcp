@@ -26,6 +26,7 @@ const RULES = [
   { re: /\bLightType\.Rectangle\b/, api: 'LightType.Rectangle', reason: 'differs from legacy LightType.Area' },
   { re: /\.Contains\([^)]*,[^)]*StringComparison/, api: 'string.Contains(value, StringComparison)', reason: 'the 2-arg Contains overload is netstandard2.1+ — use IndexOf(value, StringComparison) >= 0 on the floor' },
   { re: /\bloadedSceneCount\b/, api: 'SceneManager/EditorSceneManager.loadedSceneCount', reason: 'added after the 2020.3 floor — count loaded scenes via sceneCount + GetSceneAt + Scene.isLoaded' },
+  { re: /\bFindObjectsOfType<[^>]+>\s*\(\s*[^)\s]/, api: 'FindObjectsOfType<T>(includeInactive)', reason: 'the includeInactive overload is 2020.1+ — guard it (UNITY_2020_1_OR_NEWER) or use Resources.FindObjectsOfTypeAll<T>() filtered to the scene on the 2019.4 floor' },
 ];
 
 // Known-safe exceptions: { file: '<repo-relative path>', line: <number> }.
@@ -34,7 +35,7 @@ const RULES = [
 // #else floor branch. That line is intentional and floor-correct — allowlist it. (If the
 // file shifts, the lint fails loudly and this line number must be updated — not a silent miss.)
 const ALLOWLIST = [
-  { file: 'unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs', line: 17, api: 'PrefabStageUtility (qualified)' },
+  { file: 'unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs', line: 18, api: 'PrefabStageUtility (qualified)' },
 ];
 
 async function* walkCs(dir) {

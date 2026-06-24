@@ -13,8 +13,10 @@ using UnityEditorMCP.Core;
 // in all supported versions and is referenced fully-qualified below.
 #if UNITY_2021_2_OR_NEWER
 using PrefabStageUtility = UnityEditor.SceneManagement.PrefabStageUtility;
+using PrefabStage = UnityEditor.SceneManagement.PrefabStage;
 #else
 using PrefabStageUtility = UnityEditor.Experimental.SceneManagement.PrefabStageUtility;
+using PrefabStage = UnityEditor.Experimental.SceneManagement.PrefabStage;
 #endif
 
 namespace UnityEditorMCP.Handlers
@@ -24,6 +26,16 @@ namespace UnityEditorMCP.Handlers
     /// </summary>
     public static class AssetManagementHandler
     {
+        // PrefabStage.assetPath was added in 2020.1; the 2019.4 floor exposes the same value as prefabAssetPath
+        // (both name the path of the prefab being edited in prefab mode). Centralized here so the guard lives in
+        // one place. (COMPATIBILITY.md)
+        private static string PrefabStageAssetPath(PrefabStage stage) =>
+#if UNITY_2020_1_OR_NEWER
+            stage.assetPath;
+#else
+            stage.prefabAssetPath;
+#endif
+
         /// <summary>
         /// Creates a new prefab from a GameObject or from scratch
         /// </summary>
@@ -949,7 +961,7 @@ namespace UnityEditorMCP.Handlers
                 var currentStage = PrefabStageUtility.GetCurrentPrefabStage();
                 bool wasAlreadyOpen = false;
 
-                if (currentStage != null && currentStage.assetPath == prefabPath)
+                if (currentStage != null && PrefabStageAssetPath(currentStage) == prefabPath)
                 {
                     wasAlreadyOpen = true;
                 }
@@ -1031,7 +1043,7 @@ namespace UnityEditorMCP.Handlers
                     });
                 }
 
-                string prefabPath = currentStage.assetPath;
+                string prefabPath = PrefabStageAssetPath(currentStage);
                 bool changesSaved = false;
 
                 // Save changes if requested
@@ -1084,7 +1096,7 @@ namespace UnityEditorMCP.Handlers
                 if (currentStage != null && string.IsNullOrEmpty(gameObjectPath))
                 {
                     // Save current prefab in prefab mode
-                    string prefabPath = currentStage.assetPath;
+                    string prefabPath = PrefabStageAssetPath(currentStage);
 
                     if (currentStage.scene.isDirty)
                     {

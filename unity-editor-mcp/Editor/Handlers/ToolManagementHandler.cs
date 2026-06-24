@@ -360,7 +360,7 @@ namespace UnityEditorMCP.Handlers
                 Version = "1.0.0",
                 Category = "Animation",
                 IsInstalled = true,
-                IsActive = EditorWindow.HasOpenInstances<AnimationWindow>()
+                IsActive = IsEditorWindowOpen("UnityEditor.AnimationWindow")
             };
 
             lastCacheUpdate = DateTime.Now;
@@ -419,6 +419,23 @@ namespace UnityEditorMCP.Handlers
             return windows.Any(w => w.GetType().Name.Contains(toolName));
         }
 
+        // Name-based EditorWindow helpers: reference windows that are internal on some floors (e.g. AnimationWindow
+        // is internal on 2019.4) by full type name, so the same code compiles on every supported version.
+        private static bool IsEditorWindowOpen(string fullTypeName)
+        {
+            return Resources.FindObjectsOfTypeAll<EditorWindow>().Any(w => w.GetType().FullName == fullTypeName);
+        }
+
+        private static System.Type FindEditorWindowType(string fullTypeName)
+        {
+            foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var t = asm.GetType(fullTypeName);
+                if (t != null) return t;
+            }
+            return null;
+        }
+
         /// <summary>
         /// Open a tool window
         /// </summary>
@@ -435,8 +452,13 @@ namespace UnityEditorMCP.Handlers
                         // Cinemachine doesn't have a dedicated window, it uses components
                         return true;
                     case "Animation":
-                        EditorWindow.GetWindow<AnimationWindow>().Show();
-                        return true;
+                    {
+                        // AnimationWindow is internal on the 2019.4 floor — reference it by name (works on every
+                        // supported version) instead of the typed API. (COMPATIBILITY.md)
+                        var animType = FindEditorWindowType("UnityEditor.AnimationWindow");
+                        if (animType != null) { EditorWindow.GetWindow(animType).Show(); return true; }
+                        return false;
+                    }
                     default:
                         // Try generic menu item
                         return EditorApplication.ExecuteMenuItem($"Window/{toolName}");

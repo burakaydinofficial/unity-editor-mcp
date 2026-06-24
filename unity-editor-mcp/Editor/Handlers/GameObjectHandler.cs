@@ -360,8 +360,14 @@ namespace UnityEditorMCP.Handlers
 
                 List<GameObject> results = new List<GameObject>();
                 
-                // Get all GameObjects in scene
+                // Get all GameObjects in scene (including inactive). FindObjectsOfType<T>(includeInactive) is
+                // 2020.1+; on the floor, FindObjectsOfTypeAll returns inactive too (plus assets/hidden), so filter
+                // to scene objects. (COMPATIBILITY.md)
+#if UNITY_2020_1_OR_NEWER
                 GameObject[] allObjects = GameObject.FindObjectsOfType<GameObject>(true);
+#else
+                GameObject[] allObjects = Resources.FindObjectsOfTypeAll<GameObject>().Where(go => go.scene.IsValid()).ToArray();
+#endif
                 
                 foreach (var obj in allObjects)
                 {
