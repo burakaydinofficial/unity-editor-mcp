@@ -438,20 +438,28 @@ namespace UnityEditorMCP.Handlers
                 var includePrefabInfo = parameters["includePrefabInfo"]?.ToObject<bool>() ?? true;
                 var includeMemoryInfo = parameters["includeMemoryInfo"]?.ToObject<bool>() ?? false;
 
-                // Get current scene
+                // Get the active scene + ALL loaded scenes. round-6 #3/#10: analyze spans every loaded scene (not
+                // just the active one) — matching get_hierarchy / find_gameobject. Single-scene = unchanged.
                 var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
                 if (!scene.IsValid())
                 {
                     return HandlerOutcome.Fail("No active scene loaded", "INVALID_STATE");
                 }
+                var loadedScenes = new List<UnityEngine.SceneManagement.Scene>();
+                for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
+                {
+                    var s = UnityEngine.SceneManagement.SceneManager.GetSceneAt(i);
+                    if (s.isLoaded) loadedScenes.Add(s);
+                }
 
                 var result = new Dictionary<string, object>();
-                result["sceneName"] = scene.name;
+                result["sceneName"] = scene.name; // back-compat: the active scene
+                result["loadedScenes"] = loadedScenes.Select(s => (object)new { name = s.name, isActive = s == scene }).ToList();
 
-                // Get all GameObjects
-                var allObjects = includeInactive 
+                // Get all GameObjects across all loaded scenes
+                var allObjects = includeInactive
                     ? Resources.FindObjectsOfTypeAll<GameObject>()
-                        .Where(go => go.scene == scene)
+                        .Where(go => go.scene.isLoaded)
                         .ToArray()
                     : GameObject.FindObjectsOfType<GameObject>();
 
@@ -459,7 +467,7 @@ namespace UnityEditorMCP.Handlers
                 var statistics = new Dictionary<string, object>();
                 statistics["totalGameObjects"] = allObjects.Length;
                 statistics["activeGameObjects"] = allObjects.Count(go => go.activeInHierarchy);
-                statistics["rootObjects"] = scene.GetRootGameObjects().Length;
+                statistics["rootObjects"] = loadedScenes.Sum(s => s.GetRootGameObjects().Length);
 
                 // Prefab info
                 if (includePrefabInfo)

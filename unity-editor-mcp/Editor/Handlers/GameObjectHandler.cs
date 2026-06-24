@@ -555,28 +555,55 @@ namespace UnityEditorMCP.Handlers
                 int maxNodes = parameters["maxNodes"]?.ToObject<int>() ?? 1000;
                 if (maxNodes <= 0) maxNodes = 1000;
 
-                // Get root GameObjects — from the open prefab stage's preview scene if a prefab is open in stage
-                // mode (its contents are NOT in the active scene), else the active scene.
-                var activeScene = AssetManagementHandler.GetOpenPrefabStageScene() ?? UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-                GameObject[] rootObjects = activeScene.GetRootGameObjects();
+                // Collect the scenes to dump: the open prefab stage's preview scene if a prefab is open (its contents
+                // are NOT in any loaded scene), else ALL loaded scenes (multi-scene / additive setups), not just the
+                // active one — matching find_gameobject, which already spans every loaded scene. Single-scene projects
+                // are unaffected (one loaded scene → identical output). (round-6 #3 / #10)
+                var stageScene = AssetManagementHandler.GetOpenPrefabStageScene();
+                var scenes = new List<UnityEngine.SceneManagement.Scene>();
+                string primarySceneName;
+                if (stageScene.HasValue)
+                {
+                    scenes.Add(stageScene.Value);
+                    primarySceneName = stageScene.Value.name;
+                }
+                else
+                {
+                    primarySceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+                    for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
+                    {
+                        var s = UnityEngine.SceneManagement.SceneManager.GetSceneAt(i);
+                        if (s.isLoaded) scenes.Add(s);
+                    }
+                }
 
                 // Build hierarchy. F2: a node budget caps the RESPONSE so a big legacy scene can't blow the 1MB
-                // frame budget (maxDepth bounds depth, not total breadth).
+                // frame budget (maxDepth bounds depth, not total breadth). Each top-level root is tagged with its
+                // `scene` so multi-scene roots are disambiguated (paths alone can collide across loaded scenes).
+                var activeSceneForFlag = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
                 var budget = new int[] { maxNodes };
                 List<object> hierarchy = new List<object>();
-                foreach (var root in rootObjects)
+                var loadedScenes = new List<object>();
+                foreach (var scene in scenes)
                 {
-                    if (!includeInactive && !root.activeInHierarchy)
-                        continue;
-                    if (budget[0] <= 0) break;
-
-                    hierarchy.Add(BuildHierarchyNode(root, 0, maxDepth, includeInactive, includeComponents, budget));
+                    int before = hierarchy.Count;
+                    foreach (var root in scene.GetRootGameObjects())
+                    {
+                        if (!includeInactive && !root.activeInHierarchy)
+                            continue;
+                        if (budget[0] <= 0) break;
+                        var node = BuildHierarchyNode(root, 0, maxDepth, includeInactive, includeComponents, budget);
+                        if (node is Dictionary<string, object> dict) dict["scene"] = scene.name;
+                        hierarchy.Add(node);
+                    }
+                    loadedScenes.Add(new { name = scene.name, isActive = scene == activeSceneForFlag, rootCount = hierarchy.Count - before });
                 }
                 bool truncated = budget[0] <= 0; // budget exhausted -> there may be more
 
                 return HandlerOutcome.Ok(new
                 {
-                    sceneName = activeScene.name,
+                    sceneName = primarySceneName,    // back-compat: the active (or open-stage) scene
+                    loadedScenes = loadedScenes,     // round-6 #3: every dumped scene + its root count (1 entry single-scene)
                     objectCount = hierarchy.Count,
                     truncated = truncated,
                     maxNodes = maxNodes,

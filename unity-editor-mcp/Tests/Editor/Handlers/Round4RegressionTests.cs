@@ -142,6 +142,27 @@ namespace UnityEditorMCP.Tests
             Assert.IsFalse(UnityEditor.EditorApplication.isPlaying, "must NOT have entered play mode");
         }
 
+        // round-6 #3/#10: get_hierarchy must span ALL loaded scenes (additive/multi-scene), not just the active one,
+        // and tag each root with its `scene`. (find_gameobject already spanned all loaded scenes — this aligns them.)
+        [Test]
+        public void GetHierarchy_SpansAllLoadedScenes()
+        {
+            var extra = UnityEditor.SceneManagement.EditorSceneManager.NewScene(
+                UnityEditor.SceneManagement.NewSceneSetup.DefaultGameObjects,
+                UnityEditor.SceneManagement.NewSceneMode.Additive);
+            try
+            {
+                var r = GameObjectHandler.GetHierarchy(new JObject());
+                Assert.IsFalse(r.IsError, r.Error);
+                var payload = JObject.FromObject(r.Payload);
+                var loaded = (JArray)payload["loadedScenes"];
+                Assert.GreaterOrEqual(loaded.Count, 2, "get_hierarchy must list ALL loaded scenes, not just the active one");
+                foreach (var n in (JArray)payload["hierarchy"])
+                    Assert.IsNotNull(n["scene"], "each top-level root must be tagged with its scene");
+            }
+            finally { UnityEditor.SceneManagement.EditorSceneManager.CloseScene(extra, true); }
+        }
+
 #if UNITY_2021_2_OR_NEWER
         // Regression guards for the prefab-stage fixes (get_hierarchy + create_gameobject stage-awareness), verified
         // live on 2022.3. [UnityTest] + poll-until-current because OpenPrefab doesn't make the stage the CURRENT
