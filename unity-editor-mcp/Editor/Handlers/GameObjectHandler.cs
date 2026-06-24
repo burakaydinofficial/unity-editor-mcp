@@ -511,11 +511,8 @@ namespace UnityEditorMCP.Handlers
                 int maxNodes = parameters["maxNodes"]?.ToObject<int>() ?? 1000;
                 if (maxNodes <= 0) maxNodes = 1000;
 
-                // Get root GameObjects — from the open prefab stage's preview scene if a prefab is open in stage
-                // mode (its contents are NOT in the active scene), else the active scene. (Dogfood: get_hierarchy
-                // showed only the main scene while a prefab was open in stage mode.)
-                var activeScene = AssetManagementHandler.GetOpenPrefabStageScene() ?? UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-                GameObject[] rootObjects = activeScene.GetRootGameObjects();
+                // Get root GameObjects
+                GameObject[] rootObjects = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
 
                 // Build hierarchy. F2: a node budget caps the RESPONSE so a big legacy scene can't blow the 1MB
                 // frame budget (maxDepth bounds depth, not total breadth).
@@ -533,7 +530,7 @@ namespace UnityEditorMCP.Handlers
 
                 return HandlerOutcome.Ok(new
                 {
-                    sceneName = activeScene.name,
+                    sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name,
                     objectCount = hierarchy.Count,
                     truncated = truncated,
                     maxNodes = maxNodes,

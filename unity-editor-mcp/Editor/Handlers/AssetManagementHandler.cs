@@ -36,15 +36,6 @@ namespace UnityEditorMCP.Handlers
             stage.prefabAssetPath;
 #endif
 
-        // The open prefab-stage's preview scene, or null if no prefab is open in stage mode. Lets hierarchy/scene
-        // tools in other handlers address the stage contents (which live in a separate scene, not the main one)
-        // while reusing this handler's guarded PrefabStage/PrefabStageUtility alias.
-        public static UnityEngine.SceneManagement.Scene? GetOpenPrefabStageScene()
-        {
-            var stage = PrefabStageUtility.GetCurrentPrefabStage();
-            return stage != null ? stage.scene : (UnityEngine.SceneManagement.Scene?)null;
-        }
-
         /// <summary>
         /// Creates a new prefab from a GameObject or from scratch
         /// </summary>

@@ -126,35 +126,5 @@ namespace UnityEditorMCP.Tests
             foreach (var l in logs) { if (((string)l["message"] ?? "").Contains(marker)) { found = true; break; } }
             Assert.IsTrue(found, "read_logs must surface the editor console (it should contain the freshly-logged marker)");
         }
-
-#if UNITY_2021_2_OR_NEWER
-        // get_hierarchy read only the active (main) scene, so an open prefab stage's contents were invisible. With
-        // a prefab open in stage mode, get_hierarchy must surface the stage root. (Synchronous OpenPrefab is
-        // 2021.2+, so this test is guarded; the fix itself is floor-safe via GetCurrentPrefabStage.)
-        [Test]
-        public void GetHierarchy_SeesOpenPrefabStage()
-        {
-            var src = new GameObject("__r8_stageroot__");
-            const string path = "Assets/__r8_stage__.prefab";
-            UnityEditor.PrefabUtility.SaveAsPrefabAsset(src, path);
-            Object.DestroyImmediate(src);
-            var stage = UnityEditor.SceneManagement.PrefabStageUtility.OpenPrefab(path);
-            try
-            {
-                Assert.IsNotNull(stage, "prefab stage should open");
-                var r = GameObjectHandler.GetHierarchy(new JObject());
-                Assert.IsFalse(r.IsError, r.Error);
-                var hier = (JArray)JObject.FromObject(r.Payload)["hierarchy"];
-                bool found = false;
-                foreach (var n in hier) { if ((string)n["name"] == "__r8_stageroot__") { found = true; break; } }
-                Assert.IsTrue(found, "get_hierarchy must surface the open prefab stage's root");
-            }
-            finally
-            {
-                UnityEditor.SceneManagement.StageUtility.GoBackToPreviousStage();
-                UnityEditor.AssetDatabase.DeleteAsset(path);
-            }
-        }
-#endif
     }
 }
