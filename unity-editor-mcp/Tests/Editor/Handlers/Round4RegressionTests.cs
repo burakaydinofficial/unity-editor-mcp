@@ -1,5 +1,7 @@
+using System.Collections;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using Newtonsoft.Json.Linq;
 using UnityEditorMCP.Handlers;
 
@@ -126,5 +128,48 @@ namespace UnityEditorMCP.Tests
             foreach (var l in logs) { if (((string)l["message"] ?? "").Contains(marker)) { found = true; break; } }
             Assert.IsTrue(found, "read_logs must surface the editor console (it should contain the freshly-logged marker)");
         }
+
+#if UNITY_2021_2_OR_NEWER
+        // Regression guards for the prefab-stage fixes (get_hierarchy + create_gameobject stage-awareness), verified
+        // live on 2022.3. [UnityTest] + poll-until-current because OpenPrefab doesn't make the stage the CURRENT
+        // prefab stage synchronously (it becomes current a tick later — a plain [Test] can't observe it, which is
+        // why the first attempt failed). A prefab root takes the .prefab FILE name.
+        [UnityTest]
+        public IEnumerator PrefabStage_GetHierarchy_And_CreateInto()
+        {
+            var src = new GameObject("__ps_src__");
+            const string path = "Assets/__ps_root__.prefab";
+            UnityEditor.PrefabUtility.SaveAsPrefabAsset(src, path);
+            Object.DestroyImmediate(src);
+            UnityEditor.SceneManagement.PrefabStageUtility.OpenPrefab(path);
+            for (int i = 0; i < 30 && UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage() == null; i++)
+                yield return null; // wait for the opened prefab to become the current stage
+            try
+            {
+                // get_hierarchy surfaces the stage root (FILE name), not the main scene
+                var h = GameObjectHandler.GetHierarchy(new JObject());
+                Assert.IsFalse(h.IsError, h.Error);
+                var hier = (JArray)JObject.FromObject(h.Payload)["hierarchy"];
+                bool sawRoot = false;
+                foreach (var n in hier) { if ((string)n["name"] == "__ps_root__") { sawRoot = true; break; } }
+                Assert.IsTrue(sawRoot, "get_hierarchy must surface the open prefab stage's root");
+
+                // create_gameobject with no parentPath + a stage open lands UNDER the prefab root
+                var c = GameObjectHandler.CreateGameObject(new JObject { ["name"] = "__ps_child__" });
+                Assert.IsFalse(c.IsError, c.Error);
+                Assert.AreEqual("/__ps_root__/__ps_child__", (string)JObject.FromObject(c.Payload)["path"]);
+
+                // create_gameobject with an explicit stage parentPath resolves (was NOT_FOUND)
+                var cp = GameObjectHandler.CreateGameObject(new JObject { ["name"] = "__ps_bypath__", ["parentPath"] = "/__ps_root__" });
+                Assert.IsFalse(cp.IsError, cp.Error);
+                Assert.AreEqual("/__ps_root__/__ps_bypath__", (string)JObject.FromObject(cp.Payload)["path"]);
+            }
+            finally
+            {
+                UnityEditor.SceneManagement.StageUtility.GoBackToPreviousStage();
+                UnityEditor.AssetDatabase.DeleteAsset(path);
+            }
+        }
+#endif
     }
 }
