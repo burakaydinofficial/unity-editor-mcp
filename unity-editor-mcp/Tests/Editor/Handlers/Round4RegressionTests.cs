@@ -212,6 +212,50 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual("NOT_FOUND", r.Code);
         }
 
+        // round-7 BUG 1: a componentType match must resolve to the COMPONENT's SerializedObject, not the GameObject's
+        // (else the component's properties read as PROPERTY_NOT_FOUND unless you redundantly also pass `component`).
+        [Test]
+        public void SerializedMatch_ComponentType_ScopesToComponent()
+        {
+            var go = new GameObject("__r7_match__");
+            go.AddComponent<Light>();
+            try
+            {
+                var targets = SerializedTargeting.ResolveMatch(
+                    new JObject { ["componentType"] = "Light" },
+                    new JObject(), // no explicit `component`
+                    10, out var code, out var msg);
+                Assert.Greater(targets.Count, 0, msg ?? "should match the Light");
+                Assert.IsTrue(targets.TrueForAll(t => t.Component is Light), "componentType match must scope to the Light component, not the GameObject");
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
+        // round-7 BUG 2: force:true must skip the compare-and-swap even when a (wrong) expected is supplied.
+        [Test]
+        public void SetSerializedProperties_Force_SkipsStaleExpected()
+        {
+            var go = new GameObject("__r7_force__");
+            var light = go.AddComponent<Light>();
+            light.intensity = 1f;
+            try
+            {
+                var r = SerializedMemberHandler.Set(new JObject
+                {
+                    ["force"] = true,
+                    ["edits"] = new JArray {
+                        new JObject {
+                            ["target"] = new JObject { ["instanceId"] = light.GetInstanceID() },
+                            ["set"] = new JObject { ["m_Intensity"] = new JObject { ["value"] = 5f, ["expected"] = 999f } }
+                        }
+                    }
+                });
+                Assert.IsFalse(r.IsError, r.Error);
+                Assert.AreEqual(5f, light.intensity, 0.001f, "force:true must skip the stale expected and apply the write");
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
 #if UNITY_2021_2_OR_NEWER
         // Regression guards for the prefab-stage fixes (get_hierarchy + create_gameobject stage-awareness), verified
         // live on 2022.3. [UnityTest] + poll-until-current because OpenPrefab doesn't make the stage the CURRENT

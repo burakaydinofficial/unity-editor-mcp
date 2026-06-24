@@ -163,7 +163,9 @@ namespace UnityEditorMCP.Handlers
                         var hasExpected = spec["expected"] != null;
                         if (!hasExpected && !force) { skipped.Add(Skip(rt.Describe, path, "MISSING_PRECONDITION", "expected required (or force)")); if (allOrNothing) return Abort(skipped); continue; }
                         var current = SerializedValue.Read(sp);
-                        if (hasExpected && !ValuesEqual(current, spec["expected"]))
+                        // round-7 BUG 2: `force` must skip the compare-and-swap even when `expected` is supplied
+                        // (schema: "force skips expected"). Previously force only made `expected` optional.
+                        if (hasExpected && !force && !ValuesEqual(current, spec["expected"]))
                         { skipped.Add(Skip(rt.Describe, path, "STALE", "value changed", current, spec["expected"])); if (allOrNothing) return Abort(skipped); continue; }
 
                         var probe = new SerializedObject(rt.Obj);
@@ -328,7 +330,7 @@ namespace UnityEditorMCP.Handlers
                     var size = sp.arraySize;
                     var hasExpected = op["expectedSize"] != null;
                     if (!hasExpected && !force) { skipped.Add(Skip(rt.Describe, arrayPath, "MISSING_PRECONDITION", "expectedSize required (or force)")); if (allOrNothing) return Abort(skipped); continue; }
-                    if (hasExpected && op["expectedSize"].Value<int>() != size) { skipped.Add(Skip(rt.Describe, arrayPath, "STALE_SIZE", "array size changed", size, op["expectedSize"])); if (allOrNothing) return Abort(skipped); continue; }
+                    if (hasExpected && !force && op["expectedSize"].Value<int>() != size) { skipped.Add(Skip(rt.Describe, arrayPath, "STALE_SIZE", "array size changed", size, op["expectedSize"])); if (allOrNothing) return Abort(skipped); continue; } // round-7 BUG 2: force skips the size CAS too
 
                     if (!ValidateArrayOp(opName, op, size, out var newSize, out var verr, out var vcode))
                     { skipped.Add(Skip(rt.Describe, arrayPath, vcode, verr)); if (allOrNothing) return Abort(skipped); continue; }

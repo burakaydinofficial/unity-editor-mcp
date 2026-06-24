@@ -53,10 +53,20 @@ namespace UnityEditorMCP.Handlers
             else if (match?["prefab"] != null) { var src = LoadPrefab(match["prefab"].Value<string>()); gos = AllGameObjects(roots).Where(g => MatchesPrefab(g, src)); }
             else { code = "VALIDATION_ERROR"; message = "match needs one of prefab/componentType/tag/selection/scenePaths"; return list; }
 
+            // round-7 BUG 1: a componentType match must edit that COMPONENT's SerializedObject, not the GameObject's
+            // (else the component's properties read as PROPERTY_NOT_FOUND). Narrow to the component automatically — the
+            // caller shouldn't have to ALSO pass `component`.
+            var matchComp = match?["componentType"]?.Value<string>();
+            JObject effParent = parent;
+            if (matchComp != null && parent?["component"] == null)
+            {
+                effParent = parent != null ? (JObject)parent.DeepClone() : new JObject();
+                effParent["component"] = matchComp;
+            }
             foreach (var go in gos.Distinct())
             {
                 if (list.Count >= max) break;
-                if (ResolveSingle(new JObject { ["instanceId"] = go.GetInstanceID() }, parent, out var rt, out _, out _)) list.Add(rt);
+                if (ResolveSingle(new JObject { ["instanceId"] = go.GetInstanceID() }, effParent, out var rt, out _, out _)) list.Add(rt);
             }
             return list;
         }
