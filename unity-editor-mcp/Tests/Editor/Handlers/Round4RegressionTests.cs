@@ -163,6 +163,22 @@ namespace UnityEditorMCP.Tests
             finally { UnityEditor.SceneManagement.EditorSceneManager.CloseScene(extra, true); }
         }
 
+        // round-6 #6: manage_tools no longer fabricates packages (it used to inject a bogus "2D Sprite"/"Animation"
+        // cache with a hardcoded "1.0.0" version). The built-in tools now report real versions; the fake cache is gone.
+        [Test]
+        public void ManageTools_NoFabricatedPackages()
+        {
+            var r = ToolManagementHandler.HandleCommand("get", new JObject());
+            Assert.IsFalse(r.IsError, r.Error);
+            var tools = (JArray)JObject.FromObject(r.Payload)["tools"];
+            foreach (var t in tools)
+            {
+                var name = (string)t["name"];
+                Assert.AreNotEqual("2D Sprite", name, "the fabricated '2D Sprite' entry must be gone");
+                Assert.AreNotEqual("Animation", name, "the fabricated 'Animation' entry must be gone");
+            }
+        }
+
 #if UNITY_2021_2_OR_NEWER
         // Regression guards for the prefab-stage fixes (get_hierarchy + create_gameobject stage-awareness), verified
         // live on 2022.3. [UnityTest] + poll-until-current because OpenPrefab doesn't make the stage the CURRENT

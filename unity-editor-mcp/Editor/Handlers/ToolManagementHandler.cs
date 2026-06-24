@@ -94,69 +94,41 @@ namespace UnityEditorMCP.Handlers
         }
 
         /// <summary>
-        /// Add built-in Unity tools to the list
+        /// Add built-in Unity tools to the list (with REAL versions, not hardcoded guesses). round-6 #6.
         /// </summary>
         private static void AddBuiltInTools(List<object> tools, ref int installedCount, ref int activeCount, string category)
         {
-            // ProBuilder
-            bool hasProBuilder = System.Type.GetType("UnityEngine.ProBuilder.ProBuilderMesh, Unity.ProBuilder") != null;
-            if (string.IsNullOrEmpty(category) || category == "Modeling")
-            {
-                tools.Add(new
-                {
-                    name = "ProBuilder",
-                    displayName = "ProBuilder",
-                    version = hasProBuilder ? "5.1.0" : "Not installed",
-                    category = "Modeling",
-                    isInstalled = hasProBuilder,
-                    isActive = hasProBuilder && IsToolWindowOpen("ProBuilder")
-                });
-                if (hasProBuilder)
-                {
-                    installedCount++;
-                    if (IsToolWindowOpen("ProBuilder")) activeCount++;
-                }
-            }
+            AddBuiltInTool(tools, ref installedCount, ref activeCount, category, "ProBuilder", "ProBuilder", "UnityEngine.ProBuilder.ProBuilderMesh, Unity.ProBuilder", "Modeling");
+            AddBuiltInTool(tools, ref installedCount, ref activeCount, category, "Cinemachine", "Cinemachine", "Cinemachine.CinemachineVirtualCamera, Cinemachine", "Camera");
+            AddBuiltInTool(tools, ref installedCount, ref activeCount, category, "TextMeshPro", "TextMesh Pro", "TMPro.TextMeshProUGUI, Unity.TextMeshPro", "UI");
+        }
 
-            // Cinemachine
-            bool hasCinemachine = System.Type.GetType("Cinemachine.CinemachineVirtualCamera, Cinemachine") != null;
-            if (string.IsNullOrEmpty(category) || category == "Camera")
+        private static void AddBuiltInTool(List<object> tools, ref int installedCount, ref int activeCount,
+            string filterCategory, string name, string displayName, string typeName, string toolCategory)
+        {
+            if (!string.IsNullOrEmpty(filterCategory) && filterCategory != toolCategory) return;
+            var type = System.Type.GetType(typeName);
+            bool installed = type != null;
+            bool active = installed && IsToolWindowOpen(name);
+            tools.Add(new
             {
-                tools.Add(new
-                {
-                    name = "Cinemachine",
-                    displayName = "Cinemachine",
-                    version = hasCinemachine ? "2.9.0" : "Not installed",
-                    category = "Camera",
-                    isInstalled = hasCinemachine,
-                    isActive = hasCinemachine && IsToolWindowOpen("Cinemachine")
-                });
-                if (hasCinemachine)
-                {
-                    installedCount++;
-                    if (IsToolWindowOpen("Cinemachine")) activeCount++;
-                }
-            }
+                name = name,
+                displayName = displayName,
+                version = installed ? (PackageVersionForType(type) ?? "unknown") : "Not installed",
+                category = toolCategory,
+                isInstalled = installed,
+                isActive = active
+            });
+            if (installed) { installedCount++; if (active) activeCount++; }
+        }
 
-            // TextMeshPro
-            bool hasTextMeshPro = System.Type.GetType("TMPro.TextMeshProUGUI, Unity.TextMeshPro") != null;
-            if (string.IsNullOrEmpty(category) || category == "UI")
-            {
-                tools.Add(new
-                {
-                    name = "TextMeshPro",
-                    displayName = "TextMesh Pro",
-                    version = hasTextMeshPro ? "3.0.6" : "Not installed",
-                    category = "UI",
-                    isInstalled = hasTextMeshPro,
-                    isActive = hasTextMeshPro && IsToolWindowOpen("TextMeshPro")
-                });
-                if (hasTextMeshPro)
-                {
-                    installedCount++;
-                    if (IsToolWindowOpen("TextMeshPro")) activeCount++;
-                }
-            }
+        // The REAL package version for a type's owning assembly (e.g. TextMeshPro's actual installed version),
+        // instead of a hardcoded guess. PackageInfo.FindForAssembly is 2019.2+ (COMPATIBILITY.md).
+        private static string PackageVersionForType(System.Type type)
+        {
+            if (type == null) return null;
+            try { return UnityEditor.PackageManager.PackageInfo.FindForAssembly(type.Assembly)?.version; }
+            catch { return null; }
         }
 
         /// <summary>
@@ -341,28 +313,9 @@ namespace UnityEditorMCP.Handlers
         {
             toolCache.Clear();
             
-            // In a real implementation, this would query Package Manager
-            // For now, we'll add some sample tools
-            toolCache["2D Sprite"] = new ToolInfo
-            {
-                Name = "2D Sprite",
-                DisplayName = "2D Sprite Editor",
-                Version = "1.0.0",
-                Category = "2D",
-                IsInstalled = true,
-                IsActive = false
-            };
-
-            toolCache["Animation"] = new ToolInfo
-            {
-                Name = "Animation",
-                DisplayName = "Animation Window",
-                Version = "1.0.0",
-                Category = "Animation",
-                IsInstalled = true,
-                IsActive = IsEditorWindowOpen("UnityEditor.AnimationWindow")
-            };
-
+            // The package-manager tool list here was previously FABRICATED (hardcoded "2D Sprite"/"Animation" with a
+            // bogus "1.0.0" version). Removed — use list_packages for the real, complete installed-package list.
+            // manage_tools reports only the built-in editor tools it can actually activate/deactivate. round-6 #6.
             lastCacheUpdate = DateTime.Now;
         }
 
@@ -371,42 +324,27 @@ namespace UnityEditorMCP.Handlers
         /// </summary>
         private static ToolInfo GetToolInfo(string toolName)
         {
-            // Check built-in tools first
+            // Built-in tools first, with REAL versions (round-6 #6).
+            string typeName = null, displayName = toolName, category = null;
             switch (toolName)
             {
-                case "ProBuilder":
-                    return new ToolInfo
-                    {
-                        Name = "ProBuilder",
-                        DisplayName = "ProBuilder",
-                        Version = "5.1.0",
-                        Category = "Modeling",
-                        IsInstalled = System.Type.GetType("UnityEngine.ProBuilder.ProBuilderMesh, Unity.ProBuilder") != null,
-                        IsActive = IsToolWindowOpen("ProBuilder")
-                    };
-                case "Cinemachine":
-                    return new ToolInfo
-                    {
-                        Name = "Cinemachine",
-                        DisplayName = "Cinemachine",
-                        Version = "2.9.0",
-                        Category = "Camera",
-                        IsInstalled = System.Type.GetType("Cinemachine.CinemachineVirtualCamera, Cinemachine") != null,
-                        IsActive = IsToolWindowOpen("Cinemachine")
-                    };
-                case "TextMeshPro":
-                    return new ToolInfo
-                    {
-                        Name = "TextMeshPro",
-                        DisplayName = "TextMesh Pro",
-                        Version = "3.0.6",
-                        Category = "UI",
-                        IsInstalled = System.Type.GetType("TMPro.TextMeshProUGUI, Unity.TextMeshPro") != null,
-                        IsActive = IsToolWindowOpen("TextMeshPro")
-                    };
+                case "ProBuilder": typeName = "UnityEngine.ProBuilder.ProBuilderMesh, Unity.ProBuilder"; displayName = "ProBuilder"; category = "Modeling"; break;
+                case "Cinemachine": typeName = "Cinemachine.CinemachineVirtualCamera, Cinemachine"; displayName = "Cinemachine"; category = "Camera"; break;
+                case "TextMeshPro": typeName = "TMPro.TextMeshProUGUI, Unity.TextMeshPro"; displayName = "TextMesh Pro"; category = "UI"; break;
             }
-
-            // Check cache
+            if (typeName != null)
+            {
+                var type = System.Type.GetType(typeName);
+                return new ToolInfo
+                {
+                    Name = toolName,
+                    DisplayName = displayName,
+                    Version = type != null ? (PackageVersionForType(type) ?? "unknown") : "Not installed",
+                    Category = category,
+                    IsInstalled = type != null,
+                    IsActive = IsToolWindowOpen(toolName)
+                };
+            }
             return toolCache.ContainsKey(toolName) ? toolCache[toolName] : null;
         }
 
