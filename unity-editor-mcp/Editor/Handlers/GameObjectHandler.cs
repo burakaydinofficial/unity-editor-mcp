@@ -15,7 +15,7 @@ namespace UnityEditorMCP.Handlers
     {
         // Stage-aware GameObject lookup: GameObject.Find doesn't traverse an open prefab stage's preview scene, so
         // a parentPath / reparent target inside the open prefab was reported NOT_FOUND. Fall back to the stage scene.
-        private static GameObject FindGameObjectStageAware(string path)
+        public static GameObject FindGameObjectStageAware(string path)
         {
             var go = GameObject.Find(path);
             if (go != null) return go;
@@ -230,7 +230,7 @@ namespace UnityEditorMCP.Handlers
                 }
 
                 // Find the GameObject
-                GameObject obj = GameObject.Find(path);
+                GameObject obj = FindGameObjectStageAware(path);
                 if (obj == null)
                 {
                     return HandlerOutcome.Fail($"GameObject not found: {path}", "NOT_FOUND");
@@ -505,7 +505,7 @@ namespace UnityEditorMCP.Handlers
                 
                 foreach (string objPath in allPaths)
                 {
-                    GameObject obj = GameObject.Find(objPath);
+                    GameObject obj = FindGameObjectStageAware(objPath);
                     if (obj != null)
                     {
                         deleted.Add(objPath);

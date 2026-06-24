@@ -41,7 +41,7 @@ namespace UnityEditorMCP.Handlers
                 
                 if (!string.IsNullOrEmpty(path))
                 {
-                    targetObject = GameObject.Find(path);
+                    targetObject = GameObjectHandler.FindGameObjectStageAware(path); // also resolves inside an open prefab stage
                 }
                 else if (!string.IsNullOrEmpty(gameObjectName))
                 {

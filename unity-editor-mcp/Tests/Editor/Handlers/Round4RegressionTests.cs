@@ -163,6 +163,15 @@ namespace UnityEditorMCP.Tests
                 var cp = GameObjectHandler.CreateGameObject(new JObject { ["name"] = "__ps_bypath__", ["parentPath"] = "/__ps_root__" });
                 Assert.IsFalse(cp.IsError, cp.Error);
                 Assert.AreEqual("/__ps_root__/__ps_bypath__", (string)JObject.FromObject(cp.Payload)["path"]);
+
+                // round-5 bug #1: the by-path resolvers (add_component / list_components / modify_gameobject) must
+                // ALSO reach the open stage — they used to return NOT_FOUND on a stage path.
+                var ac = ComponentHandler.AddComponent(new JObject { ["gameObjectPath"] = "/__ps_root__/__ps_child__", ["componentType"] = "Rigidbody" });
+                Assert.IsFalse(ac.IsError, ac.Error);
+                var lc = ComponentHandler.ListComponents(new JObject { ["gameObjectPath"] = "/__ps_root__/__ps_child__" });
+                Assert.IsFalse(lc.IsError, lc.Error);
+                var mg = GameObjectHandler.ModifyGameObject(new JObject { ["path"] = "/__ps_root__/__ps_child__", ["position"] = new JObject { ["x"] = 1f, ["y"] = 0f, ["z"] = 0f } });
+                Assert.IsFalse(mg.IsError, mg.Error);
             }
             finally
             {

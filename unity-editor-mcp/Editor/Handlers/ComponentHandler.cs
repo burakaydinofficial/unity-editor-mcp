@@ -41,7 +41,7 @@ namespace UnityEditorMCP.Handlers
                 }
 
                 // Find GameObject
-                GameObject targetObject = GameObject.Find(gameObjectPath);
+                GameObject targetObject = GameObjectHandler.FindGameObjectStageAware(gameObjectPath);
                 if (targetObject == null)
                 {
                     return HandlerOutcome.Fail($"GameObject not found: {gameObjectPath}", "NOT_FOUND");
@@ -127,7 +127,7 @@ namespace UnityEditorMCP.Handlers
                 }
 
                 // Find GameObject
-                GameObject targetObject = GameObject.Find(gameObjectPath);
+                GameObject targetObject = GameObjectHandler.FindGameObjectStageAware(gameObjectPath);
                 if (targetObject == null)
                 {
                     return HandlerOutcome.Fail($"GameObject not found: {gameObjectPath}", "NOT_FOUND");
@@ -237,7 +237,7 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail("direction must be 'up' or 'down'", "VALIDATION_ERROR");
                 if (count < 1) count = 1;
 
-                GameObject go = GameObject.Find(gameObjectPath);
+                GameObject go = GameObjectHandler.FindGameObjectStageAware(gameObjectPath);
                 if (go == null)
                     return HandlerOutcome.Fail($"GameObject not found: {gameObjectPath}", "NOT_FOUND");
                 Type type = ResolveComponentType(componentType);
@@ -313,7 +313,7 @@ namespace UnityEditorMCP.Handlers
                 }
 
                 // Find GameObject
-                GameObject targetObject = GameObject.Find(gameObjectPath);
+                GameObject targetObject = GameObjectHandler.FindGameObjectStageAware(gameObjectPath);
                 if (targetObject == null)
                 {
                     return HandlerOutcome.Fail($"GameObject not found: {gameObjectPath}", "NOT_FOUND");
@@ -398,7 +398,7 @@ namespace UnityEditorMCP.Handlers
                 }
 
                 // Find GameObject
-                GameObject targetObject = GameObject.Find(gameObjectPath);
+                GameObject targetObject = GameObjectHandler.FindGameObjectStageAware(gameObjectPath);
                 if (targetObject == null)
                 {
                     return HandlerOutcome.Fail($"GameObject not found: {gameObjectPath}", "NOT_FOUND");
