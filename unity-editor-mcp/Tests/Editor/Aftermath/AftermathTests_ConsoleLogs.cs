@@ -11,11 +11,12 @@ namespace UnityEditorMCP.Tests
 {
     /// <summary>
     /// Aftermath tests for the ConsoleLogs tool category. Each test calls a tool HANDLER and then
-    /// INDEPENDENTLY re-reads the Unity editor console through a DIFFERENT path
-    /// (ConsoleHandler.ReadConsoleEntries — the raw reflection reader that backs read_logs, distinct
-    /// from the handler under test) to assert the REAL effect happened, and that unrelated state did
-    /// not move. Every test logs a unique GUID marker so it can never collide with pre-existing
-    /// console content, and leaves zero residue (the console is restored to empty via clear).
+    /// re-reads the editor console through a DIFFERENT READER (ConsoleHandler.ReadConsoleEntries — the raw
+    /// reflection reader that backs read_logs) to assert the REAL effect, and that unrelated state did not
+    /// move. NOTE: there is no truly independent in-process console source — both readers and the clear
+    /// path sit on the SAME UnityEditor.LogEntries buffer via reflection — so this is a different CODE PATH
+    /// than the handler under test, not a second independent source. Every test logs a unique GUID marker
+    /// (no collision with pre-existing content) and leaves zero residue (the console is cleared).
     ///
     /// Markers are emitted with Debug.LogWarning / Debug.Log — the Unity Test Runner only fails a
     /// test on UNEXPECTED Error/Exception/Assert logs, so Warning/Log markers are safe without
@@ -53,8 +54,8 @@ namespace UnityEditorMCP.Tests
         }
 
         /// <summary>
-        /// Independent re-read path (NOT the handler under test): raw reflection reader that read_logs
-        /// uses. Returns true if any entry's message contains the marker.
+        /// Re-read via read_logs' raw reflection reader — a DIFFERENT code path than the handler under test,
+        /// though the same underlying LogEntries buffer. Returns true if any entry's message contains the marker.
         /// </summary>
         private static bool ConsoleContainsMarker(string marker)
         {

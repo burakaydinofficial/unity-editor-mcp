@@ -456,7 +456,9 @@ namespace UnityEditorMCP.Handlers
                 result["sceneName"] = scene.name; // back-compat: the active scene
                 result["loadedScenes"] = loadedScenes.Select(s => (object)new { name = s.name, isActive = s == scene }).ToList();
 
-                // Get all GameObjects across all loaded scenes
+                // Get all GameObjects across all loaded scenes. (review L3: unlike get_hierarchy — which dumps the OPEN
+                // PREFAB STAGE in stage mode — analyze always reports the loaded scenes; analyzing while a prefab stage
+                // is open reflects the background scenes, not the stage. Known minor divergence, documented not fixed.)
                 var allObjects = includeInactive
                     ? Resources.FindObjectsOfTypeAll<GameObject>()
                         .Where(go => go.scene.isLoaded)

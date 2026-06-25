@@ -929,6 +929,11 @@
             "type": "string",
             "description": "Name of the active scene"
           },
+          "loadedScenes": {
+            "type": "array",
+            "description": "Every loaded scene the analysis spans: each { name, isActive }. One entry for a single-scene project.",
+            "items": { "type": "object" }
+          },
           "statistics": {
             "type": "object",
             "properties": {
@@ -4861,6 +4866,11 @@
             "description": "Layer index (0-31)",
             "minimum": 0,
             "maximum": 31
+          },
+          "components": {
+            "type": "array",
+            "description": "Component type names to add to the new GameObject (e.g. [\"Rigidbody\",\"BoxCollider\"]). All-or-nothing: an unknown type is a VALIDATION_ERROR and the object is not created.",
+            "items": { "type": "string" }
           }
         },
         "required": []
@@ -4880,6 +4890,11 @@
           "path": {
             "type": "string",
             "description": "Hierarchy path to the created GameObject"
+          },
+          "addedComponents": {
+            "type": "array",
+            "description": "Type names of components added via the `components` param (empty if none requested).",
+            "items": { "type": "string" }
           },
           "position": {
             "type": "object",
@@ -4949,7 +4964,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": true,
-      "description": "Delete GameObject(s) from Unity scene. Requires confirm:true (H3).",
+      "description": "Delete GameObject(s) from Unity scene. Requires confirm:true (H3). A delete that matches NOTHING returns a NOT_FOUND error (not a 0-count success); a partial delete (some found) stays a success with notFound listed.",
       "params": {
         "type": "object",
         "properties": {
@@ -5170,7 +5185,12 @@
         "properties": {
           "sceneName": {
             "type": "string",
-            "description": "Name of the active scene"
+            "description": "Name of the active (or open prefab-stage) scene"
+          },
+          "loadedScenes": {
+            "type": "array",
+            "description": "Every scene the hierarchy spans — all loaded scenes (or the open prefab stage): each { name, isActive, rootCount }. One entry for a single-scene project.",
+            "items": { "type": "object" }
           },
           "objectCount": {
             "type": "number",
@@ -5186,6 +5206,10 @@
                 },
                 "path": {
                   "type": "string"
+                },
+                "scene": {
+                  "type": "string",
+                  "description": "Name of the scene this top-level root belongs to (multi-scene disambiguation)."
                 },
                 "isActive": {
                   "type": "boolean"

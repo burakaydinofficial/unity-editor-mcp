@@ -1017,13 +1017,19 @@ namespace UnityEditorMCP.Handlers
                 if (!found)
                     return HandlerOutcome.Fail($"Loaded scene not found: {scenePath ?? sceneName}", "NOT_FOUND");
 
-                bool ok = UnityEngine.SceneManagement.SceneManager.SetActiveScene(target);
+                UnityEngine.SceneManagement.SceneManager.SetActiveScene(target);
+                // review L1: report a failed mutation as an ERROR (not success:false), but VERIFY the actual effect —
+                // SetActiveScene's bool return is UNRELIABLE (it can be false even when the active scene DID change),
+                // so trust GetActiveScene, not the return value.
+                bool nowActive = UnityEngine.SceneManagement.SceneManager.GetActiveScene() == target;
+                if (!nowActive)
+                    return HandlerOutcome.Fail($"Failed to set active scene: {(string.IsNullOrEmpty(target.name) ? target.path : target.name)}", "INVALID_STATE");
                 return HandlerOutcome.Ok(new
                 {
-                    success = ok,
+                    success = true,
                     activeScene = target.path,
                     name = target.name,
-                    message = ok ? $"Active scene set to: {(string.IsNullOrEmpty(target.name) ? "(unsaved)" : target.name)}" : "Failed to set active scene"
+                    message = $"Active scene set to: {(string.IsNullOrEmpty(target.name) ? "(unsaved)" : target.name)}"
                 });
             }
             catch (Exception e)

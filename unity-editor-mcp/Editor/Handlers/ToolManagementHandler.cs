@@ -123,7 +123,7 @@ namespace UnityEditorMCP.Handlers
         }
 
         // The REAL package version for a type's owning assembly (e.g. TextMeshPro's actual installed version),
-        // instead of a hardcoded guess. PackageInfo.FindForAssembly is 2019.2+ (COMPATIBILITY.md).
+        // instead of a hardcoded guess. PackageInfo.FindForAssembly is available since 2019.2 — present on the 2019.4 floor, no guard needed.
         private static string PackageVersionForType(System.Type type)
         {
             if (type == null) return null;

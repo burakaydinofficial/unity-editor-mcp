@@ -149,18 +149,28 @@ namespace UnityEditorMCP.Handlers
                 var addedComponents = new List<string>();
                 if (parameters["components"] is JArray componentsToAdd)
                 {
-                    foreach (var c in componentsToAdd)
+                    try
                     {
-                        var compTypeName = c?.ToString();
-                        if (string.IsNullOrEmpty(compTypeName)) continue;
-                        var compType = ComponentHandler.ResolveComponentType(compTypeName);
-                        if (compType == null)
+                        foreach (var c in componentsToAdd)
                         {
-                            UnityEngine.Object.DestroyImmediate(newObject);
-                            return HandlerOutcome.Fail($"Unknown component type in 'components': {compTypeName}", "VALIDATION_ERROR");
+                            var compTypeName = c?.ToString();
+                            if (string.IsNullOrEmpty(compTypeName)) continue;
+                            var compType = ComponentHandler.ResolveComponentType(compTypeName);
+                            if (compType == null)
+                            {
+                                UnityEngine.Object.DestroyImmediate(newObject);
+                                return HandlerOutcome.Fail($"Unknown component type in 'components': {compTypeName}", "VALIDATION_ERROR");
+                            }
+                            newObject.AddComponent(compType);
+                            addedComponents.Add(compType.Name);
                         }
-                        newObject.AddComponent(compType);
-                        addedComponents.Add(compType.Name);
+                    }
+                    catch
+                    {
+                        // review L2: AddComponent can throw (DisallowMultipleComponent / RequireComponent conflicts) —
+                        // preserve all-or-nothing by destroying the half-built object before the failure propagates.
+                        UnityEngine.Object.DestroyImmediate(newObject);
+                        throw;
                     }
                 }
 
