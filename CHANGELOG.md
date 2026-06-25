@@ -6,6 +6,30 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; CI-verified on 2019.4 / 2020.3 / 2021.3 / 2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
+## [0.20.6] — Second-review fixes + documentation refresh
+
+A deeper second code review (a 5-lens panel with adversarial verification, over the released 0.20.5) plus a full
+documentation audit. All CI-verified across 2019.4 / 2020.3 / 2021.3 / 2022.3 (296 EditMode tests).
+
+### Fixed
+
+- **`create_gameobject` `components`** — adding a component Unity rejects (a `[DisallowMultipleComponent]` violation
+  such as a second `Rigidbody`, or a missing dependency) returns `null` rather than throwing and was wrongly reported
+  as added. It now fails (`INVALID_STATE`) and destroys the half-built object (all-or-nothing), with a regression test.
+- **`get_hierarchy`** — its result schema now declares the `truncated` + `maxNodes` fields it emits (the strict schema
+  omitted them, so the pagination signal was undiscoverable and every response violated its own advertised contract).
+- **`set_active_scene`** — the H5 audit log now records the `sceneName` selector (not only `scenePath`).
+- **`manage_tools`** — removed a dead always-true cache-rebuild branch.
+- **Test integrity** — four aftermath tests that re-read through the same path as the handler (or asserted `x==x`) now
+  assert against a genuinely independent source (packages-lock, the `validReferences` counter, an independent scene-root walk).
+
+### Documentation
+
+- Corrected the compatibility floor across the docs — CONTRIBUTING, the setup + floor-testing guides, and the roadmap
+  still claimed a 2020.3 / C# 8 floor; the floor is **2019.4 / C# 7.3**, CI-verified on all four LTS versions.
+- Refreshed stale command/test counts, marked completed roadmap/ADR items done, added the Roslyn code-intelligence
+  sidecar to the roadmap, and documented the deferred round-7 friction (FR1/FR3/FR5) + the known placeholders.
+
 ## [0.20.5] — Dogfood rounds 6–8, code review, + a comprehensive aftermath test suite
 
 Three more live dogfood passes, an independent code review, and a rigorous "aftermath" verification sweep — then a
