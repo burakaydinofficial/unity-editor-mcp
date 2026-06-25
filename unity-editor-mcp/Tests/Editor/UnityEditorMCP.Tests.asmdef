@@ -6,7 +6,8 @@
         "UnityEditorMCP.Core",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "Newtonsoft.Json"
+        "Newtonsoft.Json",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [
         "Editor"
