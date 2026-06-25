@@ -15,32 +15,37 @@ Organizing principle: wire-truth and the editor test suite are now **done and ve
 (via bridge dogfooding); the focus shifts to contract-enforcement + incremental migration,
 floor-treadmill, then polish.
 
-**Done — verified live via the editor bridge (dogfooding on 2020.3):**
-- ✅ Full **EditMode suite green (71/71)**; compiles clean on 2020.3/2021.3/2022.3. The suite had
-  never been run — 33 pre-existing failures triaged and fixed (assembly-internal anonymous-type
-  test rot + 1 real bug: `ResolveComponentType` full names).
+**Done — verified live via the editor bridge (dogfooding across the 2019.4–2022.3 floor matrix):**
+- ✅ **~295 EditMode tests incl. the aftermath suite** (`unity-editor-mcp/Tests/Editor/Aftermath/`);
+  compiles clean across the **2019.4–2022.3 floor matrix**. The suite had never been run — 33
+  pre-existing failures triaged and fixed (assembly-internal anonymous-type test rot + 1 real bug:
+  `ResolveComponentType` full names).
 - ✅ Wire-truth: classification lives in Unity-independent `Core.ResponseClassifier` (dotnet-tested,
   incl. the inline-payload regression cases); `Response.Result` delegates. Errors are not laundered.
   (Caught + fixed a wire regression where inline-success envelopes collapsed to `{}`.)
 - ✅ Slice 1 — Core `TcpTransport` is the live transport (3 framers → 2; 1 MB cap added).
-- ✅ Slice 2 (bounded) — Core `CommandDispatcher` is the live dispatch front; `handshake` +
-  `get_component_types` ride the `HandlerOutcome` rail (`SetFallback` = the legacy switch).
-- ✅ `get_component_types` implemented → **drift gate reports zero known gaps**.
+- ✅ Slice 2 → **bulk migration complete (DONE v0.4.0)** — Core `CommandDispatcher` is the **sole**
+  dispatch front; **all editor commands ride the `HandlerOutcome` rail** (`BuildDispatcher`), and the
+  legacy `ProcessCommand` switch was fully retired (an unregistered type yields `UNKNOWN_COMMAND`).
+- ✅ `get_component_types` editor side implemented + registered (DONE) → **drift gate reports zero
+  known gaps**.
 - ✅ Connect-time handshake exchange wired (`performHandshake` on connect; warns on mismatch).
 - ✅ Discovery proven live: 3 editors coexisting on derived ports + PID-liveness (ADR 0003).
 - ✅ Param-schema drift detection; drift gate recognizes `dispatcher.Register(...)`.
 
 **Next**
 1. ~~In-editor verification, connect-time handshake, wire-truth, EditMode greening~~ — done & verified.
-2. **Bulk handler migration** onto the `HandlerOutcome` dispatcher rail (strangler via `SetFallback`),
-   by category, + startup `CatalogConformance`; typed error codes. The big remaining structural item —
-   deliberately deferred (the recovery payoff is covered by the external log+git lifeline).
+2. ~~**Bulk handler migration** onto the `HandlerOutcome` dispatcher rail, by category, + startup
+   `CatalogConformance`~~ — **DONE (v0.4.0):** all editor commands ride the rail (`BuildDispatcher`),
+   the legacy `ProcessCommand` switch is retired, and `CatalogConformance` runs at startup.
 3. **Contract enforcement:** result-schema validation at the Node boundary (warn-mode) + conformance
    vectors both halves run; make the handshake *refuse* (not just warn) on mismatch.
 
 **P1 — structural completion**
-4. Migrate handlers to real `HandlerOutcome` by category (strangler) + startup
-   `CatalogConformance` check; typed error codes (`EDITOR_COMPILING`, `VALIDATION_ERROR`…).
+4. ~~Migrate handlers to real `HandlerOutcome` by category (strangler) + startup
+   `CatalogConformance` check~~ — **DONE (v0.4.0):** every command is registered on the rail and
+   served by the tested dispatcher; typed error codes (`EDITOR_COMPILING`, `VALIDATION_ERROR`…) flow
+   through `HandlerOutcome`.
 5. Node `tools/` leftovers. **Verified, not 10** — the original audit summary overstated
    several claims:
    - Double-wrap + payload discard: only **2** handlers (`AnalyzeSceneContents`,
@@ -56,8 +61,8 @@ floor-treadmill, then polish.
    remains open.
 7. Server reconnect re-resolution via the registry + server-side stale reaping (ADR 0003
    follow-ups).
-8. `get_component_types`: implement the editor side or drop the tool (removes the permanent
-   knownGap warning) — user call.
+8. ~~`get_component_types`: implement the editor side or drop the tool~~ — **DONE:** the editor side
+   is implemented and registered on the rail; the knownGap warning is gone (drift gate clean).
 
 **P2 — hardening / later bets**
 9. Result-schema validation at the Node boundary (decide: minimal hand-rolled validator vs
@@ -65,7 +70,9 @@ floor-treadmill, then polish.
 10. Shared protocol conformance vectors run by both halves.
 11. C# dispatch codegen from the catalog (compile-time half; conformance covers runtime).
 12. game-ci single floor lane (2020.3, license-gated).
-13. 2019.4 exploration (C# 7.3) — after the 2020.3 story is fully proven.
+13. ~~2019.4 exploration (C# 7.3)~~ — **DONE:** 2019.4 is the declared floor and a CI lane — the
+    floor-matrix compiles + EditMode-tests all of 2019.4 / 2020.3 / 2021.3 / 2022.3 (Unity 2019.4 = the
+    floor; Unity 6000.x is API-guarded but its CI host is still pending).
 
 ## Adversarial audit (2026-06-13)
 
@@ -142,6 +149,12 @@ Found while deriving result schemas (catalog params vs. what the C# handler actu
 
 ## Error / result contract
 
+> **SUPERSEDED (closed in v0.4.0).** The findings in this section describe the pre-rail architecture
+> (`ProcessCommand` wrapping every return in `SuccessResult`). Error-laundering is now closed *by
+> construction*: every command rides Core's `CommandDispatcher` returning `HandlerOutcome`, and
+> `Response.Result` delegates classification to the Unity-independent, dotnet-tested
+> `ResponseClassifier`. Retained below for history.
+
 ### HIGH — Error laundering: domain failures wrapped in status:success responses
 *effort: large · risk: high*
 
@@ -186,6 +199,12 @@ Found while deriving result schemas (catalog params vs. what the C# handler actu
 
 ## Node handler layering
 
+> **SUPERSEDED (closed in v0.4.0/v0.5.0).** This section predates the 3-meta-tool server surface
+> (ADR 0006). The legacy `mcp-server/src/tools/` functional layer and per-command Node handlers are
+> gone — the advertised surface is now the three generic meta-tools, and editor commands are reached
+> via `call_unity_tool` after on-demand discovery (no per-command Node handler, no double-wrap path).
+> Retained below for history.
+
 ### HIGH — Double-wrapping of response payloads in legacy handlers
 *effort: medium · risk: medium*
 
@@ -229,6 +248,13 @@ Found while deriving result schemas (catalog params vs. what the C# handler actu
 **Recommendation:** After migrating legacy handlers, consolidate all custom validation logic into overridden validate() methods in handler classes. Expand validators.js with domain-specific validators (e.g., validateComponentIndex, validateScenePath) and use them consistently across all handlers. Remove validators.js is only used if all handlers are confirmed migrated.
 
 ## Command lifecycle & domain-reload state
+
+> **SUPERSEDED in part (v0.4.0).** The `async void ProcessCommand` switch these findings target no
+> longer exists — it was retired when Core's `CommandDispatcher` became the sole dispatch front, and
+> commands are pumped on the main thread via `Drain()` from `EditorApplication.update`. The
+> *domain-reload durability* concerns (in-flight journaling, interrupted-by-reload result type,
+> job/task model) remain genuinely-open structural work, deliberately deferred (the recovery payoff
+> is covered by the external log+git lifeline). Retained below for history.
 
 ### HIGH — Async void dispatch with no domain reload safeguards
 *effort: medium · risk: high*
@@ -324,6 +350,15 @@ Found while deriving result schemas (catalog params vs. what the C# handler actu
 **Recommendation:** Extract framing logic into a shared protocol utility module (e.g., protocol/lib/framing.js or a C# shared class UnityMcpFraming). Implement identical error recovery in both: on invalid length, scan forward for next valid 4-byte frame. Document recovery strategy in protocol/README.md. This ensures floor compatibility across version boundaries and reduces future divergence. Lower priority than size validation or log separation, but necessary for long-term maintainability.
 
 ## Generating the Unity dispatch from the catalog
+
+> **SUPERSEDED (closed in v0.4.0).** The hand-written `UnityEditorMCP.cs` switch these findings
+> describe is retired. Dispatch now goes through Core's `CommandDispatcher`, every command is
+> registered on the rail (`BuildDispatcher`), and `CommandCatalog.g.cs` + `CatalogConformance` assert
+> the registered handlers against the catalog at startup (the editor-side analog of the Node drift
+> gate) — converting the old post-CI discovery into a pre-runtime check. The response-wrapping
+> finding is closed via `ResponseClassifier` (see the Error/result section). Retained below for
+> history. Note: the floor is C# 7.3 / netstandard 2.0 (2019.4), narrower than the C# 8 some bodies
+> below cite.
 
 ### HIGH — Switch dispatch is extracted from source by regex, no compile-time guarantee
 *effort: medium · risk: low*

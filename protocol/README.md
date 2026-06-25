@@ -101,8 +101,9 @@ Mixed-install handling (the failure these projects die on): each half embeds the
 protocol version it was built against; the handshake compares them and returns
 `PROTOCOL_VERSION_MISMATCH` on a major mismatch (telling the user which half to
 update) rather than hanging. Minor skew within a major is tolerated by the newer
-side restricting itself to the lower minor's surface. *(Handshake not yet
-implemented — see Roadmap.)*
+side restricting itself to the lower minor's surface. *(The handshake exchange
+ships and warns on mismatch; refusing/capability-gating is the remaining step —
+see Roadmap.)*
 
 ## Known deviations (current code vs. this contract)
 
@@ -131,7 +132,7 @@ gaps are listed under **Remaining**.
    (the agent selects which result fields it wants — see "Result field selection" below); editor-
    sourced field *advertisement* shipped in v0.5.0 (the editor advertises each command's result schema
    in its manifest; `list_unity_tools` surfaces it). (Catalog *params* are drift-checked against the JS
-   inputSchema — for the 3 server-side meta-tools only since v0.5.0; the 76 editor commands are
+   inputSchema — for the 3 server-side meta-tools only since v0.5.0; the 99 editor commands are
    validated editor-side.)
 2. **Handshake warns, does not refuse** — a version/project mismatch logs a warning but the
    connection proceeds; refusing (or capability-gating) is the next step.
@@ -152,7 +153,8 @@ The verified structural backlog (error contract, dispatch generation, lifecycle,
 lives in `docs/quality-roadmap.md`. Protocol-specific next steps:
 
 - **Result schemas:** validate responses against the derived `result` schemas and
-  refine the low-confidence ones (e.g. `get_component_types` once it has a handler).
+  refine the low-confidence ones (the `derived-from-handlers-v1` schemas inferred from
+  handler returns rather than declared explicitly).
 - **Conformance vectors:** golden request/response fixtures the protocol ships,
   run against both halves (the real "fail both releases" gate).
 - **Codegen:** generate the C# command registry/constants and (optionally) C#

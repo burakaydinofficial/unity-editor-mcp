@@ -137,7 +137,7 @@ export class AnalyzeScreenshotToolHandler extends BaseToolHandler {
     if (prompt) {
       result.aiAnalysis = {
         prompt: prompt,
-        note: 'AI analysis requires integration with vision model. This is a placeholder for future implementation.'
+        note: 'TODO (deferred — roadmap G-series): AI/vision analysis is a PLACEHOLDER, not implemented — needs vision-model integration (or an honest UNSUPPORTED response). This output is illustrative, not real analysis.'
       };
     }
 

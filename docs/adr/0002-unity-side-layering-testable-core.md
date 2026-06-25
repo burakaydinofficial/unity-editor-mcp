@@ -1,6 +1,6 @@
 # ADR 0002 — Unity-side layering: a dotnet-testable Core
 
-Status: Accepted (proof-of-concept landed) · Date: 2026-06
+Status: Accepted — fully implemented in v0.4.0 (Core `CommandDispatcher` is the sole dispatch front; legacy `ProcessCommand` switch retired) · Date: 2026-06
 
 ## Context
 
@@ -71,11 +71,10 @@ for contributors.
   - Catalog → C# codegen: `CommandCatalog.g.cs` (editor command list + protocol
     version) generated from the catalog and drift-gated; `CatalogConformance`
     checks registered handlers against it (editor-side analog of the Node gate).
-- Next (step 2 — needs in-editor verification): rewrite the bootstrap
-  (`Editor/Core/UnityEditorMCP.cs`) to construct an `McpBridge`, register the
-  existing handlers wrapped to return `HandlerOutcome`, pump `Drain()` from
-  `EditorApplication.update`, send the `Handshake` on connect, and run a startup
-  `CatalogConformance` check. Core does the rest, so this closes the
-  error-laundering deviation in `protocol/README.md` on the wire. Only the
-  `[InitializeOnLoad]` wiring + the handlers' actual `UnityEditor` calls need an
-  editor to verify.
+- Done (step 2 — landed in v0.4.0): the bootstrap
+  (`Editor/Core/UnityEditorMCP.cs`) constructs the bridge, registers all handlers
+  on the `HandlerOutcome` rail (`BuildDispatcher`), pumps `Drain()` from
+  `EditorApplication.update`, sends the `Handshake` on connect, and runs the
+  startup `CatalogConformance` check. The legacy `ProcessCommand` switch was fully
+  retired (Core's `CommandDispatcher` is now the sole dispatch front), and the
+  error-laundering deviation is closed on the wire via `ResponseClassifier`.

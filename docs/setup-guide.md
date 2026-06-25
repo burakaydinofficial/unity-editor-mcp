@@ -7,7 +7,7 @@ Protocol) bridge. For the architecture see the [ADRs](adr/) and the root
 
 ## Prerequisites
 
-- Unity **2020.3 LTS** or newer (the bridge is floor-true down to 2020.3)
+- Unity **2019.4 LTS** or newer (the bridge is floor-true down to 2019.4; CI-verified on 2019.4–2022.3)
 - Node.js **18+** and npm
 - Claude Desktop, Cursor, or another MCP-compatible client
 
@@ -107,7 +107,7 @@ npm run test:ci    # the curated CI gate
 
 Unity EditMode tests: open the project and run **Window → General → Test Runner →
 EditMode → Run All**. See [floor-testing.md](floor-testing.md) for the
-multi-version (2020.3 / 2021.3 / 2022.3) floor matrix.
+multi-version (2019.4 / 2020.3 / 2021.3 / 2022.3) floor matrix.
 
 ## Troubleshooting
 

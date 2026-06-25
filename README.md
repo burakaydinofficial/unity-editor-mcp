@@ -23,6 +23,7 @@ Unity Editor MCP (Model Context Protocol) enables AI assistants like Claude and 
 - **🖱️ UI automation** — click / set / inspect uGUI elements (Undo-tracked)
 - **🛡️ Safety rails** — a confirm-gate on irreversible commands, a project-folder path sandbox, and a local mutation audit log
 - **🔌 Version-agnostic surface** — one server works with **any Unity 2019.4+ editor** and several editors at once; the client learns each editor's real tools at runtime
+- **🧪 Deterministic verification** — a deterministic aftermath/outcome EditMode test suite asserts each tool's real side effects, run on **every floor-matrix Unity version** (2019.4 / 2020.3 / 2021.3 / 2022.3)
 
 ## ✅ Supported Unity versions
 
@@ -114,7 +115,7 @@ Add it to `.mcp.json` in your project root (or run `claude mcp add unity-editor-
 ## Available Tools
 
 The MCP server advertises a **3-tool generic surface** — `list_unity_instances`, `list_unity_tools`, and
-`call_unity_tool`. Everything below is the **editor capability catalog** (**99 commands across 18 categories**):
+`call_unity_tool`. Everything below is the **editor capability catalog** (**98 invokable commands across 18 categories** — the catalog 99th editor entry, handshake, is the internal connect-time manifest, not an MCP tool):
 the agent discovers each connected editor's real tools — with schemas, learned at runtime — via
 `list_unity_tools`, then invokes them by name via `call_unity_tool`.
 
@@ -180,7 +181,7 @@ the agent discovers each connected editor's real tools — with schemas, learned
 - **`modify_serialized_array`** — Structurally mutate array/list properties (resize/insert/remove/move/clear) with a size compare-and-swap.
 - **`save_assets`** — Persist all dirty assets to disk (`AssetDatabase.SaveAssets`).
 
-### Scene Management (7)
+### Scene Management (8)
 - **`create_scene`** — Create a new scene (build-settings integration, auto-load).
 - **`load_scene`** — Load a scene (Single or Additive).
 - **`save_scene`** — Save the current scene (with Save As).
@@ -188,6 +189,7 @@ the agent discovers each connected editor's real tools — with schemas, learned
 - **`get_scene_info`** — Detailed scene info including GameObject counts.
 - **`manage_build_settings`** — Manage the build scene list (`list`/`add`/`remove`/`move`/`set_enabled`/`clear`; `exists` flags dangling build paths).
 - **`close_scene`** — Selectively unload one open scene (vs `load_scene` Single, which closes all + reloads); refuses the last loaded scene; dirty scenes need `save`/`force`.
+- **`set_active_scene`** — Switch the active scene among loaded scenes (multi-scene companion to load_scene / close_scene).
 
 ### Asset & Prefab Management (15)
 - **`create_prefab`** — Create a prefab from a GameObject or from scratch.
@@ -253,8 +255,9 @@ the agent discovers each connected editor's real tools — with schemas, learned
 - **`execute_menu_item`** — Execute an editor menu item (errors when the item didn't run, rather than reporting a false success).
 - **`invoke_static_method`** — Invoke a static method by type + name with JSON args. **Default-deny** (arbitrary code execution) — allow-list via `UNITY_MCP_INVOKE_ALLOW` or `ProjectSettings/UnityEditorMcpInvokePolicy.json`.
 
-### Console (2)
+### Console (3)
 - **`clear_console`** — Clear the editor console.
+- **`clear_logs`** — Clear the real editor console (LogEntries), companion to read_logs.
 - **`enhanced_read_logs`** — Read console logs with advanced search/filtering.
 
 ### Test Runner (4)

@@ -23,6 +23,9 @@ namespace UnityEditorMCP.Handlers
             try
             {
                 // Get parameters
+                // TODO (round-7 FR5 — tracked in the roadmap): GameObject-target param names are inconsistent across
+                // the tool surface (gameObjectName/path here vs gameObjectPath in component/prefab handlers vs
+                // name/path in the gameobject handlers). Converge on one canonical param (old names as deprecated aliases).
                 var gameObjectName = parameters["gameObjectName"]?.ToString();
                 var path = parameters["path"]?.ToString();
                 var includeChildren = parameters["includeChildren"]?.ToObject<bool>() ?? false;

@@ -2,8 +2,8 @@
 
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to follow semantic
-versioning. This fork is **the deep, floor-true MCP bridge for older Unity projects** (Unity 2019 →
-latest; initial focus 2020.3–2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
+versioning. This fork is **the deep, floor-true MCP bridge for older Unity projects** (Unity 2019.4 floor →
+latest; CI-verified on 2019.4 / 2020.3 / 2021.3 / 2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
 ## [0.20.5] — Dogfood rounds 6–8, code review, + a comprehensive aftermath test suite

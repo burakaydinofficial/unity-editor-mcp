@@ -149,6 +149,10 @@ namespace UnityEditorMCP.Handlers
                 var previousSettings = new Dictionary<string, object>();
                 var appliedSettings = new Dictionary<string, object>();
 
+                // TODO (round-7 FR3 — tracked in the roadmap): this only handles a hardcoded key allow-list for
+                // TextureImporter / ModelImporter. An unrecognized key or an unsupported importer (e.g. AudioImporter)
+                // matches no case, leaves appliedSettings empty, yet still SaveAndReimport()s and returns success — a
+                // no-op reported as success. Should report the applied-key count and fail/warn when nothing applied.
                 // Apply settings based on importer type
                 if (assetImporter is TextureImporter textureImporter)
                 {

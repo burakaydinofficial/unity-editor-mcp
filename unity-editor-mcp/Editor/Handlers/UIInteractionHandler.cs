@@ -296,8 +296,9 @@ namespace UnityEditorMCP.Handlers
                     // Wait between actions if needed
                     if (waitBetween > 0 && inputSequence.IndexOf(action) < inputSequence.Count - 1)
                     {
-                        // Note: In real implementation, this would need to be async
-                        // For now, we're just recording the wait time
+                        // TODO (deferred — tracked in the roadmap K-series uGUI automation): simulate_ui_input does
+                        // NOT honor waitBetween — it records the wait but does not actually delay (a real inter-action
+                        // wait needs the async/runtime UI surface, a play-mode capability). Records the intent only.
                         results.Add(new { wait = waitBetween });
                     }
                 }

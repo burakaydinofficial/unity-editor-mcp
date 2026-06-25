@@ -53,4 +53,7 @@ filename format, and staleness window; the Node tests parse a .NET
 - Discovery is best-effort: registry failure degrades to explicit port config.
 - The server resolves the port at startup; re-resolving on reconnect (editor
   restarted onto an ephemeral port) is a known follow-up, as is reaping stale
-  descriptors from the server side and surfacing `list instances` as a tool.
+  descriptors from the server side.
+- Update: the "surface `list instances` as a tool" follow-up was **delivered** as
+  the `list_unity_instances` meta-tool (ADR 0004/0006). Server-side stale-descriptor
+  reaping and reconnect re-resolution remain the genuinely-open follow-ups.

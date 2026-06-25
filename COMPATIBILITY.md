@@ -31,6 +31,7 @@ in sync when you add or remove a guard.
 | --- | --- | --- | --- |
 | `unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs:14` | `UNITY_2021_2_OR_NEWER` | `UnityEditor.SceneManagement.PrefabStageUtility` ⇄ `UnityEditor.Experimental.SceneManagement.PrefabStageUtility` | `using`-alias; call sites at 744, 760, 818, 877. `StageUtility` (847) is non-experimental in all versions. |
 | `unity-editor-mcp/Tests/Editor/Aftermath/AftermathTests_PrefabAsset.cs:15` | `UNITY_2021_2_OR_NEWER` | `UnityEditor.SceneManagement.PrefabStageUtility` ⇄ `UnityEditor.Experimental.SceneManagement.PrefabStageUtility` | `using`-alias mirroring the handler; the open/exit/save_prefab aftermath tests call `PrefabStageUtility.GetCurrentPrefabStage()`. |
+| `unity-editor-mcp/Tests/Editor/Handlers/Round4RegressionTests.cs` | `UNITY_2021_2_OR_NEWER` | `UnityEditor.SceneManagement.PrefabStageUtility` (new namespace only) | Positive-guard `#if`-only — no `#else` floor branch — because the whole `[UnityTest]` is gated to 2021.2+, so the older namespace is never referenced. Floor-safe, no code change on the floor. |
 | `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:607` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping` ⇄ `Rigidbody.drag` (write) | |
 | `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:618` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.angularDamping` ⇄ `Rigidbody.angularDrag` (write) | |
 | `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:736` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping`/`angularDamping` ⇄ `drag`/`angularDrag` (read) | |
@@ -60,8 +61,9 @@ Tracked openly so the list is the work list:
    `TestRunnerHandler.cs.meta`. Note: the test handler lives in the core editor
    assembly, so the bridge now depends on the test framework (a default package);
    isolating it into its own assembly is a possible later refinement. Verified live:
-   the EditMode suite (71 tests) compiles and passes on **2020.3, 2021.3, and
-   2022.3**, each driven through the bridge (see `docs/floor-testing.md`).
+   the EditMode suite (now ~295 tests, including the deterministic aftermath suite)
+   compiles and passes on **2019.4 / 2020.3 / 2021.3 / 2022.3**, each driven through
+   the bridge (see `docs/floor-testing.md`).
 3. **`get_component_types`** is now implemented on the Core `CommandDispatcher` rail
    (`ComponentHandler.GetComponentTypes`); `protocol/catalog/commands.json` →
    `knownGaps` is empty and the drift gate reports zero gaps. (Previously a registered

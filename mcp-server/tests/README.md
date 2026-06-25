@@ -155,15 +155,14 @@ Coverage reports are generated in multiple formats:
 ## Continuous Integration
 
 Tests run automatically on:
-- **Push** to main/develop branches
-- **Pull requests** to main/develop
-- **Manual triggers** via GitHub Actions
+- **Push** to `main`
+- **Pull requests** targeting `main`
 
 ### CI Test Matrix
 
-- **Node.js versions**: 18.x, 20.x, 22.x
-- **Operating systems**: Ubuntu (primary), additional OS as needed
-- **Test categories**: Unit, Integration, Performance (on main branch only)
+- **Node.js version**: 18 (single version, no matrix)
+- **Operating system**: `ubuntu-latest`
+- **Command**: `npm run test:ci` (see `.github/workflows/test-coverage.yml`)
 
 ## Performance Benchmarks
 

@@ -4,19 +4,19 @@ Thank you for your interest in contributing to Unity Editor MCP! This document p
 
 ## Compatibility policy — read this first
 
-This fork's identity is being **floor-true for older Unity** (2019 → latest; tested floor 2020.3 LTS). Two rules
+This fork's identity is being **floor-true for older Unity** (2019 → latest; tested floor 2019.4 LTS). Two rules
 are non-negotiable:
 
 - **Guards, not floors.** Every version-divergent Unity API goes behind `#if UNITY_X_Y_OR_NEWER` with **both
   branches maintained** — never raise the floor to dodge a divergence. Catalog every guard in
   [`COMPATIBILITY.md`](COMPATIBILITY.md).
-- **Stay within the floor's language/runtime.** Unity-side C# is **C# 8 / netstandard 2.0** (the 2020.3 Mono
-  reality); code that must compile on 2019.4 is **C# 7.3**. No UI Toolkit editor APIs in core paths (IMGUI-safe).
-  The Node server stays **pure JS, no native modules** (Node ≥ 18).
+- **Stay within the floor's language/runtime.** Unity-side C# is constrained to **C# 7.3 / netstandard 2.0**
+  (the 2019.4 floor Mono — older than 2020.3 C# 8; the whole codebase compiles on 2019.4). No UI Toolkit editor
+  APIs in core paths (IMGUI-safe). The Node server stays **pure JS, no native modules** (Node ≥ 18).
 
 `node scripts/compat-lint.mjs` flags floor-divergent Unity APIs used outside a guard, and the
-[floor-matrix CI](.github/workflows/floor-matrix.yml) compiles + runs the EditMode suite on 2020.3 / 2021.3 /
-2022.3 on every release. See [`CLAUDE.md`](CLAUDE.md) for the architecture and the rest of the compatibility notes.
+[floor-matrix CI](.github/workflows/floor-matrix.yml) compiles + runs the EditMode suite on 2019.4 / 2020.3 /
+2021.3 / 2022.3 on every release. See [`CLAUDE.md`](CLAUDE.md) for the architecture and the rest of the compatibility notes.
 
 ## Getting Started
 
@@ -28,7 +28,7 @@ are non-negotiable:
 
 ### Prerequisites
 
-- Unity 2020.3 LTS or newer
+- Unity 2019.4 LTS or newer
 - Node.js 18.0.0 or newer
 - Git
 
