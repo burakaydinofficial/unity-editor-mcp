@@ -30,6 +30,7 @@ in sync when you add or remove a guard.
 | File : line | Guard | API (newer ⇄ older) | Notes |
 | --- | --- | --- | --- |
 | `unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs:14` | `UNITY_2021_2_OR_NEWER` | `UnityEditor.SceneManagement.PrefabStageUtility` ⇄ `UnityEditor.Experimental.SceneManagement.PrefabStageUtility` | `using`-alias; call sites at 744, 760, 818, 877. `StageUtility` (847) is non-experimental in all versions. |
+| `unity-editor-mcp/Tests/Editor/Aftermath/AftermathTests_PrefabAsset.cs:15` | `UNITY_2021_2_OR_NEWER` | `UnityEditor.SceneManagement.PrefabStageUtility` ⇄ `UnityEditor.Experimental.SceneManagement.PrefabStageUtility` | `using`-alias mirroring the handler; the open/exit/save_prefab aftermath tests call `PrefabStageUtility.GetCurrentPrefabStage()`. |
 | `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:607` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping` ⇄ `Rigidbody.drag` (write) | |
 | `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:618` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.angularDamping` ⇄ `Rigidbody.angularDrag` (write) | |
 | `unity-editor-mcp/Editor/Handlers/ComponentHandler.cs:736` | `UNITY_6000_0_OR_NEWER` | `Rigidbody.linearDamping`/`angularDamping` ⇄ `drag`/`angularDrag` (read) | |
