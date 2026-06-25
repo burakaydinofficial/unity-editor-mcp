@@ -36,6 +36,7 @@ const RULES = [
 // file shifts, the lint fails loudly and this line number must be updated — not a silent miss.)
 const ALLOWLIST = [
   { file: 'unity-editor-mcp/Editor/Handlers/AssetManagementHandler.cs', line: 18, api: 'PrefabStageUtility (qualified)' },
+  { file: 'unity-editor-mcp/Tests/Editor/Aftermath/AftermathTests_PrefabAsset.cs', line: 15, api: 'PrefabStageUtility (qualified)' },
 ];
 
 async function* walkCs(dir) {
