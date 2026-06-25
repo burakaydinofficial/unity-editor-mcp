@@ -131,10 +131,13 @@ namespace UnityEditorMCP.Tests
         }
 
         // manage_tools (get) -> UPGRADE over Round4RegressionTests.ManageTools_NoFabricatedPackages: assert the
-        // TextMeshPro entry's reported version EQUALS the REAL installed version, re-read independently via
-        // UnityEditor.PackageManager.PackageInfo.FindForAssembly on the live TMPro.TextMeshProUGUI assembly.
-        // When TextMeshPro is not present in the host project, the handler must report it as not installed
-        // (an equally independent outcome via the same type-resolution path).
+        // TextMeshPro entry's reported version EQUALS the REAL installed version. Round-2 fix: the prior re-read used
+        // PackageInfo.FindForAssembly on the same "TMPro.TextMeshProUGUI, Unity.TextMeshPro" type string the handler
+        // (ToolManagementHandler.PackageVersionForType) uses — same call, same source, so the equality was x==x and
+        // proved nothing. The independent source of truth is now the host project's package files on disk
+        // (Packages/packages-lock.json, falling back to Packages/manifest.json), parsed with Newtonsoft. Reading the
+        // pinned "com.unity.textmeshpro" version off disk is a genuinely different derivation than the live
+        // PackageManager assembly query the handler performs.
         [Test]
         public void ManageTools_Get_TextMeshProVersionMatchesRealInstalledVersion()
         {
@@ -153,36 +156,81 @@ namespace UnityEditorMCP.Tests
             }
             Assert.IsNotNull(tmpEntry, "manage_tools must always advertise the built-in TextMeshPro tool entry");
 
-            // Independent re-read: resolve the real TMP type and its real package version through Package Manager.
-            var tmpType = System.Type.GetType("TMPro.TextMeshProUGUI, Unity.TextMeshPro");
             bool reportedInstalled = (bool)tmpEntry["isInstalled"];
+            string reportedVersion = (string)tmpEntry["version"];
 
-            if (tmpType != null)
-            {
-                // TMP is installed: the handler MUST report it installed, and its version MUST equal the
-                // real PackageInfo.FindForAssembly version (the independent source of truth).
-                Assert.IsTrue(reportedInstalled,
-                    "TMPro.TextMeshProUGUI resolved, so manage_tools must report TextMeshPro as installed");
+            // Determine whether TMP is actually present (handler installed flag must agree with type resolution).
+            var tmpType = System.Type.GetType("TMPro.TextMeshProUGUI, Unity.TextMeshPro");
 
-                var realInfo = UnityEditor.PackageManager.PackageInfo.FindForAssembly(tmpType.Assembly);
-                Assert.IsNotNull(realInfo,
-                    "PackageInfo.FindForAssembly must resolve the package that owns TMPro.TextMeshProUGUI");
-                string realVersion = realInfo.version;
-
-                Assert.AreEqual(realVersion, (string)tmpEntry["version"],
-                    "manage_tools must report TextMeshPro's REAL installed package version, not a hardcoded guess");
-                // Sanity: it must not be the old fabricated "1.0.0" placeholder nor the "unknown"/"Not installed" sentinels.
-                Assert.AreNotEqual("1.0.0", (string)tmpEntry["version"], "the fabricated '1.0.0' version must be gone");
-                Assert.AreNotEqual("Not installed", (string)tmpEntry["version"]);
-            }
-            else
+            if (tmpType == null)
             {
                 // TMP is absent from this host: the handler must report it not installed with the explicit sentinel.
                 Assert.IsFalse(reportedInstalled,
                     "TMPro.TextMeshProUGUI did not resolve, so manage_tools must report TextMeshPro as not installed");
-                Assert.AreEqual("Not installed", (string)tmpEntry["version"],
+                Assert.AreEqual("Not installed", reportedVersion,
                     "an uninstalled built-in tool must report the 'Not installed' version sentinel");
+                return;
             }
+
+            // TMP is installed: the handler MUST report it installed.
+            Assert.IsTrue(reportedInstalled,
+                "TMPro.TextMeshProUGUI resolved, so manage_tools must report TextMeshPro as installed");
+
+            // The reported version must never be a fabricated/sentinel placeholder, regardless of disk resolution.
+            Assert.AreNotEqual("1.0.0", reportedVersion, "the fabricated '1.0.0' version must be gone");
+            Assert.AreNotEqual("unknown", reportedVersion, "an installed tool must not fall back to the 'unknown' sentinel");
+            Assert.AreNotEqual("Not installed", reportedVersion, "an installed tool must not report the 'Not installed' sentinel");
+
+            // INDEPENDENT source of truth: the host project's package files on disk, NOT the live PackageManager
+            // assembly query the handler uses. ProjectRoot is the parent of Application.dataPath (.../Assets).
+            string projectRoot = System.IO.Directory.GetParent(Application.dataPath)?.FullName;
+            string diskVersion = ReadTmpVersionFromPackageFiles(projectRoot);
+
+            if (diskVersion != null)
+            {
+                Assert.AreEqual(diskVersion, reportedVersion,
+                    "manage_tools must report TextMeshPro's REAL pinned package version from Packages/packages-lock.json " +
+                    "(or manifest.json), not a value derived from the same PackageManager call the handler uses");
+            }
+            // else: TMP could not be resolved from the lock/manifest (e.g. it's an implicit transitive dependency on
+            // this floor). Per the task, do NOT hard-fail — the sentinel-not-fabricated assertions above still stand.
+        }
+
+        // Reads the pinned "com.unity.textmeshpro" version straight off disk: prefer packages-lock.json (the resolved
+        // graph, which records transitive deps too), then fall back to manifest.json (only direct deps). Returns null
+        // when neither file pins TMP. Newtonsoft parse — a genuinely different path than UnityEditor.PackageManager.
+        private static string ReadTmpVersionFromPackageFiles(string projectRoot)
+        {
+            if (string.IsNullOrEmpty(projectRoot)) return null;
+
+            // packages-lock.json: { "dependencies": { "com.unity.textmeshpro": { "version": "x.y.z" } } }
+            string lockPath = System.IO.Path.Combine(projectRoot, "Packages", "packages-lock.json");
+            if (System.IO.File.Exists(lockPath))
+            {
+                try
+                {
+                    var root = JObject.Parse(System.IO.File.ReadAllText(lockPath));
+                    var entry = root["dependencies"]?["com.unity.textmeshpro"] as JObject;
+                    var v = (string)entry?["version"];
+                    if (!string.IsNullOrEmpty(v)) return v;
+                }
+                catch { /* fall through to manifest */ }
+            }
+
+            // manifest.json: { "dependencies": { "com.unity.textmeshpro": "x.y.z" } }
+            string manifestPath = System.IO.Path.Combine(projectRoot, "Packages", "manifest.json");
+            if (System.IO.File.Exists(manifestPath))
+            {
+                try
+                {
+                    var root = JObject.Parse(System.IO.File.ReadAllText(manifestPath));
+                    var v = (string)root["dependencies"]?["com.unity.textmeshpro"];
+                    if (!string.IsNullOrEmpty(v)) return v;
+                }
+                catch { /* return null below */ }
+            }
+
+            return null;
         }
     }
 }

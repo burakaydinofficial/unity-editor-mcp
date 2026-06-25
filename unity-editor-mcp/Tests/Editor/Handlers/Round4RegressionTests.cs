@@ -272,6 +272,29 @@ namespace UnityEditorMCP.Tests
             finally { var g = GameObject.Find("__r7_comps__"); if (g != null) Object.DestroyImmediate(g); }
         }
 
+        // review round-2: create_gameobject must NOT false-success when a component can't be added — AddComponent
+        // returns null (does NOT throw) for a DisallowMultipleComponent violation (e.g. a 2nd Rigidbody); the call
+        // must fail all-or-nothing and leave no object behind.
+        [Test]
+        public void CreateGameObject_DuplicateUniqueComponent_FailsAndCreatesNothing()
+        {
+            // Unity logs an error when AddComponent rejects the 2nd Rigidbody; ignore it (the message text varies
+            // across floors, so do NOT LogAssert.Expect a version-specific string).
+            LogAssert.ignoreFailingMessages = true;
+            try
+            {
+                var r = GameObjectHandler.CreateGameObject(new JObject { ["name"] = "__r2_dupcomp__", ["components"] = new JArray { "Rigidbody", "Rigidbody" } });
+                Assert.IsTrue(r.IsError, "a duplicate unique component must fail, not false-succeed");
+                Assert.AreEqual("INVALID_STATE", r.Code);
+                Assert.IsNull(GameObject.Find("__r2_dupcomp__"), "all-or-nothing: a failed create must leave no object behind");
+            }
+            finally
+            {
+                LogAssert.ignoreFailingMessages = false;
+                var g = GameObject.Find("__r2_dupcomp__"); if (g != null) Object.DestroyImmediate(g);
+            }
+        }
+
         // round-8 limitation 1: an INACTIVE GameObject must still be resolvable by path (else it's stranded — can't be
         // reactivated or deleted by path). GameObject.Find is active-only; the resolver now path-walks loaded scenes.
         [Test]

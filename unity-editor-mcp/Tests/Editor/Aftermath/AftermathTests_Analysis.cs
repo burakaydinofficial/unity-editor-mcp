@@ -10,10 +10,10 @@ namespace UnityEditorMCP.Tests
     /// <summary>
     /// Aftermath tests for the Analysis tool category (SceneAnalysisHandler). Each test builds a KNOWN
     /// fixture of GameObjects/components in the live scene, calls the handler, then INDEPENDENTLY re-reads
-    /// the SAME ground truth through a DIFFERENT path (the raw UnityEngine objects + a hand-rolled count
-    /// over Resources.FindObjectsOfTypeAll / scene roots) and asserts the handler's reported data matches
-    /// that independent measurement AND that an unrelated baseline did not move. Every test destroys
-    /// everything it created (Object.DestroyImmediate) so it leaves zero residue.
+    /// the SAME ground truth through a DIFFERENT path (the raw UnityEngine objects + a transform-hierarchy
+    /// root-walk that shares no code with the handler's Resources.FindObjectsOfTypeAll strategy) and asserts
+    /// the handler's reported data matches that independent measurement AND that an unrelated baseline did
+    /// not move. Every test destroys everything it created (Object.DestroyImmediate) so it leaves zero residue.
     ///
     /// Why deltas (not absolute counts) for analyze_scene_contents: AnalyzeSceneContents counts EVERY
     /// GameObject across ALL loaded scenes (the Test Runner's own scene context is present too), so the
@@ -29,10 +29,17 @@ namespace UnityEditorMCP.Tests
         [Test]
         public void AnalyzeSceneContents_CountsAndComponentDistribution_MatchKnownFixture()
         {
-            // Baseline: count GameObjects + scene roots EXACTLY the way the handler does (default
-            // includeInactive=true), BEFORE the fixture exists, so we can assert our fixture's delta.
+            // Baseline #1 (the handler's OWN definition — Resources.FindObjectsOfTypeAll filtered to loaded
+            // scenes): used ONLY to compute the fixture's delta + assert zero residue, never to validate the
+            // handler against a copy of its own logic.
             int baselineTotal = CountAllLoadedGameObjects();
             int baselineRoots = CountAllSceneRoots();
+
+            // Baseline #2 (GENUINELY INDEPENDENT path): walk every loaded scene's root GameObjects and recurse
+            // through transform children (active AND inactive). This shares no code with the handler's counting
+            // strategy, so comparing the handler's DELTA against this walk's DELTA catches a filtering
+            // divergence in the handler (the round-2 review finding: the old re-read was byte-identical to it).
+            int baselineWalk = CountByRootWalk();
 
             // Independent baseline for the component type we will introduce a known number of: count the
             // SphereCollider instances already present so the assertion is a delta, not an absolute.
@@ -61,11 +68,18 @@ namespace UnityEditorMCP.Tests
                 var light = childB.AddComponent<Light>();
                 light.type = LightType.Point;
 
-                // Independent re-measurement (same method the handler uses), AFTER building the fixture.
+                // Re-measurement via the handler's OWN strategy, AFTER building the fixture — used for the
+                // delta + root assertions (the genuine value the original test had).
                 int expectedTotal = CountAllLoadedGameObjects();
                 int expectedRoots = CountAllSceneRoots();
                 Assert.AreEqual(baselineTotal + 3, expectedTotal, "fixture should add exactly 3 GameObjects");
                 Assert.AreEqual(baselineRoots + 1, expectedRoots, "fixture should add exactly 1 root object");
+
+                // INDEPENDENT re-measurement via the root-walk, AFTER building the fixture. The walk must see
+                // the same +3 the fixture introduced; this anchors the cross-strategy delta comparison below.
+                int expectedWalk = CountByRootWalk();
+                Assert.AreEqual(baselineWalk + 3, expectedWalk,
+                    "the independent root-walk should also see exactly +3 GameObjects");
 
                 // Act
                 var r = SceneAnalysisHandler.AnalyzeSceneContents(new JObject());
@@ -74,11 +88,23 @@ namespace UnityEditorMCP.Tests
                 Assert.IsFalse(r.IsError, r.Error);
                 var payload = JObject.FromObject(r.Payload);
 
-                // AFTERMATH (independent path #1 — statistics vs hand-rolled scene scan):
+                // AFTERMATH (independent path #1 — statistics vs a GENUINELY DIFFERENT scene scan):
                 var stats = (JObject)payload["statistics"];
                 Assert.IsNotNull(stats, "statistics object should be present");
-                Assert.AreEqual(expectedTotal, (int)stats["totalGameObjects"],
-                    "totalGameObjects must equal the independent all-loaded-scenes count");
+                int reportedTotal = (int)stats["totalGameObjects"];
+
+                // The handler counts via Resources.FindObjectsOfTypeAll (which also surfaces hidden/internal
+                // GameObjects the root-walk can't reach), so the ABSOLUTE totals legitimately differ. What MUST
+                // hold is that the two strategies agree on how many objects the fixture ADDED: the handler's
+                // delta (reported - baselineTotal) must equal the independent walk's delta (expectedWalk -
+                // baselineWalk == 3). A filtering divergence in the handler (e.g. dropping inactive objects)
+                // would change its delta and trip this — which the old byte-identical re-read could never do.
+                Assert.AreEqual(expectedWalk - baselineWalk, reportedTotal - baselineTotal,
+                    "the handler's totalGameObjects DELTA must equal the independent root-walk's DELTA");
+                // Cross-check the handler matched its own pre-measured strategy total exactly (no drift between
+                // the Act call and our re-read), keeping the original delta intent intact.
+                Assert.AreEqual(expectedTotal, reportedTotal,
+                    "totalGameObjects must equal the all-loaded-scenes count measured around the Act call");
                 Assert.AreEqual(expectedRoots, (int)stats["rootObjects"],
                     "rootObjects must equal the independent sum of GetRootGameObjects across loaded scenes");
 
@@ -237,6 +263,42 @@ namespace UnityEditorMCP.Tests
                 if (s.isLoaded) roots += s.GetRootGameObjects().Length;
             }
             return roots;
+        }
+
+        /// <summary>
+        /// GENUINELY INDEPENDENT GameObject count: shares no code with the handler's
+        /// Resources.FindObjectsOfTypeAll strategy. Walks each loaded scene's root GameObjects and recurses
+        /// through every transform child (active AND inactive), counting each GameObject exactly once. Used to
+        /// validate the handler's totalGameObjects DELTA against a different traversal so a filtering
+        /// divergence in the handler is catchable.
+        /// </summary>
+        private static int CountByRootWalk()
+        {
+            int count = 0;
+            for (int i = 0; i < SceneManager.sceneCount; i++)
+            {
+                var s = SceneManager.GetSceneAt(i);
+                if (!s.isLoaded) continue;
+                foreach (var root in s.GetRootGameObjects())
+                {
+                    count += CountTransformSubtree(root.transform);
+                }
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// Counts the GameObject at this transform plus every descendant (active+inactive), via the transform
+        /// hierarchy only — independent of Resources.FindObjectsOfTypeAll.
+        /// </summary>
+        private static int CountTransformSubtree(Transform t)
+        {
+            int count = 1; // this GameObject
+            for (int i = 0; i < t.childCount; i++)
+            {
+                count += CountTransformSubtree(t.GetChild(i));
+            }
+            return count;
         }
 
         /// <summary>

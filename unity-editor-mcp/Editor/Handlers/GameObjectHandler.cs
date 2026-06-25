@@ -161,8 +161,16 @@ namespace UnityEditorMCP.Handlers
                                 UnityEngine.Object.DestroyImmediate(newObject);
                                 return HandlerOutcome.Fail($"Unknown component type in 'components': {compTypeName}", "VALIDATION_ERROR");
                             }
-                            newObject.AddComponent(compType);
-                            addedComponents.Add(compType.Name);
+                            var added = newObject.AddComponent(compType);
+                            if (added == null)
+                            {
+                                // review round-2: AddComponent returns null (does NOT throw) for a DisallowMultipleComponent
+                                // violation or a missing required dependency — treat null as failure, preserving all-or-nothing
+                                // (matches ComponentHandler.AddComponent's contract). Otherwise it would false-success.
+                                UnityEngine.Object.DestroyImmediate(newObject);
+                                return HandlerOutcome.Fail($"Failed to add component '{compTypeName}' (AddComponent returned null — likely DisallowMultipleComponent or a missing required dependency)", "INVALID_STATE");
+                            }
+                            addedComponents.Add(added.GetType().Name);
                         }
                     }
                     catch

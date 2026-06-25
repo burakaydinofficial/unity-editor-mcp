@@ -25,7 +25,7 @@ namespace UnityEditorMCP.Handlers
         private static string TargetHint(JObject p)
         {
             if (p == null) return "";
-            foreach (var k in new[] { "assetPath", "gameObjectPath", "path", "scenePath", "prefabPath", "variantPath", "typeName", "scriptName", "name" })
+            foreach (var k in new[] { "assetPath", "gameObjectPath", "path", "scenePath", "sceneName", "prefabPath", "variantPath", "typeName", "scriptName", "name" })
                 if (p[k] != null) return p[k].ToString();
             if (p["target"] is JObject t)
                 foreach (var k in new[] { "scenePath", "assetPath", "guid", "instanceId" })

@@ -58,8 +58,10 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
-                // Ensure cache is up to date
-                if (DateTime.Now - lastCacheUpdate > cacheExpiry || toolCache.Count == 0)
+                // Ensure cache is up to date. (review round-2: the cache holds only PM-queried entries — currently
+                // none; the fabricated cache was removed in round-6 #6. Gate on the expiry only — NOT on Count==0,
+                // which is permanently true and would rebuild every call.)
+                if (DateTime.Now - lastCacheUpdate > cacheExpiry)
                 {
                     UpdateToolCache();
                 }
@@ -136,8 +138,9 @@ namespace UnityEditorMCP.Handlers
         /// </summary>
         private static void AddPackageManagerTools(List<object> tools, ref int installedCount, ref int activeCount, string category)
         {
-            // This would normally query the Package Manager API
-            // For now, we'll just use cached data
+            // TODO: query the live Package Manager API (UnityEditor.PackageManager.Client.List) instead of toolCache,
+            // which currently holds no PM entries (the fabricated cache was removed in round-6 #6) — so no PM tools are
+            // listed here yet. Deferred work; tracked in the roadmap (.claude/unity-mcp-fork-requirements.md).
             foreach (var tool in toolCache.Values)
             {
                 if (!string.IsNullOrEmpty(category) && tool.Category != category)

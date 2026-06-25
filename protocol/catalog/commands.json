@@ -5196,6 +5196,14 @@
             "type": "number",
             "description": "Number of root GameObjects in hierarchy"
           },
+          "truncated": {
+            "type": "boolean",
+            "description": "True if the maxNodes response budget was exhausted before all nodes were emitted — there may be more."
+          },
+          "maxNodes": {
+            "type": "number",
+            "description": "The node budget applied to this response (default 1000)."
+          },
           "hierarchy": {
             "type": "array",
             "items": {

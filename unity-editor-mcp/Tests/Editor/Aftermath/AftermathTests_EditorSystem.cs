@@ -12,7 +12,7 @@ namespace UnityEditorMCP.Tests
     /// <summary>
     /// Aftermath tests for the EditorSystem tool surface. Each test calls a tool HANDLER, then
     /// INDEPENDENTLY re-reads Unity state through a DIFFERENT path (raw PlayerSettings / Application /
-    /// EditorApplication / Selection / the manifest file / the Core AuditLog) and asserts the REAL
+    /// EditorApplication / Selection / the packages-lock-derived resolved set / the Core AuditLog) and asserts the REAL
     /// effect happened AND that unrelated state did NOT move. Every test restores any state it touches
     /// and leaves zero residue.
     ///
@@ -70,8 +70,9 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual(baselineVersion, PlayerSettings.bundleVersion);
         }
 
-        // list_packages -> the resolved set must include the package the project actually depends on
-        // (newtonsoft-json, a hard dependency of this UPM package), cross-checked against the manifest file.
+        // list_packages -> the RESOLVED set (derived from packages-lock.json, NOT the manifest that backs
+        // `dependencies`) must include newtonsoft-json, this package's hard UPM dependency, and must be at
+        // least as large as the set of direct dependencies.
         [Test]
         public void ListPackages_ReflectsManifestDependencies()
         {
@@ -84,26 +85,27 @@ namespace UnityEditorMCP.Tests
             Assert.GreaterOrEqual(count, 1, "the resolved package set must be non-empty");
 
             var resolved = (JArray)data["resolved"];
-            Assert.AreEqual(count, resolved.Count, "count must match the resolved array length");
-
-            // Aftermath: read the manifest independently and assert every directly-requested dependency
-            // the handler reported actually exists in the on-disk manifest.json.
-            string root = Directory.GetParent(Application.dataPath).FullName;
-            string manifestPath = Path.Combine(root, "Packages", "manifest.json");
-            Assert.IsTrue(File.Exists(manifestPath), "Packages/manifest.json must exist");
-            var manifest = JObject.Parse(File.ReadAllText(manifestPath));
-            var manifestDeps = (JObject)manifest["dependencies"];
+            Assert.Greater(resolved.Count, 0, "the resolved package set must be non-empty");
 
             var reportedDeps = (JObject)data["dependencies"];
             Assert.IsNotNull(reportedDeps);
             Assert.Greater(reportedDeps.Count, 0, "the project must declare at least one direct dependency");
-            foreach (var kv in reportedDeps)
+
+            // Aftermath: cross-check the RESOLVED set (which the handler derives from packages-lock.json,
+            // a genuinely DIFFERENT source than the manifest.json that backs `dependencies`). The resolved
+            // closure includes transitive + built-in modules, so it must be at least as large as the set of
+            // direct dependencies — and it must surface this package's hard UPM dependency by name.
+            Assert.GreaterOrEqual(resolved.Count, reportedDeps.Count,
+                "the resolved closure must include at least every direct dependency");
+
+            const string hardDep = "com.unity.nuget.newtonsoft-json";
+            bool hardDepResolved = false;
+            foreach (var pkg in resolved)
             {
-                Assert.IsNotNull(manifestDeps[kv.Key],
-                    $"handler reported dependency '{kv.Key}' that is absent from the on-disk manifest");
-                Assert.AreEqual(manifestDeps[kv.Key].ToString(), kv.Value.ToString(),
-                    $"version mismatch for dependency '{kv.Key}'");
+                if ((string)pkg["name"] == hardDep) { hardDepResolved = true; break; }
             }
+            Assert.IsTrue(hardDepResolved,
+                $"'{hardDep}' is a declared UPM dependency of this package and must appear in the resolved set");
         }
 
         // set_project_setting -> mutates productName; aftermath via raw PlayerSettings; companyName must
