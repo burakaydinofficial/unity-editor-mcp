@@ -6,6 +6,48 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; initial focus 2020.3–2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
+## [0.20.5] — Dogfood rounds 6–8, code review, + a comprehensive aftermath test suite
+
+Three more live dogfood passes, an independent code review, and a rigorous "aftermath" verification sweep — then a
+deterministic outcome-test suite covering the whole testable-in-EditMode tool surface. All CI-verified across
+2019.4 / 2020.3 / 2021.3 / 2022.3 (295 EditMode tests).
+
+### New / improved behavior
+
+- **`set_active_scene`** — switch the active scene among loaded scenes (multi-scene companion to `load_scene` /
+  `close_scene`).
+- **`create_gameobject` `components`** — create a GameObject with components in one call (all-or-nothing: an unknown
+  type is rejected and the object is not created). Now declared in the catalog, so it is discoverable.
+- **Multi-scene awareness** — `get_hierarchy` and `analyze_scene_contents` span all loaded scenes and report a
+  `loadedScenes` summary; each top-level root is tagged with its `scene`.
+- **Inactive GameObjects are reachable by path** — the by-path resolvers (`modify_gameobject` /
+  `get_gameobject_details` / `delete_gameobject` / …) now resolve inactive objects too, so deactivating an object no
+  longer strands it (you can reactivate or delete it by path).
+- **Serialization tools see the open prefab stage** — `inspect_serialized_object` / `set_serialized_properties` /
+  `modify_serialized_array` (via `scenePath` / `match`) reach stage objects while a prefab is open.
+
+### Fixed
+
+- **`play_game`** refuses in `-batchmode` (entering play mode there freezes the bridge unrecoverably) instead of
+  bricking the connection.
+- **`create_gameobject`** rejects an empty name (it had created an unaddressable object at path `/`).
+- **`delete_gameobject`** returns NOT_FOUND when nothing matches (was a 0-count "success").
+- **`manage_tools`** reports the real installed package versions (dropped a fabricated cache).
+- **`set_active_scene`** reports a failed switch as an error, verifying the effect — Unity's `SetActiveScene` bool
+  return is unreliable (false even when the scene did change).
+- **`set_serialized_properties` / `modify_serialized_array`** — a `componentType` match edits that component;
+  `force:true` bypasses the compare-and-swap precondition; the audit log records a useful target for these.
+
+### Quality
+
+- A **deterministic aftermath EditMode test suite** (`Tests/Editor/Aftermath/`) — each test re-reads real Unity state
+  through an independent path and asserts the actual effect, the defense against the false-success class. It covers the
+  entire outcome-testable-in-EditMode tool surface; the genuinely-untestable tools (play-mode / recompile /
+  test-runner / quit) are documented and were exercised live across the dogfood rounds.
+- An **independent code review** (no Critical/High findings) and a rigorous **aftermath sweep** (34 mutating tools
+  driven read→act→independent-re-read→assert, **zero false-successes**) hardened the bridge; the protocol catalog now
+  declares the new params/result fields so they are discoverable.
+
 ## [0.20.4] — Prefab-stage same-name shadowing fix
 
 Corrects a bug in the 0.20.3 prefab-stage work, found by code review: `FindGameObjectStageAware` resolved the main
