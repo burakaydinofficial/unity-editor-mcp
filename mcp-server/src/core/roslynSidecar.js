@@ -24,10 +24,19 @@ export class RoslynSidecarClient {
     this._pending = new Map();
     this._nextId = 1;
     this._buf = '';
+    this._exitCbs = [];
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk) => this._onData(chunk));
-    child.on('exit', () => this._failAll(new Error('roslyn sidecar exited')));
+    child.on('exit', () => {
+      this._failAll(new Error('roslyn sidecar exited'));
+      // Tell the owner (RoslynManager) the process died — otherwise its state stays READY forever and
+      // gated calls surface raw EPIPE instead of an honest unavailable. (Bug hunt Node-8.)
+      for (const cb of this._exitCbs.splice(0)) { try { cb(); } catch { /* observer only */ } }
+    });
   }
+
+  /** Register a callback for the sidecar process exiting (crash or normal). */
+  onExit(cb) { this._exitCbs.push(cb); }
 
   _onData(chunk) {
     this._buf += chunk;

@@ -885,6 +885,10 @@ namespace UnityEditorMCP.Handlers
                     }
 
                     case "clear":
+                        // Wipes the ENTIRE build scene list in one un-undoable call — confirm-gate it like the other
+                        // destructive commands (H3: delete_asset, clear_audit_log, ...). (Bug hunt Mut-12.)
+                        if (!(parameters["confirm"]?.ToObject<bool>() ?? false))
+                            return HandlerOutcome.Fail($"clear removes all {scenes.Count} scene(s) from Build Settings and cannot be undone — re-call with confirm:true.", "CONFIRMATION_REQUIRED");
                         EditorBuildSettings.scenes = new EditorBuildSettingsScene[0];
                         return HandlerOutcome.Ok(BuildSceneList(new List<EditorBuildSettingsScene>(), "Cleared build scene list"));
 

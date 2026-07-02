@@ -47,6 +47,16 @@ export class RoslynManager {
         return ROSLYN_STATES.UNAVAILABLE;
       }
       this._byKey.set(key, { state: ROSLYN_STATES.READY, client, token });
+      // A sidecar that DIES must not stay READY: transition to UNAVAILABLE so gated calls report honestly
+      // instead of surfacing raw EPIPE from a dead process. (Bug hunt Node-8.)
+      if (typeof client.onExit === 'function') {
+        client.onExit(() => {
+          const cur = this._byKey.get(key);
+          if (cur && cur.client === client) {
+            this._byKey.set(key, { state: ROSLYN_STATES.UNAVAILABLE, client: null, error: 'roslyn sidecar exited', token: cur.token });
+          }
+        });
+      }
       return ROSLYN_STATES.READY;
     } catch (e) {
       if (this._byKey.get(key)?.token === token) {
@@ -60,6 +70,11 @@ export class RoslynManager {
     const e = this._byKey.get(key);
     if (e?.client?.dispose) { try { await e.client.dispose(); } catch { /* ignore */ } }
     this._byKey.delete(key);
+  }
+
+  /** Disposes every sidecar — server shutdown must not orphan spawned OS processes. (Node-8) */
+  async stopAll() {
+    for (const key of [...this._byKey.keys()]) await this.stop(key);
   }
 }
 

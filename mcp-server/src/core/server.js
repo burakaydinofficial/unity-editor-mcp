@@ -8,6 +8,7 @@ import {
   ListPromptsRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
 import { UnityConnectionManager } from './unityConnectionManager.js';
+import { roslynManager } from './roslynManager.js';
 import { createHandlers } from '../handlers/index.js';
 import { config, logger } from './config.js';
 import { fileURLToPath } from 'node:url';
@@ -92,7 +93,9 @@ export async function main() {
     // default/active connection (ADR 0006): every meta-tool resolves a connection by explicit
     // instance, opened lazily on first use — so the server starts without targeting any editor, and
     // a wrong/forgotten instance fails loudly instead of acting on the wrong project.
-    const manager = new UnityConnectionManager();
+    // onDrop: when a connection is pruned/disconnected, dispose its Roslyn sidecar too — a dropped editor
+    // must not leak a spawned OS process keyed to it. (Bug hunt Node-8.)
+    const manager = new UnityConnectionManager({ onDrop: (key) => { roslynManager.stop(key).catch(() => {}); } });
     const handlers = createHandlers(manager);
 
     const server = new Server(
@@ -108,6 +111,7 @@ export async function main() {
     const shutdown = async () => {
       logger.info('Shutting down...');
       manager.disconnectAll();
+      await roslynManager.stopAll(); // dispose spawned sidecars — no zombie OS processes (Node-8)
       await server.close();
       process.exit(0);
     };

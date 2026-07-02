@@ -424,6 +424,29 @@ describe('UnityConnection', () => {
       assert.equal(connection.messageBuffer.length, 0);
     });
 
+    // Bug hunt Node-9: recovery must not discard a legitimate next frame whose body is still streaming in —
+    // keep the buffer from the candidate header and deliver the message once the rest arrives.
+    it('should keep a partial candidate frame during recovery and deliver it when completed', () => {
+      const msg = JSON.stringify({ id: '9', status: 'success', result: {} });
+      const msgBuf = Buffer.from(msg, 'utf8');
+      const header = Buffer.allocUnsafe(4);
+      header.writeInt32BE(msgBuf.length, 0);
+
+      const badHeader = Buffer.allocUnsafe(4);
+      badHeader.writeInt32BE(2000000000, 0); // corrupt length triggers recovery
+
+      // First chunk: corrupt header + junk + the candidate frame's header + only PART of its body.
+      const firstHalf = msgBuf.slice(0, 10);
+      connection.handleData(Buffer.concat([badHeader, Buffer.from('junk'), header, firstHalf]));
+      assert.ok(connection.messageBuffer.length > 0, 'partial candidate frame must be kept, not cleared');
+
+      // Second chunk completes the frame — it must parse and surface (no pending command -> 'message' event).
+      let seen = null;
+      connection.on('message', (m) => { seen = m; });
+      connection.handleData(msgBuf.slice(10));
+      assert.ok(seen && seen.id === '9', 'the completed candidate frame must be delivered');
+    });
+
     it('should skip non-JSON messages in frames', () => {
       const nonJsonMessage = 'This is not JSON';
       const messageBuffer = Buffer.from(nonJsonMessage, 'utf8');

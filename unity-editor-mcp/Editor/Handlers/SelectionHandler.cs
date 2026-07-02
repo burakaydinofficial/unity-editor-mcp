@@ -101,7 +101,7 @@ namespace UnityEditorMCP.Handlers
 
                 foreach (var path in objectPaths)
                 {
-                    var go = GameObject.Find(path.TrimStart('/'));
+                    var go = GameObjectHandler.FindGameObjectStageAware(path.TrimStart('/')); // stage-aware + finds inactive (Mut-8)
                     if (go != null)
                     {
                         selectedObjects.Add(go);

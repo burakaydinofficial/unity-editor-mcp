@@ -103,7 +103,7 @@ namespace UnityEditorMCP.Handlers
                 else if (!string.IsNullOrEmpty(gameObjectPath))
                 {
                     // Find the GameObject
-                    GameObject sourceObject = GameObject.Find(gameObjectPath);
+                    GameObject sourceObject = GameObjectHandler.FindGameObjectStageAware(gameObjectPath); // stage-aware + finds inactive (Mut-8)
                     if (sourceObject == null)
                     {
                         return HandlerOutcome.Fail($"GameObject not found at path: {gameObjectPath}", "NOT_FOUND");
@@ -283,7 +283,7 @@ namespace UnityEditorMCP.Handlers
                 GameObject parent = null;
                 if (!string.IsNullOrEmpty(parentPath))
                 {
-                    parent = GameObject.Find(parentPath);
+                    parent = GameObjectHandler.FindGameObjectStageAware(parentPath); // stage-aware + finds inactive (Mut-8)
                     if (parent == null)
                     {
                         return HandlerOutcome.Fail($"Parent GameObject not found at path: {parentPath}", "NOT_FOUND");
@@ -420,7 +420,7 @@ namespace UnityEditorMCP.Handlers
 
                 GameObject go = null;
                 if (instanceId.HasValue) go = EditorUtility.InstanceIDToObject(instanceId.Value) as GameObject;
-                else if (!string.IsNullOrEmpty(gameObjectPath)) go = GameObject.Find(gameObjectPath);
+                else if (!string.IsNullOrEmpty(gameObjectPath)) go = GameObjectHandler.FindGameObjectStageAware(gameObjectPath); // (Mut-8)
                 if (go == null)
                     return HandlerOutcome.Fail("GameObject not found (provide gameObjectPath or instanceId)", "NOT_FOUND");
                 if (!PrefabUtility.IsPartOfPrefabInstance(go))
@@ -916,11 +916,14 @@ namespace UnityEditorMCP.Handlers
                         var componentsData = value as JObject;
                         if (componentsData != null)
                         {
+                            // Count actual writes — a missing component / invalid property previously fell through
+                            // silently and "components" still reported as modified (no-op success). (Bug hunt Mut-6.)
+                            int applied = 0;
                             foreach (var comp in componentsData.Properties())
                             {
-                                ApplyComponentModification(target, comp.Name, comp.Value as JObject);
+                                applied += ApplyComponentModification(target, comp.Name, comp.Value as JObject);
                             }
-                            return true;
+                            return applied > 0;
                         }
                         break;
                 }
@@ -933,15 +936,21 @@ namespace UnityEditorMCP.Handlers
             }
         }
 
-        private static void ApplyComponentModification(GameObject target, string componentType, JObject properties)
+        /// <summary>Applies property writes to one component; returns HOW MANY landed so the caller can
+        /// distinguish a real modification from a silent no-op (missing component, invalid property). (Mut-6)</summary>
+        private static int ApplyComponentModification(GameObject target, string componentType, JObject properties)
         {
-            if (properties == null) return;
+            if (properties == null) return 0;
 
             var component = target.GetComponent(componentType);
-            if (component == null) return;
+            if (component == null)
+            {
+                Debug.LogWarning($"[AssetManagementHandler] modify_prefab components: component not found: {componentType}");
+                return 0;
+            }
 
             var type = component.GetType();
-            
+            int applied = 0;
             foreach (var prop in properties.Properties())
             {
                 try
@@ -950,6 +959,7 @@ namespace UnityEditorMCP.Handlers
                     if (field != null && field.IsPublic)
                     {
                         field.SetValue(component, prop.Value.ToObject(field.FieldType));
+                        applied++;
                         continue;
                     }
 
@@ -957,6 +967,11 @@ namespace UnityEditorMCP.Handlers
                     if (property != null && property.CanWrite)
                     {
                         property.SetValue(component, prop.Value.ToObject(property.PropertyType));
+                        applied++;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[AssetManagementHandler] modify_prefab components: no settable member '{prop.Name}' on {componentType}");
                     }
                 }
                 catch (Exception e)
@@ -964,6 +979,7 @@ namespace UnityEditorMCP.Handlers
                     Debug.LogWarning($"Failed to set {prop.Name} on {componentType}: {e.Message}");
                 }
             }
+            return applied;
         }
 
         private static string GetGameObjectPath(GameObject obj)
@@ -1109,7 +1125,11 @@ namespace UnityEditorMCP.Handlers
                 {
                     try
                     {
-                        PrefabUtility.SaveAsPrefabAsset(currentStage.prefabContentsRoot, prefabPath);
+                        // SaveAsPrefabAsset can fail WITHOUT throwing (returns null + out false) — check it, and do
+                        // NOT leave stage mode on a failed save (the caller asked for save-then-exit). (Mut-10)
+                        PrefabUtility.SaveAsPrefabAsset(currentStage.prefabContentsRoot, prefabPath, out bool saved);
+                        if (!saved)
+                            return HandlerOutcome.Fail($"Prefab save failed for '{prefabPath}' — staying in prefab mode to avoid losing changes.", "INTERNAL_ERROR");
                         changesSaved = true;
                     }
                     catch (Exception saveEx)
@@ -1162,7 +1182,10 @@ namespace UnityEditorMCP.Handlers
                     // stage auto-saves edits as they're made — so the old "No changes to save" was misleading (the
                     // edits WERE persisted, just not by this call). SaveAsPrefabAsset is idempotent.
                     bool hadUnsaved = currentStage.scene.isDirty;
-                    PrefabUtility.SaveAsPrefabAsset(currentStage.prefabContentsRoot, prefabPath);
+                    // Check the out-success: SaveAsPrefabAsset fails without throwing (e.g. read-only/VCS). (Mut-10)
+                    PrefabUtility.SaveAsPrefabAsset(currentStage.prefabContentsRoot, prefabPath, out bool stageSaved);
+                    if (!stageSaved)
+                        return HandlerOutcome.Fail($"Prefab save failed for '{prefabPath}'.", "INTERNAL_ERROR");
                     return HandlerOutcome.Ok(new
                     {
                         success = true,
@@ -1177,7 +1200,7 @@ namespace UnityEditorMCP.Handlers
                 else if (!string.IsNullOrEmpty(gameObjectPath))
                 {
                     // Save prefab instance overrides
-                    GameObject gameObject = GameObject.Find(gameObjectPath);
+                    GameObject gameObject = GameObjectHandler.FindGameObjectStageAware(gameObjectPath); // stage-aware + finds inactive (Mut-8)
                     if (gameObject == null)
                     {
                         return HandlerOutcome.Fail($"GameObject not found at path: {gameObjectPath}", "NOT_FOUND");
@@ -1239,7 +1262,7 @@ namespace UnityEditorMCP.Handlers
                 if (string.IsNullOrEmpty(gameObjectPath))
                     return HandlerOutcome.Fail("gameObjectPath is required", "VALIDATION_ERROR");
 
-                var go = GameObject.Find(gameObjectPath);
+                var go = GameObjectHandler.FindGameObjectStageAware(gameObjectPath); // stage-aware + finds inactive (Mut-8)
                 if (go == null)
                     return HandlerOutcome.Fail($"GameObject not found at path: {gameObjectPath}", "NOT_FOUND");
                 if (!PrefabUtility.IsPartOfPrefabInstance(go))
@@ -1357,6 +1380,11 @@ namespace UnityEditorMCP.Handlers
             var prop = so.FindProperty(propertyPath);
             if (prop == null)
                 return HandlerOutcome.Fail($"Serialized property not found: {propertyPath} (on {componentType ?? "GameObject"})", "NOT_FOUND");
+
+            // Apply/RevertPropertyOverride NO-OP on a property that isn't overridden — previously reported as
+            // "Applied/Reverted" success. Refuse honestly instead. (Bug hunt Mut-11.)
+            if (!prop.prefabOverride)
+                return HandlerOutcome.Fail($"'{propertyPath}' (on {componentType ?? "GameObject"}) has no instance override to {(apply ? "apply" : "revert")} — use action:list to see actual overrides.", "INVALID_STATE");
 
             if (apply)
             {

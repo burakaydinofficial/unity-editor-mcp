@@ -215,86 +215,19 @@ namespace UnityEditorMCP.Handlers
         }
 
         /// <summary>
-        /// Analyze circular dependencies in the project
+        /// Circular SCRIPT dependencies cannot be detected through AssetDatabase: GetDependencies on a .cs returns
+        /// only the script itself (code-level using/type references are not asset dependencies), so the old traversal
+        /// NEVER descended and always returned hasCircularDependencies:false — an authoritative-looking empty result
+        /// for an analysis that structurally could not run. Report UNSUPPORTED honestly instead. (Bug hunt Core-7.)
         /// </summary>
         private static HandlerOutcome AnalyzeCircularDependencies()
         {
-            try
-            {
-                var circularDependencies = new List<object>();
-                var allAssetGuids = AssetDatabase.FindAssets("t:Script");
-                var visitedPaths = new HashSet<string>();
-                var currentPath = new List<string>();
-
-                // Simplified circular dependency detection for scripts. The scan is capped for performance; the cap is
-                // SURFACED in the result (scannedScripts/totalScripts/truncated) so a partial scan can't read as a
-                // full one (pre-0.21.0 audit).
-                const int maxScanned = 100;
-                var totalScripts = allAssetGuids.Length;
-                foreach (var guid in allAssetGuids.Take(maxScanned)) // Limit to avoid performance issues
-                {
-                    var assetPath = AssetDatabase.GUIDToAssetPath(guid);
-                    if (visitedPaths.Contains(assetPath)) continue;
-
-                    if (HasCircularDependency(assetPath, currentPath, visitedPaths))
-                    {
-                        var cycle = new List<string>(currentPath);
-                        cycle.Add(assetPath); // Complete the cycle
-
-                        circularDependencies.Add(new
-                        {
-                            cycle = cycle,
-                            length = cycle.Count,
-                            severity = cycle.Count > 5 ? "error" : "warning"
-                        });
-                    }
-                }
-
-                return HandlerOutcome.Ok(new
-                {
-                    success = true,
-                    action = "analyze_circular",
-                    circularDependencies = circularDependencies,
-                    hasCircularDependencies = circularDependencies.Count > 0,
-                    totalCycles = circularDependencies.Count,
-                    scannedScripts = Math.Min(totalScripts, maxScanned),
-                    totalScripts = totalScripts,
-                    truncated = totalScripts > maxScanned
-                });
-            }
-            catch (Exception e)
-            {
-                Debug.LogError($"[AssetDependencyHandler] Error analyzing circular dependencies: {e.Message}");
-                return HandlerOutcome.Fail($"Failed to analyze circular dependencies: {e.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Simple circular dependency check (simplified implementation)
-        /// </summary>
-        private static bool HasCircularDependency(string assetPath, List<string> currentPath, HashSet<string> visitedPaths)
-        {
-            if (currentPath.Contains(assetPath))
-                return true;
-
-            if (visitedPaths.Contains(assetPath))
-                return false;
-
-            visitedPaths.Add(assetPath);
-            currentPath.Add(assetPath);
-
-            var dependencies = AssetDatabase.GetDependencies(assetPath, false);
-            foreach (var dep in dependencies)
-            {
-                if (dep != assetPath && dep.EndsWith(".cs"))
-                {
-                    if (HasCircularDependency(dep, currentPath, visitedPaths))
-                        return true;
-                }
-            }
-
-            currentPath.Remove(assetPath);
-            return false;
+            return HandlerOutcome.Fail(
+                "analyze_circular is not supported: script-to-script (code) dependencies are invisible to " +
+                "AssetDatabase.GetDependencies, so a meaningful cycle analysis cannot run on this rail. " +
+                "For code-level dependencies use the code-intelligence tools (get_symbols / resolve_symbol, or the " +
+                "Roslyn sidecar when available); assembly-level cycles are already prevented by Unity's asmdef graph.",
+                "UNSUPPORTED");
         }
 
         /// <summary>

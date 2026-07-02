@@ -688,6 +688,7 @@ Manage the build scene list (EditorBuildSettings.scenes) — list/add/remove/mov
   - `index` (number) — Build-list index (add insert position; or remove/move/set_enabled by index).
   - `enabled` (boolean) — add/set_enabled: whether the scene is enabled in the build (default true on add).
   - `toIndex` (number) — move: destination index (clamped).
+  - `confirm` (boolean) — clear: required true — clearing the whole build scene list is destructive and cannot be undone (H3).
 - **Result:** `scenes`, `count`, `enabledCount`, `message`
 
 ### `save_scene`

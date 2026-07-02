@@ -315,6 +315,7 @@ export class UnityConnection extends EventEmitter {
         // point — a corrupt prefix can be followed by a large legitimate frame whose
         // header sits well past byte 100; capping the scan would discard it.
         let recoveryIndex = -1;
+        let partialIndex = -1; // a plausible frame whose body hasn't fully arrived yet (Node-9)
         for (let i = 4; i <= this.messageBuffer.length - 4; i++) {
           const testLength = this.messageBuffer.readInt32BE(i);
           if (testLength > 0 && testLength <= 1024 * 1024) {
@@ -325,14 +326,24 @@ export class UnityConnection extends EventEmitter {
                 recoveryIndex = i;
                 break;
               }
+            } else if (partialIndex < 0) {
+              // Body still streaming in — possibly a legitimate next frame mid-transfer. Verify what we CAN
+              // (the first body byte, when present, must look like JSON) and remember the offset instead of
+              // clearing the buffer, which would discard that in-flight response. (Bug hunt Node-9.)
+              const firstByte = i + 4 < this.messageBuffer.length ? String.fromCharCode(this.messageBuffer[i + 4]) : null;
+              if (firstByte === null || firstByte === '{' || firstByte === ' ') partialIndex = i;
             }
           }
         }
-        
+
         if (recoveryIndex >= 0) {
           logger.warn(`[Unity] Discarding ${recoveryIndex} bytes of invalid data`);
           this.messageBuffer = this.messageBuffer.slice(recoveryIndex);
           continue;
+        } else if (partialIndex >= 0) {
+          logger.warn(`[Unity] Discarding ${partialIndex} bytes of invalid data; keeping a partial candidate frame`);
+          this.messageBuffer = this.messageBuffer.slice(partialIndex);
+          break; // wait for the rest of the candidate frame to arrive
         } else {
           // Can't recover, clear buffer
           logger.error('[Unity] Unable to recover from invalid frame, clearing buffer');

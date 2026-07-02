@@ -204,13 +204,25 @@ namespace UnityEditorMCP.Handlers
                             // Unity holds Editor.log open with an exclusive write lock on
                             // Windows; File.ReadAllText (FileShare.None) always throws there.
                             // Open shared read/write so the supplemental log read works.
+                            // TAIL-READ a bounded window: a long editor session's Editor.log reaches hundreds of MB,
+                            // and ReadToEnd() per get_compilation_state call was a multi-second MAIN-THREAD stall +
+                            // LOH churn. Recent compile errors live at the tail. (Bug hunt Core-6.)
+                            const int tailBytes = 256 * 1024;
                             string logContent;
                             using (var fs = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                            using (var sr = new StreamReader(fs))
                             {
-                                logContent = sr.ReadToEnd();
+                                if (fs.Length > tailBytes) fs.Seek(-tailBytes, SeekOrigin.End);
+                                using (var sr = new StreamReader(fs))
+                                {
+                                    if (fs.Position > 0) sr.ReadLine(); // drop the partial line at the seek point
+                                    logContent = sr.ReadToEnd();
+                                }
                             }
                             var parsedMessages = ParseCompilationErrors(logContent, logPath);
+                            // Stamp with the LOG'S last-write time, not read-time Now — re-stamping stale errors as
+                            // current sorted long-fixed errors to the top as if fresh. (Core-6)
+                            var stamp = File.GetLastWriteTimeUtc(logPath).ToString("o");
+                            foreach (var m in parsedMessages) m.timestamp = stamp;
                             messages.AddRange(parsedMessages);
                         }
                         catch (Exception ex)

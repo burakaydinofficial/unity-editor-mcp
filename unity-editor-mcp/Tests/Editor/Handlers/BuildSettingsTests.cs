@@ -43,9 +43,17 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual("NOT_FOUND", r.Code);
         }
 
-        [Test] public void Clear_EmptiesList()
+        [Test] public void Clear_WithoutConfirm_Refused()
         {
+            // clear wipes the whole build list un-undoably — it is confirm-gated (H3, bug hunt Mut-12).
             var r = SceneHandler.ManageBuildSettings(new JObject { ["action"] = "clear" });
+            Assert.IsTrue(r.IsError);
+            Assert.AreEqual("CONFIRMATION_REQUIRED", r.Code);
+        }
+
+        [Test] public void Clear_WithConfirm_EmptiesList()
+        {
+            var r = SceneHandler.ManageBuildSettings(new JObject { ["action"] = "clear", ["confirm"] = true });
             Assert.IsFalse(r.IsError, r.Error);
             Assert.AreEqual(0, (int)JObject.FromObject(r.Payload)["count"]);
             Assert.AreEqual(0, EditorBuildSettings.scenes.Length);

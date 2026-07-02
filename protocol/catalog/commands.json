@@ -739,7 +739,8 @@
           "scenePath": { "type": "string", "description": "Scene .unity path (add; or remove/move/set_enabled by path)." },
           "index": { "type": "number", "description": "Build-list index (add insert position; or remove/move/set_enabled by index)." },
           "enabled": { "type": "boolean", "description": "add/set_enabled: whether the scene is enabled in the build (default true on add)." },
-          "toIndex": { "type": "number", "description": "move: destination index (clamped)." }
+          "toIndex": { "type": "number", "description": "move: destination index (clamped)." },
+          "confirm": { "type": "boolean", "description": "clear: required true — clearing the whole build scene list is destructive and cannot be undone (H3)." }
         }
       },
       "result": { "type": "object", "properties": { "scenes": { "type": "array" }, "count": { "type": "number" }, "enabledCount": { "type": "number" }, "message": { "type": "string" } } }

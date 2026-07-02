@@ -63,7 +63,7 @@ namespace UnityEditorMCP.Handlers
                     targets = new List<GameObject>();
                     foreach (var path in paths)
                     {
-                        var go = GameObject.Find(path);
+                        var go = GameObjectHandler.FindGameObjectStageAware(path); // stage-aware + finds inactive (Mut-8)
                         if (go != null) targets.Add(go); else notFound.Add(path);
                     }
                 }

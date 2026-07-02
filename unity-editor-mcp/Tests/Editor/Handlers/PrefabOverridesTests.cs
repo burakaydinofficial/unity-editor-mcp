@@ -114,6 +114,23 @@ namespace UnityEditorMCP.Tests
         }
 
         [Test]
+        public void RevertProperty_NoOverride_InvalidState()
+        {
+            // Apply/RevertPropertyOverride NO-OP on a non-overridden property — the handler must refuse honestly
+            // instead of reporting "Reverted" success (bug hunt Mut-11). Use SCALE: root position/rotation are
+            // "default overrides" on every instance (placement), so m_LocalPosition would read as overridden.
+            var r = AssetManagementHandler.ManagePrefabOverrides(new JObject
+            {
+                ["action"] = "revert_property",
+                ["gameObjectPath"] = InstanceName,
+                ["componentType"] = "Transform",
+                ["propertyPath"] = "m_LocalScale.x"
+            });
+            Assert.IsTrue(r.IsError);
+            Assert.AreEqual("INVALID_STATE", r.Code);
+        }
+
+        [Test]
         public void UnknownComponent_NotFound()
         {
             var r = AssetManagementHandler.ManagePrefabOverrides(new JObject

@@ -20,6 +20,7 @@ export class UnityConnectionManager {
     this.discovery = options.discovery || discovery;
     this.env = options.env || process.env;
     this.host = options.host || config.unity.host;
+    this.onDrop = options.onDrop || null; // called with the key when a connection is pruned/disconnected (Node-8)
     this.connections = new Map(); // key "host:port" -> pinned UnityConnection
   }
 
@@ -147,6 +148,7 @@ export class UnityConnectionManager {
       if (!live.has(k)) {
         try { conn.disconnect(); } catch { /* ignore */ }
         this.connections.delete(k);
+        if (this.onDrop) { try { this.onDrop(k); } catch { /* observer only */ } }
         pruned++;
       }
     }
@@ -162,8 +164,9 @@ export class UnityConnectionManager {
   }
 
   disconnectAll() {
-    for (const conn of this.connections.values()) {
+    for (const [k, conn] of this.connections) {
       try { conn.disconnect(); } catch { /* ignore */ }
+      if (this.onDrop) { try { this.onDrop(k); } catch { /* observer only */ } }
     }
     this.connections.clear();
   }
