@@ -57,7 +57,10 @@ npm install
 npm test                    # unit + integration tests (Node built-in test runner, no Jest/Mocha)
 npm run test:unit           # unit tests only
 npm run test:integration    # integration tests only
-npm run test:e2e            # requires a running Unity Editor with the package installed
+npm run test:e2e            # legacy: Node server vs a MOCK Unity (tests/e2e/*.test.js — upstream, currently stale)
+npm run test:e2e:live       # LIVE editor harness (UNITY_PATH=<editor>) for the untestable-in-EditMode tools
+                            #   (play-mode, script/recompile) — drives a real headed editor on ci/e2e-host. See
+                            #   docs/superpowers/*/2026-06-28-live-editor-e2e-harness-*
 npm run test:coverage       # c8 coverage (lcov + text + html)
 npm run test:ci             # what CI runs (.github/workflows/test-coverage.yml)
 
@@ -136,8 +139,9 @@ pending-command map with a 30s timeout and reconnects with exponential backoff.
 **Unity side** (`unity-editor-mcp/Editor/`):
 - `Core/UnityEditorMCP.cs` — `[InitializeOnLoad]` static class. Starts Core's `TcpTransport` on a
   **derived per-project port** (`ResolveInitialPort` → `EndpointAddressing.DerivePort`, ADR 0003;
-  `UNITY_MCP_PORT` overrides), re-arms after every domain reload (and unbinds the listener on
-  `beforeAssemblyReload`). Incoming commands are queued and executed on the **main thread** via
+  `UNITY_MCP_PORT` overrides), re-arms after every domain reload (on `beforeAssemblyReload` it unbinds the listener
+  AND force-closes the accepted client socket, so the server gets a clean FIN and reconnects in ~1s instead of hanging
+  on a half-open socket across the reload — ADR 0007). Incoming commands are queued and executed on the **main thread** via
   `EditorApplication.update` (Unity APIs are not thread-safe). Every command is dispatched through
   Core's `CommandDispatcher` (`DispatchViaCore`); the legacy `ProcessCommand` switch was fully retired
   in v0.4.0 (an unregistered type yields `UNKNOWN_COMMAND`).

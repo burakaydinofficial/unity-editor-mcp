@@ -31,10 +31,10 @@ tests/
 - **Dependencies**: May require mock Unity connection
 
 ### End-to-End Tests (`tests/e2e/`)
-- **Purpose**: Test complete user workflows
-- **Speed**: Slow (10+ seconds per test)
-- **Coverage**: Full system functionality
-- **Dependencies**: May require actual Unity instance
+- `tests/e2e/*.test.js` — **legacy** Node-server-vs-mock-Unity tests (inherited upstream; hardcoded paths, currently stale).
+- `tests/e2e/live/` — the **live-editor harness** (`npm run test:e2e:live`, `UNITY_PATH=<editor>`): drives a real headed
+  editor on `ci/e2e-host` for the tools that can't run in the EditMode floor-matrix (play-mode, script/recompile). Its
+  pure-Node units are in `tests/unit/e2e-live/` (CI-safe). See `docs/superpowers/*/2026-06-28-live-editor-e2e-harness-*`.
 
 ### Performance Tests (`tests/performance/`)
 - **Purpose**: Benchmark and validate performance metrics
@@ -54,6 +54,7 @@ npm test
 npm run test:unit
 npm run test:integration
 npm run test:e2e
+npm run test:e2e:live       # live-editor harness (needs UNITY_PATH; see the E2E section)
 npm run test:performance
 
 # Run with coverage
