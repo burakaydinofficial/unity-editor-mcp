@@ -133,11 +133,13 @@ export class AnalyzeScreenshotToolHandler extends BaseToolHandler {
       result.uiElements = response.uiElements;
     }
 
-    // If prompt was provided, add AI analysis placeholder
+    // A prompt requests AI/vision analysis, which is NOT implemented (only heuristic color/edge/UI analysis runs).
+    // Report that honestly rather than fabricating an "AI analysis" — this fork does not emit false-success data.
     if (prompt) {
       result.aiAnalysis = {
-        prompt: prompt,
-        note: 'TODO (deferred — roadmap G-series): AI/vision analysis is a PLACEHOLDER, not implemented — needs vision-model integration (or an honest UNSUPPORTED response). This output is illustrative, not real analysis.'
+        supported: false,
+        prompt,
+        reason: 'Prompt-based AI/vision analysis is not implemented. This tool performs only heuristic color/edge/UI analysis; pass the image to a vision model for semantic analysis.'
       };
     }
 
@@ -152,61 +154,17 @@ export class AnalyzeScreenshotToolHandler extends BaseToolHandler {
    * @returns {Object} Analysis results
    */
   analyzeBase64Image(base64Data, analysisType, prompt) {
-    // Decode base64 to get image size
+    // The base64 path performs NO real image analysis — only imagePath routes to the editor's heuristic color/edge/UI
+    // detection. Report that honestly instead of returning fabricated per-type placeholders (no false-success data).
     const buffer = Buffer.from(base64Data, 'base64');
-    const fileSize = buffer.length;
-
-    // Basic analysis result
-    const result = {
+    return {
       source: 'base64',
-      fileSize: fileSize,
-      analysisType: analysisType,
-      message: 'Base64 image analysis completed'
+      fileSize: buffer.length,
+      analysisType,
+      supported: false,
+      message: 'Base64 image analysis is not implemented. Use imagePath for heuristic color/edge/UI analysis, or pass the base64 data to a vision model for semantic analysis.',
+      ...(prompt ? { prompt } : {})
     };
-
-    // Add placeholder for different analysis types
-    switch (analysisType) {
-      case 'basic':
-        result.analysis = {
-          note: 'Basic analysis of base64 images requires image processing library integration',
-          fileSize: fileSize,
-          estimatedFormat: fileSize > 100000 ? 'Likely PNG or high-quality JPEG' : 'Likely compressed JPEG'
-        };
-        break;
-        
-      case 'ui':
-        result.uiAnalysis = {
-          note: 'UI element detection requires computer vision integration',
-          placeholder: 'This would detect buttons, text fields, panels, etc.'
-        };
-        break;
-        
-      case 'content':
-        result.contentAnalysis = {
-          note: 'Content analysis requires scene understanding models',
-          placeholder: 'This would identify GameObjects, lighting, materials, etc.'
-        };
-        break;
-        
-      case 'full':
-        result.fullAnalysis = {
-          basic: { note: 'Requires image processing library' },
-          ui: { note: 'Requires computer vision' },
-          content: { note: 'Requires scene understanding' }
-        };
-        break;
-    }
-
-    // Add AI analysis placeholder if prompt provided
-    if (prompt) {
-      result.aiAnalysis = {
-        prompt: prompt,
-        note: 'To enable AI analysis, integrate with a vision model API (e.g., GPT-4V, Claude 3 Vision)',
-        suggestion: 'You can use the base64Data with a vision API to analyze: ' + prompt
-      };
-    }
-
-    return result;
   }
 
   /**

@@ -115,7 +115,7 @@ Add it to `.mcp.json` in your project root (or run `claude mcp add unity-editor-
 ## Available Tools
 
 The MCP server advertises a **3-tool generic surface** — `list_unity_instances`, `list_unity_tools`, and
-`call_unity_tool`. Everything below is the **editor capability catalog** (**98 invokable commands across 18 categories** — the catalog 99th editor entry, handshake, is the internal connect-time manifest, not an MCP tool):
+`call_unity_tool`. Everything below is the **editor capability catalog** (**97 invokable commands across 18 categories** — two catalog editor entries, `handshake` and `clear_logs`, are internal, not MCP tools):
 the agent discovers each connected editor's real tools — with schemas, learned at runtime — via
 `list_unity_tools`, then invokes them by name via `call_unity_tool`.
 
@@ -255,9 +255,8 @@ the agent discovers each connected editor's real tools — with schemas, learned
 - **`execute_menu_item`** — Execute an editor menu item (errors when the item didn't run, rather than reporting a false success).
 - **`invoke_static_method`** — Invoke a static method by type + name with JSON args. **Default-deny** (arbitrary code execution) — allow-list via `UNITY_MCP_INVOKE_ALLOW` or `ProjectSettings/UnityEditorMcpInvokePolicy.json`.
 
-### Console (3)
+### Console (2)
 - **`clear_console`** — Clear the editor console.
-- **`clear_logs`** — Clear the real editor console (LogEntries), companion to read_logs.
 - **`enhanced_read_logs`** — Read console logs with advanced search/filtering.
 
 ### Test Runner (4)

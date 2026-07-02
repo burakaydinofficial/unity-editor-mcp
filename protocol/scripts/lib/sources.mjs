@@ -36,12 +36,10 @@ export async function getServerTools() {
 }
 
 /**
- * Extracts the command-type strings the Unity editor actually handles. Commands
- * are dispatched by two mechanisms during the McpBridge migration (ADR 0002):
- *   1. the legacy ProcessCommand `switch` (`case "..."` labels), and
- *   2. Core's CommandDispatcher, onto which commands are migrated one at a time
- *      (`dispatcher.Register("...", ...)`).
- * The de-facto editor-side surface is the union of both.
+ * Extracts the command-type strings the Unity editor actually handles — the commands
+ * registered on Core's CommandDispatcher (`dispatcher.Register("...", ...)`) in
+ * Editor/Core/UnityEditorMCP.cs. (The legacy ProcessCommand `switch` was fully retired in
+ * v0.4.0; the `case "..."` scan below is kept only as a harmless fallback — it matches nothing now.)
  */
 export async function getEditorCommands() {
   const src = await readFile(PATHS.editorCore, 'utf8');

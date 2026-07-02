@@ -1,7 +1,7 @@
 # Unity MCP Screenshot System
 
 ## Overview
-The Unity MCP Screenshot System enables capturing and analyzing screenshots from Unity Editor through MCP. This feature supports capturing Game View, Scene View, and provides basic image analysis capabilities with hooks for AI-powered vision analysis.
+The Unity MCP Screenshot System captures screenshots from the Unity Editor (Game View, Scene View) and runs heuristic image analysis (dimensions, dominant colors, edge-based UI detection). AI/vision analysis, base64-image analysis, and window capture are **not implemented** — they report `supported: false` / `INVALID_STATE` rather than fabricating results (see [Status](#status)).
 
 ## Features
 
@@ -209,14 +209,12 @@ Common errors and solutions:
    - Verify the image path exists
    - Use AssetDatabase.Refresh() if needed
 
-## Test Results
+## Status
 
-All screenshot system tests pass:
-- ✅ Game View capture
-- ✅ Scene View capture  
-- ✅ Base64 encoding
-- ✅ Error validation
-- ✅ Image analysis
-- ✅ Integration workflow
+**Implemented:** Game/Scene View capture (file + base64 encoding), custom resolution, and heuristic `imagePath`
+analysis — dimensions, dominant colors, and edge-based UI detection.
 
-The screenshot system is production-ready and provides a solid foundation for visual testing, documentation, and AI-powered game analysis.
+**Not implemented** (these report honestly, never fabricated results):
+- Prompt-based **AI/vision analysis** → `aiAnalysis: { supported: false, ... }`.
+- **base64-image analysis** (`analyzeBase64Image`) → `supported: false` (use `imagePath` for heuristic analysis).
+- **Window capture** → `INVALID_STATE` (use `game` or `scene`).
