@@ -573,33 +573,46 @@ namespace UnityEditorMCP.Handlers
                 // Find and delete GameObjects
                 List<string> deleted = new List<string>();
                 List<string> notFound = new List<string>();
-                
+                List<string> failed = new List<string>();
+
                 foreach (string objPath in allPaths)
                 {
                     GameObject obj = FindGameObjectStageAware(objPath);
-                    if (obj != null)
+                    if (obj == null) { notFound.Add(objPath); continue; }
+                    try
                     {
-                        deleted.Add(objPath);
                         Undo.DestroyObjectImmediate(obj);
+                        deleted.Add(objPath);
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        notFound.Add(objPath);
+                        // e.g. a prefab-instance CHILD ("Destroying a GameObject that is part of a Prefab instance is
+                        // not allowed") — record it per-item instead of throwing to the outer catch AFTER some were
+                        // already deleted (partial mutation reported as total failure). (Bug hunt Mut-7.)
+                        failed.Add($"{objPath}: {ex.Message}");
                     }
                 }
-                
-                // round-6 #4: a delete that found NOTHING is a NOT_FOUND error, not a "success" that deleted 0 — so
-                // it audits as ok:false (consistent with delete_asset). A partial delete (some found) stays a success.
-                if (deleted.Count == 0 && notFound.Count > 0)
-                    return HandlerOutcome.Fail($"No GameObject(s) found to delete: {string.Join(", ", notFound)}", "NOT_FOUND",
-                        details: new { notFound = notFound, notFoundCount = notFound.Count });
+
+                // round-6 #4: a delete that changed NOTHING is an error, not a "success" that deleted 0 (audits ok:false,
+                // consistent with delete_asset). A partial delete (some found+deleted) stays a success + reports the rest.
+                if (deleted.Count == 0)
+                {
+                    if (failed.Count > 0)
+                        return HandlerOutcome.Fail($"Deleted nothing — {failed.Count} could not be deleted: {string.Join("; ", failed)}", "INVALID_STATE",
+                            details: new { failed = failed, notFound = notFound });
+                    if (notFound.Count > 0)
+                        return HandlerOutcome.Fail($"No GameObject(s) found to delete: {string.Join(", ", notFound)}", "NOT_FOUND",
+                            details: new { notFound = notFound, notFoundCount = notFound.Count });
+                }
 
                 return HandlerOutcome.Ok(new
                 {
                     deletedCount = deleted.Count,
                     deleted = deleted,
                     notFound = notFound,
-                    notFoundCount = notFound.Count
+                    notFoundCount = notFound.Count,
+                    failed = failed,
+                    failedCount = failed.Count
                 });
             }
             catch (Exception ex)

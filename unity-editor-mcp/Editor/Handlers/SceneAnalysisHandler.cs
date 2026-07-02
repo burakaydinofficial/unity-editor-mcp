@@ -1149,10 +1149,16 @@ namespace UnityEditorMCP.Handlers
             var type = Type.GetType(typeName);
             if (type != null) return type;
 
-            // Search all assemblies
+            // Search all assemblies. GetTypes() throws ReflectionTypeLoadException on a project with a stale/mismatched
+            // DLL (common in the OLD projects this fork targets) — catch PER ASSEMBLY and use the types that DID load,
+            // so one bad assembly doesn't fail every custom-type lookup. (Bug hunt.)
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                type = assembly.GetTypes().FirstOrDefault(t => t.Name == typeName);
+                Type[] types;
+                try { types = assembly.GetTypes(); }
+                catch (System.Reflection.ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t != null).ToArray(); }
+                catch { continue; }
+                type = types.FirstOrDefault(t => t.Name == typeName);
                 if (type != null) return type;
             }
 

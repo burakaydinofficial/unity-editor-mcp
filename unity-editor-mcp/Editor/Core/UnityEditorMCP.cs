@@ -437,7 +437,20 @@ namespace UnityEditorMCP.Core
                 };
                 var result = _dispatcher.Dispatch(request);
                 AuditLogBridge.Record(command?.Type, command?.Parameters, !result.IsError); // H5 audit trail (fail-safe)
-                respond(result.ToJson());
+                var json = result.ToJson();
+                // Cap the response at the framing limit on the SEND side: an over-cap frame is rejected by the Node
+                // reader as a corrupt length and DISCARDED, so the command silently times out (30s). Return a clear,
+                // actionable error instead — reachable e.g. via capture_screenshot base64 of a large view, or
+                // enhanced_read_logs with long stack traces. (Bug hunt: oversize-frame asymmetry.)
+                int byteCount = System.Text.Encoding.UTF8.GetByteCount(json);
+                if (byteCount > MessageFramer.MaxMessageBytes)
+                {
+                    respond(Response.ErrorResult(command?.Id,
+                        $"Response too large: {byteCount} bytes exceeds the {MessageFramer.MaxMessageBytes}-byte wire cap. Retry with a smaller result — e.g. encodeAsBase64:false and read the saved file, fewer entries, or a params.fields projection.",
+                        "RESPONSE_TOO_LARGE"));
+                    return;
+                }
+                respond(json);
             }
             catch (Exception ex)
             {

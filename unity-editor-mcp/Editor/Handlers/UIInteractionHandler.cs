@@ -471,6 +471,7 @@ namespace UnityEditorMCP.Handlers
             var components = new List<string>();
             foreach (var component in target.GetComponents<Component>())
             {
+                if (component == null) continue; // a missing script yields a null slot — skip (this fork targets legacy projects with them)
                 components.Add(component.GetType().Name);
             }
             state["components"] = components;

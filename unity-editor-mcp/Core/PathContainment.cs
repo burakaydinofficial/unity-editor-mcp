@@ -10,6 +10,14 @@ namespace UnityEditorMCP.Core
     /// Mono/2020.3 floor limitation (see the H4 design + PathSafety).</summary>
     public static class PathContainment
     {
+        // Case-insensitive on Windows/macOS (their filesystems fold case); case-SENSITIVE on Linux — where the
+        // floor-matrix CI runs the EditMode suite — so a case-variant sibling ("proj" vs "PROJ/secret") is correctly
+        // denied there instead of over-accepted. (Bug hunt: security.)
+        private static readonly StringComparison PathComparison =
+            (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows)
+             || System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
+                ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
         public static bool IsWithin(string root, string candidate)
         {
             if (string.IsNullOrEmpty(root) || string.IsNullOrEmpty(candidate)) return false;
@@ -28,8 +36,8 @@ namespace UnityEditorMCP.Core
                     : Path.Combine(projectRoot, candidate));
             }
             catch { return false; }
-            return full.StartsWith(rootWithSep, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(full, projectRoot, StringComparison.OrdinalIgnoreCase);
+            return full.StartsWith(rootWithSep, PathComparison)
+                || string.Equals(full, projectRoot, PathComparison);
         }
     }
 }

@@ -463,7 +463,13 @@ namespace UnityEditorMCP.Handlers
         /// </summary>
         private static LogType GetLogTypeFromMode(int mode)
         {
-            if ((mode & (ModeBitError | ModeBitScriptingError | ModeBitException | ModeBitScriptingException)) != 0)
+            // Check EXCEPTION bits FIRST — they were previously folded into the Error branch, making LogType.Exception
+            // dead code: logTypes:["Exception"] and statistics.exceptions were always empty. (Bug hunt Core-3.)
+            if ((mode & (ModeBitException | ModeBitScriptingException)) != 0)
+            {
+                return LogType.Exception;
+            }
+            else if ((mode & (ModeBitError | ModeBitScriptingError)) != 0)
             {
                 return LogType.Error;
             }
@@ -474,10 +480,6 @@ namespace UnityEditorMCP.Handlers
             else if ((mode & (ModeBitWarning | ModeBitScriptingWarning)) != 0)
             {
                 return LogType.Warning;
-            }
-            else if ((mode & ModeBitException) != 0)
-            {
-                return LogType.Exception;
             }
             else
             {

@@ -197,7 +197,12 @@ export class CreateScriptToolHandler extends BaseToolHandler {
    */
   generateEditorTemplate(scriptName, namespace) {
     const usings = 'using UnityEngine;\nusing UnityEditor;';
-    const targetClass = scriptName.replace('Editor', '');
+    // Editor scripts conventionally target <Name>Editor. Strip only a TRAILING "Editor" suffix (not any occurrence —
+    // .replace('Editor','') turned "Editor" into "" -> typeof() [uncompilable], and "EditorTools" -> "Tools" [wrong]),
+    // and keep the full name if that leaves nothing. (Bug hunt Node-10.)
+    const targetClass = (scriptName.endsWith('Editor') && scriptName.length > 'Editor'.length)
+      ? scriptName.slice(0, -'Editor'.length)
+      : scriptName;
     const classDeclaration = `[CustomEditor(typeof(${targetClass}))]\npublic class ${scriptName} : Editor`;
     const classBody = `{
     public override void OnInspectorGUI()

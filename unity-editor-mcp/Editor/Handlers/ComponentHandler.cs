@@ -343,23 +343,20 @@ namespace UnityEditorMCP.Handlers
                 // Record undo
                 Undo.RecordObject(component, $"Modify {type.Name}");
 
-                // Apply properties
+                // Apply properties. Track BOTH applied and failed — previously only a FIRST-property failure aborted;
+                // a later invalid property was silently dropped, so the response claimed success with fewer changes
+                // than requested. (Bug hunt; matches ModifyMaterial's propertiesFailed contract.)
                 var modifiedProperties = new List<string>();
+                var failedProperties = new List<string>();
                 foreach (var prop in properties.Properties())
                 {
                     if (SetComponentProperty(component, prop.Name, prop.Value))
-                    {
                         modifiedProperties.Add(prop.Name);
-                    }
                     else
-                    {
-                        // Try to provide helpful error for first failed property
-                        if (modifiedProperties.Count == 0)
-                        {
-                            return HandlerOutcome.Fail($"Property not found or invalid: {prop.Name}", "VALIDATION_ERROR");
-                        }
-                    }
+                        failedProperties.Add(prop.Name);
                 }
+                if (modifiedProperties.Count == 0)
+                    return HandlerOutcome.Fail($"No properties applied to {type.Name} — Property not found or invalid: {string.Join(", ", failedProperties)}.", "VALIDATION_ERROR");
 
                 // Mark as dirty for saving
                 EditorUtility.SetDirty(component);
@@ -370,7 +367,10 @@ namespace UnityEditorMCP.Handlers
                     componentType = type.Name,
                     componentIndex = componentIndex,
                     modifiedProperties = modifiedProperties.ToArray(),
-                    message = $"Component {type.Name} properties updated"
+                    failedProperties = failedProperties.ToArray(),
+                    message = failedProperties.Count == 0
+                        ? $"Component {type.Name} properties updated"
+                        : $"Component {type.Name}: applied {modifiedProperties.Count}, {failedProperties.Count} not applied ({string.Join(", ", failedProperties)})"
                 });
             }
             catch (Exception ex)
