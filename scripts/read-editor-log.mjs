@@ -12,6 +12,7 @@
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 function editorLogPath(platform = process.platform, env = process.env) {
   if (env.UNITY_EDITOR_LOG) return env.UNITY_EDITOR_LOG;
@@ -30,7 +31,7 @@ const BOUNDARY = /Reloading assemblies|Begin MonoManager ReloadAssembly|\[Compil
 const ERROR_RE = /(.+\.cs)\((\d+),(\d+)\): error (CS\d+): (.+)/;
 const ASM_RE = /Assembly compilation finished: (\S+) \((\d+) messages\)/;
 
-function summarize(text) {
+export function summarize(text) {
   const lines = text.split(/\r?\n/);
 
   // Compile errors: only within the latest compile episode (after the last start).
@@ -62,25 +63,28 @@ function summarize(text) {
   return { errors: uniqueErrors, assemblies };
 }
 
-const path = editorLogPath();
-if (!existsSync(path)) {
-  console.error(`Editor.log not found at: ${path}\nSet UNITY_EDITOR_LOG to override.`);
+// Run the CLI only when invoked directly, not when imported (e.g. by the E2E harness verify helpers).
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const path = editorLogPath();
+  if (!existsSync(path)) {
+    console.error(`Editor.log not found at: ${path}\nSet UNITY_EDITOR_LOG to override.`);
+    process.exit(0);
+  }
+
+  const { mtime } = statSync(path);
+  const { errors, assemblies } = summarize(readFileSync(path, 'utf8'));
+
+  console.log(`Editor.log: ${path}`);
+  console.log(`last written: ${mtime.toISOString()}`);
+  if (assemblies.length) {
+    console.log('assemblies (last episode):');
+    for (const a of assemblies) console.log(`  ${a.messages === 0 ? 'OK ' : '!! '}${a.assembly} (${a.messages} messages)`);
+  }
+  if (errors.length) {
+    console.log(`\nFAIL — ${errors.length} compile error(s):`);
+    for (const e of errors) console.log(`  ${e.file}(${e.line},${e.col}): ${e.code}: ${e.msg}`);
+    process.exit(1);
+  }
+  console.log('\nPASS — no compile errors in the last episode.');
   process.exit(0);
 }
-
-const { mtime } = statSync(path);
-const { errors, assemblies } = summarize(readFileSync(path, 'utf8'));
-
-console.log(`Editor.log: ${path}`);
-console.log(`last written: ${mtime.toISOString()}`);
-if (assemblies.length) {
-  console.log('assemblies (last episode):');
-  for (const a of assemblies) console.log(`  ${a.messages === 0 ? 'OK ' : '!! '}${a.assembly} (${a.messages} messages)`);
-}
-if (errors.length) {
-  console.log(`\nFAIL — ${errors.length} compile error(s):`);
-  for (const e of errors) console.log(`  ${e.file}(${e.line},${e.col}): ${e.code}: ${e.msg}`);
-  process.exit(1);
-}
-console.log('\nPASS — no compile errors in the last episode.');
-process.exit(0);

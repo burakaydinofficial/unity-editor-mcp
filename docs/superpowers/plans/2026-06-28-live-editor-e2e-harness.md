@@ -64,7 +64,9 @@ existing `unity-editor-mcp` package + `mcp-server`.
 - Consumes: nothing.
 - Produces: `verify.mjs` exports `fileExists(path) -> bool`, `readProbeEvents(path) -> Array<object>`,
   `parseCompile(logText) -> { compiled: bool, errors: Array<{file,line,code,msg}> }`.
-  `scripts/read-editor-log.mjs` gains `export function parseCompileEpisode(text) -> { errors: [...] }`.
+  `scripts/read-editor-log.mjs` gets `export` on its existing `summarize(text) -> { errors, assemblies }` (which
+  already de-dupes Unity's double-logged errors), and its CLI block is guarded to run only when invoked as main, so
+  importing it has no side effects.
 
 - [ ] **Step 1: Write the failing test** — `mcp-server/tests/unit/e2e-live/verify.test.js`
 
@@ -106,26 +108,39 @@ test('parseCompile detects a clean episode vs an error CS', () => {
 Run: `cd mcp-server && node --test tests/unit/e2e-live/verify.test.js`
 Expected: FAIL — `Cannot find module '../../e2e/live/verify.mjs'`.
 
-- [ ] **Step 3: Export the parser from `scripts/read-editor-log.mjs`**
+- [ ] **Step 3: Export `summarize` + guard the CLI in `scripts/read-editor-log.mjs`**
 
-Add, above the CLI invocation at the bottom (reuse the existing `ERROR_RE`/`BOUNDARY` and `summarize` internals):
+`summarize` already does the episode-window scan + de-dupe; reuse it instead of duplicating. Two edits:
+
+(a) Add `export` to its declaration: `function summarize(text) {` → `export function summarize(text) {`.
+
+(b) The file currently runs its CLI (reads `Editor.log`, `process.exit`) at import. Wrap that whole block (from
+`const path = editorLogPath();` to the final `process.exit(0);`) in a run-as-main guard so importing has no side
+effects — add `import { pathToFileURL } from 'node:url';` to the top and:
 
 ```js
-// Named export for reuse by the E2E harness (the CLI behavior below is unchanged).
-export function parseCompileEpisode(text) {
-  // Scan only the latest compile episode (after the last BOUNDARY), same window `summarize` uses.
-  const lines = text.split(/\r?\n/);
-  let boundary = -1;
-  for (let i = lines.length - 1; i >= 0 && i >= lines.length - 4000; i--) {
-    if (BOUNDARY.test(lines[i])) { boundary = i; break; }
+// Run the CLI only when invoked directly, not when imported (e.g. by the E2E harness verify helpers).
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const path = editorLogPath();
+  if (!existsSync(path)) {
+    console.error(`Editor.log not found at: ${path}\nSet UNITY_EDITOR_LOG to override.`);
+    process.exit(0);
   }
-  const window = lines.slice(boundary >= 0 ? boundary : Math.max(0, lines.length - 800));
-  const errors = [];
-  for (const line of window) {
-    const e = line.match(ERROR_RE);
-    if (e) errors.push({ file: e[1], line: e[2], col: e[3], code: e[4], msg: e[5] });
+  const { mtime } = statSync(path);
+  const { errors, assemblies } = summarize(readFileSync(path, 'utf8'));
+  console.log(`Editor.log: ${path}`);
+  console.log(`last written: ${mtime.toISOString()}`);
+  if (assemblies.length) {
+    console.log('assemblies (last episode):');
+    for (const a of assemblies) console.log(`  ${a.messages === 0 ? 'OK ' : '!! '}${a.assembly} (${a.messages} messages)`);
   }
-  return { errors };
+  if (errors.length) {
+    console.log(`\nFAIL — ${errors.length} compile error(s):`);
+    for (const e of errors) console.log(`  ${e.file}(${e.line},${e.col}): ${e.code}: ${e.msg}`);
+    process.exit(1);
+  }
+  console.log('\nPASS — no compile errors in the last episode.');
+  process.exit(0);
 }
 ```
 
@@ -133,7 +148,7 @@ export function parseCompileEpisode(text) {
 
 ```js
 import { existsSync, readFileSync } from 'node:fs';
-import { parseCompileEpisode } from '../../../../scripts/read-editor-log.mjs';
+import { summarize } from '../../../../scripts/read-editor-log.mjs';
 
 export function fileExists(path) {
   return existsSync(path);
@@ -149,7 +164,7 @@ export function readProbeEvents(path) {
 }
 
 export function parseCompile(logText) {
-  const { errors } = parseCompileEpisode(logText);
+  const { errors } = summarize(logText);
   return { compiled: true, errors };
 }
 ```
