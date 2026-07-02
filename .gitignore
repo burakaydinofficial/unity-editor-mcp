@@ -101,3 +101,6 @@ unity-mcp-reference-project/
 
 # e2e-host editor-local noise (Visual Studio recommended-components descriptor)
 ci/e2e-host/.vsconfig
+# e2e scripts-flow scratch artifacts (the flow creates/deletes Assets/Scripts/E2EScratch.cs per run)
+ci/e2e-host/Assets/Scripts/
+ci/e2e-host/Assets/Scripts.meta
