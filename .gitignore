@@ -98,3 +98,6 @@ unity-mcp-reference-project/
 # Keep hand-authored project files under dotnet/ (the global *.csproj ignore above
 # is for Unity-generated project files, not ours).
 !/dotnet/**/*.csproj
+
+# e2e-host editor-local noise (Visual Studio recommended-components descriptor)
+ci/e2e-host/.vsconfig
