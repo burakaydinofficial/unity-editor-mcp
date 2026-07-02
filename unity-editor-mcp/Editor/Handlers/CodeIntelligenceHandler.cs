@@ -601,17 +601,15 @@ namespace UnityEditorMCP.Handlers
         private static string ResolveScript(string path)
         {
             if (!path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) return null;
+            // Route the security-critical containment through the ONE dotnet-tested rail (PathSafety -> Core), so
+            // future hardening (e.g. the platform-aware case comparison) applies here too instead of drifting — this
+            // was a second, independent copy of the H4 check. (Bug hunt Sec-2.)
+            if (!PathSafety.IsWithinProject(path)) return null;
             var root = Directory.GetParent(Application.dataPath)?.FullName;
             if (root == null) return null;
-            var projectRoot = Path.GetFullPath(root).Replace("\\", "/").TrimEnd('/');
             var full = (Path.IsPathRooted(path)
                 ? Path.GetFullPath(path)
                 : Path.GetFullPath(Path.Combine(root, path))).Replace("\\", "/");
-            // Containment guard: only files inside the project root may be read — blocks absolute paths
-            // outside the project and ".." traversal. Returning null routes callers to an error envelope.
-            if (!(full.Equals(projectRoot, StringComparison.OrdinalIgnoreCase) ||
-                  full.StartsWith(projectRoot + "/", StringComparison.OrdinalIgnoreCase)))
-                return null;
             return full;
         }
 

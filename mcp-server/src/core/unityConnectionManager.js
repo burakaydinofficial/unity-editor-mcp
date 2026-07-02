@@ -66,6 +66,15 @@ export class UnityConnectionManager {
     if (conn.handshakePromise) {
       try { await conn.handshakePromise; } catch { /* handshake failures are non-fatal */ }
     }
+    // If the socket is up but the handshake produced no manifest (e.g. it timed out while the editor was compiling
+    // right after connect), re-issue it rather than awaiting the memoized failure forever — otherwise list_unity_tools
+    // returns count:0 and every call_unity_tool says "not available" until the socket happens to close. (Node-7.)
+    if (conn.editorInfo == null && typeof conn.isConnected === 'function' && conn.isConnected()) {
+      try {
+        const r = await this.performHandshake(conn, { expectedProjectPath: null });
+        conn.editorInfo = r?.handshake ?? null;
+      } catch { /* still no manifest — leave editorInfo null and let a later call retry */ }
+    }
     return conn;
   }
 

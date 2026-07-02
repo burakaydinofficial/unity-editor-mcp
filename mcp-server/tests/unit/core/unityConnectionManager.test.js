@@ -89,6 +89,27 @@ describe('UnityConnectionManager', () => {
     assert.equal(mgr.connections.size, 1);
   });
 
+  // Bug hunt Node-7: a first handshake that yields no manifest (e.g. it timed out while the editor was compiling) must
+  // not strand the connection forever — ensureReady re-issues it instead of awaiting the memoized failure.
+  it('ensureReady re-issues the handshake when the first produced no manifest', async () => {
+    let calls = 0;
+    const mgr = new UnityConnectionManager({
+      createConnection: (opts) => new FakeConn(opts),
+      performHandshake: async () => {
+        calls++;
+        return calls === 1
+          ? { performed: true, compatible: true, handshake: null }         // 1st: no manifest
+          : { performed: true, compatible: true, handshake: { commands: [] } }; // retry: manifest
+      },
+      discovery: { defaultRegistryDirectory: () => '/reg', findInstanceByProjectPath: () => null, readInstances: () => [], isLive: () => true },
+      env: {}, host: 'localhost',
+    });
+    const conn = mgr.getConnection('localhost', 7500);
+    await mgr.ensureReady(conn);
+    assert.equal(calls, 2);       // the null-manifest handshake was retried
+    assert.ok(conn.editorInfo);   // and the retry populated the manifest
+  });
+
   it('requireConnection resolves a project-path ref via the registry to the pinned connection', () => {
     const { mgr } = makeManager({ instances: [{ projectPath: 'C:/proj/A', port: 7300 }] });
     const conn = mgr.requireConnection('C:/proj/A');

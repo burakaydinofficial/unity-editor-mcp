@@ -87,8 +87,10 @@ function walk(value, schema, path, errors) {
         if (value[key] !== undefined) walk(value[key], sub, join(path, key), errors);
       }
     }
-    if (schema.additionalProperties === false && schema.properties) {
-      const allowed = new Set(Object.keys(schema.properties));
+    if (schema.additionalProperties === false) {
+      // Do NOT require a sibling `properties`: {type:'object', additionalProperties:false} means "no properties
+      // allowed", so an empty allow-set must reject ANY key (previously it silently accepted everything). (Node-12.)
+      const allowed = new Set(schema.properties ? Object.keys(schema.properties) : []);
       for (const key of Object.keys(value)) {
         if (!allowed.has(key)) errors.push(`${join(path, key)}: unknown property (additionalProperties is false)`);
       }
