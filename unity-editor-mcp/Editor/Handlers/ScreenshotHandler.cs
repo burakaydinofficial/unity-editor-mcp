@@ -135,8 +135,12 @@ namespace UnityEditorMCP.Handlers
                     {
                         success = true,
                         path = outputPath,
-                        width = captureWidth,
-                        height = captureHeight,
+                        // Report the ACTUAL captured resolution, not the requested width/height — CaptureScreenshotAsTexture
+                        // captures at the current view size and does not honor width/height. (Bug hunt Core-9.)
+                        width = captured.width,
+                        height = captured.height,
+                        requestedWidth = captureWidth,
+                        requestedHeight = captureHeight,
                         captureMode = "game",
                         includeUI = includeUI,
                         fileSize = imageBytes.Length,
@@ -421,6 +425,14 @@ namespace UnityEditorMCP.Handlers
                 {
                     return HandlerOutcome.Fail("imagePath must stay within the project root", "VALIDATION_ERROR");
                 }
+
+                // Match the Node handler's contract so a direct TCP caller can't probe the byte size of arbitrary
+                // in-project files (e.g. ProjectSettings/*.asset): require an under-Assets image. (Bug hunt Sec-5.)
+                var lowerImg = imagePath.Replace('\\', '/').ToLowerInvariant();
+                if (!(lowerImg.StartsWith("assets/") || lowerImg.StartsWith("packages/")))
+                    return HandlerOutcome.Fail("imagePath must be under Assets/ or Packages/", "VALIDATION_ERROR");
+                if (!(lowerImg.EndsWith(".png") || lowerImg.EndsWith(".jpg") || lowerImg.EndsWith(".jpeg")))
+                    return HandlerOutcome.Fail("imagePath must be a .png/.jpg/.jpeg image", "VALIDATION_ERROR");
 
                 if (!File.Exists(imagePath))
                 {

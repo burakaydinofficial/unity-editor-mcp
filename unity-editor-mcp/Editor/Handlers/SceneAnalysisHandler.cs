@@ -51,11 +51,13 @@ namespace UnityEditorMCP.Handlers
                     // Try to find by name
                     targetObject = GameObject.Find(gameObjectName);
                     
-                    // If not found in active objects, search all
+                    // If not found in active objects, search all — but only SCENE objects: FindObjectsOfTypeAll also
+                    // returns prefab ASSETS + preview/editor-internal objects, which would resolve nondeterministically
+                    // on a name collision and hand back a scene-style path for a non-scene object. (Bug hunt Core-8.)
                     if (targetObject == null)
                     {
                         var allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
-                        targetObject = allObjects.FirstOrDefault(go => go.name == gameObjectName);
+                        targetObject = allObjects.FirstOrDefault(go => go.name == gameObjectName && go.scene.IsValid());
                     }
                 }
 
@@ -679,9 +681,9 @@ namespace UnityEditorMCP.Handlers
                 var targetObject = GameObject.Find(gameObjectName);
                 if (targetObject == null)
                 {
-                    // Try to find in all objects including inactive
+                    // Try inactive too — but SCENE objects only (skip prefab assets / preview objects). (Core-8)
                     var allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
-                    targetObject = allObjects.FirstOrDefault(go => go.name == gameObjectName);
+                    targetObject = allObjects.FirstOrDefault(go => go.name == gameObjectName && go.scene.IsValid());
                 }
 
                 if (targetObject == null)

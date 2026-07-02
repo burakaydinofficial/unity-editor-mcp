@@ -152,7 +152,11 @@ namespace UnityEditorMCP.Handlers
                     if (PlayModeBlocks(rt.Obj)) { skipped.Add(Skip(rt.Describe, null, "PLAY_MODE", "scene writes refuse in play mode")); if (allOrNothing) return Abort(skipped); continue; }
 
                     var so = new SerializedObject(rt.Obj);
-                    foreach (var prop in ((JObject)edit["set"]).Properties())
+                    // A missing/non-object `set` is a clean VALIDATION_ERROR — the cast used to NRE into a generic
+                    // "Object reference not set..." message. (Bug hunt Mut-15.)
+                    var setObj = edit["set"] as JObject;
+                    if (setObj == null) { skipped.Add(Skip(rt.Describe, null, "VALIDATION_ERROR", "each edit requires a 'set' object { path: {value, expected} }")); if (allOrNothing) return Abort(skipped); continue; }
+                    foreach (var prop in setObj.Properties())
                     {
                         var path = prop.Name;
                         var spec = prop.Value as JObject;

@@ -318,18 +318,24 @@ namespace UnityEditorMCP.Handlers
                     if (foundPaths.Count > 1)
                     {
                         var deletedPaths = new List<string>();
+                        var failedPaths = new List<string>();
                         foreach (var path in foundPaths)
                         {
-                            if (AssetDatabase.MoveAssetToTrash(path))
-                            {
-                                deletedPaths.Add(path);
-                            }
+                            if (AssetDatabase.MoveAssetToTrash(path)) deletedPaths.Add(path);
+                            else failedPaths.Add(path);
                         }
                         AssetDatabase.Refresh();
+                        // A trash failure (VCS lock / read-only) previously still reported "deleted successfully" —
+                        // fail when nothing was deleted, and surface failedPaths on a partial delete. (Bug hunt Mut-14.)
+                        if (deletedPaths.Count == 0)
+                            return HandlerOutcome.Fail($"Failed to delete any of the {foundPaths.Count} scripts named '{scriptName}': {string.Join(", ", failedPaths)}", "INTERNAL_ERROR");
                         return HandlerOutcome.Ok(new
                         {
                             deletedPaths = deletedPaths.ToArray(),
-                            message = "Multiple scripts deleted successfully"
+                            failedPaths = failedPaths.ToArray(),
+                            message = failedPaths.Count == 0
+                                ? "Multiple scripts deleted successfully"
+                                : $"Deleted {deletedPaths.Count} of {foundPaths.Count}; {failedPaths.Count} could not be deleted"
                         });
                     }
 

@@ -124,25 +124,30 @@ namespace UnityEditorMCP.Handlers
                     newObject.transform.SetParent(parent.transform, true);
                 }
 
-                // Set tag
+                // Set tag — an explicitly-provided invalid tag is a VALIDATION_ERROR (all-or-nothing, consistent with
+                // modify_gameobject + the components path), not a silent warn-and-continue. (Bug hunt Mut-13.)
                 string tag = parameters["tag"]?.ToString();
                 if (!string.IsNullOrEmpty(tag))
                 {
-                    try
-                    {
-                        newObject.tag = tag;
-                    }
+                    try { newObject.tag = tag; }
                     catch (Exception)
                     {
-                        Debug.LogWarning($"Invalid tag: {tag}");
+                        UnityEngine.Object.DestroyImmediate(newObject);
+                        return HandlerOutcome.Fail($"Tag '{tag}' is not defined (add it in Tags & Layers, or use manage_tags).", "VALIDATION_ERROR");
                     }
                 }
 
-                // Set layer
-                int? layer = parameters["layer"]?.ToObject<int>();
-                if (layer.HasValue && layer.Value >= 0 && layer.Value < 32)
+                // Set layer — reject an explicitly-provided out-of-range layer instead of silently ignoring it.
+                var layerToken = parameters["layer"];
+                if (layerToken != null && layerToken.Type != JTokenType.Null)
                 {
-                    newObject.layer = layer.Value;
+                    int layer = layerToken.ToObject<int>();
+                    if (layer < 0 || layer > 31)
+                    {
+                        UnityEngine.Object.DestroyImmediate(newObject);
+                        return HandlerOutcome.Fail($"layer must be 0-31 (got {layer}).", "VALIDATION_ERROR");
+                    }
+                    newObject.layer = layer;
                 }
 
                 // round-7 FR2: support a `components` array (was silently dropped — created only a Transform). Add each

@@ -368,10 +368,10 @@ export class UnityConnection extends EventEmitter {
             continue;
           }
           
-          logger.info(`[Unity] Received framed message: ${message}`);
+          logger.debug(`[Unity] Received framed message: ${message}`); // full payload -> debug (Node-11)
           
           const response = JSON.parse(message);
-          logger.info(`[Unity] Parsed response:`, response);
+          logger.debug(`[Unity] Parsed response:`, response);
           
           // Check if this is a response to a pending command
           if (response.id && this.pendingCommands.has(response.id)) {
@@ -498,7 +498,7 @@ export class UnityConnection extends EventEmitter {
       
       const framedMessage = Buffer.concat([lengthBuffer, messageBuffer]);
       
-      logger.info(`[Unity] Sending framed command ${id}: ${json}`);
+      logger.debug(`[Unity] Sending framed command ${id}: ${json}`); // full payload -> debug (Node-11)
 
       // Capture the socket up front: if a concurrent 'close' raced it to null, a
       // synchronous this.socket.write throw would escape the pending-cleanup below,
