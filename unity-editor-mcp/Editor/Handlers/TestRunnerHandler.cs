@@ -24,8 +24,47 @@ namespace UnityEditorMCP.Handlers
             _testRunnerApi != null ? _testRunnerApi : (_testRunnerApi = ScriptableObject.CreateInstance<TestRunnerApi>());
         private static TestRunCallback currentCallback;
         private static Dictionary<string, TestResult> lastTestResults = new Dictionary<string, TestResult>();
-        private static bool isRunningTests = false;
         private const ApiTestMode AllTestModes = ApiTestMode.EditMode | ApiTestMode.PlayMode;
+
+        // Reload-proofing (bug hunt Core-2): PlayMode runs (and pre-run recompiles) trigger DOMAIN RELOADS that wipe
+        // every static above — so callbacks vanished mid-run (results never arrived), and the bool re-entrancy guard
+        // reset to false, letting a second run_tests Execute() into an active run. Fixes:
+        //  - the guard lives in SessionState (survives reloads; clears on editor restart — the right semantics);
+        //  - callbacks re-register EVERY domain load via [InitializeOnLoadMethod] (the Unity-documented pattern —
+        //    the Test Runner delivers RunFinished in the FINAL domain to whoever is registered there);
+        //  - RunFinished journals the full result tree to Library/, and get_test_results falls back to that file
+        //    when a later reload has wiped the in-memory dictionary.
+        private const string RunningKey = "UnityEditorMCP.TestRunner.IsRunning";
+        private static bool IsRunningTests
+        {
+            get { return SessionState.GetBool(RunningKey, false); }
+            set { SessionState.SetBool(RunningKey, value); }
+        }
+
+        private static string ResultsFilePath
+        {
+            get
+            {
+                var projectRoot = System.IO.Directory.GetParent(Application.dataPath).FullName;
+                return System.IO.Path.Combine(projectRoot, "Library", "UnityEditorMCP", "last-test-results.json");
+            }
+        }
+
+        [InitializeOnLoadMethod]
+        private static void ReRegisterCallbacksOnLoad()
+        {
+            // Deferred one tick: creating the TestRunnerApi instance during domain-load static init runs before the
+            // Test Runner subsystem is ready (Audit #31); delayCall is after editor init and still far ahead of any
+            // RunFinished delivery.
+            EditorApplication.delayCall += EnsureCallbacksRegistered;
+        }
+
+        private static void EnsureCallbacksRegistered()
+        {
+            if (currentCallback != null) return;
+            currentCallback = new TestRunCallback();
+            testRunnerApi.RegisterCallbacks(currentCallback);
+        }
 
         /// <summary>
         /// Lists all available tests in the project
@@ -74,7 +113,7 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
-                if (isRunningTests)
+                if (IsRunningTests)
                 {
                     return HandlerOutcome.Fail("Tests are already running. Please wait for them to complete or cancel.", "INVALID_STATE");
                 }
@@ -120,17 +159,13 @@ namespace UnityEditorMCP.Handlers
                     categoryNames = filterCategoryNames
                 };
 
-                // Clear previous results
+                // Clear previous results (memory + journal — a new run invalidates the old file)
                 lastTestResults.Clear();
+                try { System.IO.File.Delete(ResultsFilePath); } catch { /* best effort */ }
 
-                // Create callback handler
-                if (currentCallback == null)
-                {
-                    currentCallback = new TestRunCallback();
-                    testRunnerApi.RegisterCallbacks(currentCallback);
-                }
+                EnsureCallbacksRegistered();
 
-                isRunningTests = true;
+                IsRunningTests = true;
 
                 // Execute tests
                 var executionSettings = new ExecutionSettings(filter);
@@ -147,8 +182,74 @@ namespace UnityEditorMCP.Handlers
             }
             catch (Exception ex)
             {
-                isRunningTests = false;
+                IsRunningTests = false;
                 return HandlerOutcome.Fail($"Failed to run tests: {ex.Message}");
+            }
+        }
+
+        /// <summary>Journal the in-memory results to Library/ so they survive domain reloads. (Core-2)</summary>
+        private static void SaveResultsToJournal()
+        {
+            try
+            {
+                var arr = new JArray();
+                foreach (var kvp in lastTestResults)
+                {
+                    var r = kvp.Value;
+                    arr.Add(new JObject
+                    {
+                        ["name"] = r.Name,
+                        ["status"] = r.Status.ToString(),
+                        ["duration"] = r.Duration,
+                        ["startTime"] = r.StartTime.ToString("o"),
+                        ["endTime"] = r.EndTime.ToString("o"),
+                        ["message"] = r.Message,
+                        ["stackTrace"] = r.StackTrace,
+                        ["output"] = r.Output
+                    });
+                }
+                var doc = new JObject { ["finishedAt"] = DateTime.UtcNow.ToString("o"), ["results"] = arr };
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(ResultsFilePath));
+                System.IO.File.WriteAllText(ResultsFilePath, doc.ToString());
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[TestRunner] Could not journal test results: {ex.Message}");
+            }
+        }
+
+        /// <summary>Rehydrate lastTestResults from the Library/ journal after a reload wiped them. (Core-2)</summary>
+        private static void LoadResultsFromJournal()
+        {
+            try
+            {
+                if (!System.IO.File.Exists(ResultsFilePath)) return;
+                var doc = JObject.Parse(System.IO.File.ReadAllText(ResultsFilePath));
+                var arr = doc["results"] as JArray;
+                if (arr == null) return;
+                foreach (var t in arr)
+                {
+                    var name = t["name"]?.ToString();
+                    if (string.IsNullOrEmpty(name)) continue;
+                    TestStatus status;
+                    try { status = (TestStatus)Enum.Parse(typeof(TestStatus), t["status"]?.ToString() ?? "Inconclusive"); }
+                    catch { status = TestStatus.Inconclusive; }
+                    lastTestResults[name] = new TestResult
+                    {
+                        Name = name,
+                        Status = status,
+                        Duration = t["duration"]?.ToObject<double>() ?? 0,
+                        StartTime = t["startTime"]?.ToObject<DateTime>() ?? default(DateTime),
+                        EndTime = t["endTime"]?.ToObject<DateTime>() ?? default(DateTime),
+                        Message = t["message"]?.ToString(),
+                        StackTrace = t["stackTrace"]?.ToString(),
+                        Output = t["output"]?.ToString()
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[TestRunner] Could not load journaled test results: {ex.Message}");
             }
         }
 
@@ -162,13 +263,18 @@ namespace UnityEditorMCP.Handlers
                 var includeDetails = parameters["includeDetails"]?.ToObject<bool>() ?? true;
                 var filterStatus = parameters["filterStatus"]?.ToString();
 
+                // A domain reload after RunFinished wipes the in-memory dictionary — fall back to the journal the
+                // callback wrote to Library/ so results survive any number of reloads. (Core-2)
+                if (lastTestResults.Count == 0)
+                    LoadResultsFromJournal();
+
                 if (lastTestResults.Count == 0)
                 {
                     return HandlerOutcome.Ok(new
                     {
                         message = "No test results available. Run tests first.",
                         hasResults = false,
-                        isRunning = isRunningTests
+                        isRunning = IsRunningTests
                     });
                 }
 
@@ -221,7 +327,7 @@ namespace UnityEditorMCP.Handlers
                 {
                     results = results.ToArray(),
                     summary = summary,
-                    isRunning = isRunningTests,
+                    isRunning = IsRunningTests,
                     totalTests = lastTestResults.Count,
                     message = "Test results retrieved successfully"
                 });
@@ -239,7 +345,7 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
-                if (!isRunningTests)
+                if (!IsRunningTests)
                 {
                     return HandlerOutcome.Ok(new
                     {
@@ -250,7 +356,7 @@ namespace UnityEditorMCP.Handlers
 
                 // Unity doesn't provide a direct way to cancel tests, but we can try to stop the test runner
                 EditorApplication.isPlaying = false;
-                isRunningTests = false;
+                IsRunningTests = false;
 
                 // Unregister + clear the run callback so it isn't left registered after a cancel; the
                 // next run re-creates a fresh one (RunTests registers only when currentCallback == null).
@@ -455,7 +561,10 @@ namespace UnityEditorMCP.Handlers
             {
                 Debug.Log($"[TestRunner] Test run completed");
                 ProcessTestResults(result);
-                isRunningTests = false;
+                // Journal the full result set: a later reload (script edit, play exit) wipes the in-memory
+                // dictionary, and get_test_results falls back to this file. (Core-2)
+                SaveResultsToJournal();
+                IsRunningTests = false;
             }
 
             public void TestStarted(ITestAdaptor test)

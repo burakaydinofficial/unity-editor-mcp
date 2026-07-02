@@ -34,5 +34,32 @@ namespace UnityEditorMCP.Core.Tests
             Assert.False(PathContainment.IsWithin("", "Assets/x"));
             Assert.False(PathContainment.IsWithin(null, "Assets/x"));
         }
+
+        // Bug hunt Sec-3: drive-relative shapes ("C:foo") are IsPathRooted==true but resolve against the process's
+        // per-drive CWD, not the project root — they must be rejected outright.
+        [Fact]
+        public void DriveRelative_Denied()
+        {
+            Assert.False(PathContainment.IsWithin(Root, "C:foo"));
+            Assert.False(PathContainment.IsWithin(Root, "C:..\\..\\x"));
+            Assert.False(PathContainment.IsWithin(Root, "Z:secret.txt"));
+        }
+
+        // Bug hunt Sec-6: an NTFS alternate-data-stream colon in the final segment is denied deterministically.
+        [Fact]
+        public void AlternateDataStream_Denied()
+            => Assert.False(PathContainment.IsWithin(Root, "Assets/Foo.cs:hidden"));
+
+        // Case-variant sibling: denied on case-sensitive filesystems (Linux CI), allowed on Windows/macOS — pins the
+        // platform-aware comparison instead of the old unconditional ignore-case.
+        [Fact]
+        public void CaseVariantSibling_MatchesFilesystemCaseRules()
+        {
+            bool caseInsensitive =
+                System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows)
+                || System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX);
+            var variant = Root.ToUpperInvariant() + Path.DirectorySeparatorChar + "secret.txt";
+            Assert.Equal(caseInsensitive, PathContainment.IsWithin(Root, variant));
+        }
     }
 }

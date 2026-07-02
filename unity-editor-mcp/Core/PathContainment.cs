@@ -21,6 +21,14 @@ namespace UnityEditorMCP.Core
         public static bool IsWithin(string root, string candidate)
         {
             if (string.IsNullOrEmpty(root) || string.IsNullOrEmpty(candidate)) return false;
+
+            // DRIVE-RELATIVE paths ("C:foo", "C:..\x") are "rooted" per IsPathRooted but resolve against the
+            // process's per-drive CWD — not the project root — violating the never-resolve-against-CWD invariant.
+            // Reject them outright. (Bug hunt Sec-3.)
+            if (candidate.Length >= 2 && candidate[1] == ':' &&
+                (candidate.Length == 2 || (candidate[2] != '\\' && candidate[2] != '/')))
+                return false;
+
             string projectRoot;
             try { projectRoot = Path.GetFullPath(root); } catch { return false; }
             string rootWithSep = projectRoot.EndsWith(Path.DirectorySeparatorChar.ToString())
@@ -36,6 +44,13 @@ namespace UnityEditorMCP.Core
                     : Path.Combine(projectRoot, candidate));
             }
             catch { return false; }
+
+            // NTFS alternate-data-stream colon in the final segment ("Assets/Foo.cs:stream"): runtime-divergent
+            // (older Mono throws in GetFullPath -> denied; newer .NET accepts -> a hidden stream AssetDatabase
+            // won't track). Make the denial deterministic. (Bug hunt Sec-6.)
+            var fileName = Path.GetFileName(full);
+            if (fileName != null && fileName.IndexOf(':') >= 0) return false;
+
             return full.StartsWith(rootWithSep, PathComparison)
                 || string.Equals(full, projectRoot, PathComparison);
         }
