@@ -219,10 +219,6 @@ namespace UnityEditorMCP.Handlers
                         }
                     }
                 }
-
-                // Also try to read from Unity Console log buffer
-                var consoleMessages = ReadUnityConsoleBuffer();
-                messages.AddRange(consoleMessages);
             }
             catch (Exception ex)
             {

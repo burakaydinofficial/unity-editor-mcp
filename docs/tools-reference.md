@@ -3,7 +3,7 @@
 > **Generated** from `protocol/catalog/commands.json` (protocol `1.0.0`) — do not edit by hand.
 > Regenerate with `node protocol/scripts/generate-tools-reference.mjs`.
 
-**99 commands across 18 categories.** Each is reached via the generic
+**100 commands across 18 categories.** Each is reached via the generic
 `call_unity_tool(instance, name, params)` meta-tool after on-demand discovery with `list_unity_tools` —
 the connected editor advertises these, not the MCP server (ADR 0006). Two internal commands are omitted.
 
@@ -17,7 +17,7 @@ Analyze and get statistics about the current scene
   - `groupByType` (boolean) — Group results by component types. Default: true
   - `includePrefabInfo` (boolean) — Include prefab connection info. Default: true
   - `includeMemoryInfo` (boolean) — Include memory usage estimates. Default: false
-- **Result:** `sceneName`, `statistics`, `componentDistribution`, `rendering`, `lighting`, `memoryInfo`, `summary`
+- **Result:** `sceneName`, `loadedScenes`, `statistics`, `componentDistribution`, `rendering`, `lighting`, `memoryInfo`, `summary`
 
 ### `find_by_component`
 Find all GameObjects that have a specific component type
@@ -52,7 +52,7 @@ Get all properties and values of a specific component
 Get detailed information about a specific GameObject
 
 - **Params:**
-  - `gameObjectName` (string, required) — Name of the GameObject to inspect
+  - `gameObjectName` (string) — Name of the GameObject to inspect
   - `path` (string) — Full hierarchy path to the GameObject (use either name or path)
   - `includeChildren` (boolean) — Include full hierarchy details. Default: false
   - `includeComponents` (boolean) — Include all component details. Default: true
@@ -419,7 +419,7 @@ List the Unity project UPM packages: directly-requested dependencies (from manif
 - **Result:** `dependencies`, `resolved`, `count`
 
 ### `manage_layers`
-Manage Unity project layers (add, remove, list, convert)
+Manage Unity project layers (add, remove, get, convert)
 
 - **Params:**
   - `action` (string, required) — Action to perform — one of: add, remove, get, get_by_name, get_by_index
@@ -445,7 +445,7 @@ Manage Unity Editor selection (get, set, clear)
 - **Result:** varies (one of several shapes)
 
 ### `manage_tags`
-Manage Unity project tags (add, remove, list)
+Manage Unity project tags (add, remove, get)
 
 - **Params:**
   - `action` (string, required) — Action to perform: add, remove, or get tags — one of: add, remove, get
@@ -453,7 +453,7 @@ Manage Unity project tags (add, remove, list)
 - **Result:** varies (one of several shapes)
 
 ### `manage_tools`
-Manage Unity Editor tools and plugins (list, activate, deactivate, refresh)
+Manage Unity Editor tools and plugins (get, activate, deactivate, refresh)
 
 - **Params:**
   - `action` (string, required) — The action to perform — one of: get, activate, deactivate, refresh
@@ -462,7 +462,7 @@ Manage Unity Editor tools and plugins (list, activate, deactivate, refresh)
 - **Result:** varies (one of several shapes)
 
 ### `manage_windows`
-Manage Unity Editor windows (list, focus, get state)
+Manage Unity Editor windows (get, focus, get state)
 
 - **Params:**
   - `action` (string, required) — Action to perform on windows — one of: get, focus, get_state
@@ -492,10 +492,11 @@ Create a GameObject in Unity scene
   - `parentPath` (string) — Path to parent GameObject (e.g., "/Parent/Child")
   - `tag` (string) — Tag to assign to the GameObject
   - `layer` (number) — Layer index (0-31)
-- **Result:** `id`, `name`, `path`, `position`, `rotation`, `scale`, `tag`, `layer`, `isActive`, `error`
+  - `components` (array) — Component type names to add to the new GameObject (e.g. ["Rigidbody","BoxCollider"]). All-or-nothing: an unknown type is a VALIDATION_ERROR and the object is not created.
+- **Result:** `id`, `name`, `path`, `addedComponents`, `position`, `rotation`, `scale`, `tag`, `layer`, `isActive`, `error`
 
 ### `delete_gameobject` — _⚠️ destructive (confirm-gated)_
-Delete GameObject(s) from Unity scene. Requires confirm:true (H3).
+Delete GameObject(s) from Unity scene. Requires confirm:true (H3). A delete that matches NOTHING returns a NOT_FOUND error (not a 0-count success); a partial delete (some found) stays a success with notFound listed.
 
 - **Params:**
   - `path` (string) — Path to a single GameObject to delete
@@ -523,7 +524,7 @@ Get the Unity scene hierarchy
   - `maxDepth` (number) — Maximum depth to traverse (-1 for unlimited, default: -1)
   - `includeComponents` (boolean) — Include component information (default: false)
   - `maxNodes` (number) — Max total nodes returned (default 1000); the response signals truncated. maxDepth bounds depth, this bounds total breadth so a big scene can't blow the 1MB frame budget.
-- **Result:** `sceneName`, `objectCount`, `hierarchy`, `error`
+- **Result:** `sceneName`, `loadedScenes`, `objectCount`, `truncated`, `maxNodes`, `hierarchy`, `error`
 
 ### `modify_gameobject`
 Modify properties of an existing GameObject
@@ -628,7 +629,7 @@ Stop Unity play mode and return to edit mode
   - _none_
 - **Result:** `status`, `message`, `state`
 
-## Scene (7)
+## Scene (8)
 
 ### `close_scene`
 Close (unload) one open scene by scenePath or sceneName — selectively unload an additively-loaded scene, which load_scene Single cannot (it closes ALL scenes + reloads from disk). Refuses to close the last loaded scene. A scene with unsaved changes needs save:true (save then close) or force:true (discard), else CONFIRMATION_REQUIRED.
@@ -697,6 +698,14 @@ Save the current scene in Unity
   - `saveAs` (boolean) — Whether to save as a new scene (creates a copy). Default: false
 - **Result:** `sceneName`, `scenePath`, `originalPath`, `saved`, `isDirty`, `summary`
 
+### `set_active_scene`
+Set the ACTIVE scene among the currently loaded scenes (by scenePath or sceneName). New GameObjects/creates target the active scene, so use this to build into a non-active additively-loaded scene. The scene must already be loaded; NOT_FOUND otherwise.
+
+- **Params:**
+  - `scenePath` (string) — Asset path of the loaded scene to activate (scenePath or sceneName required).
+  - `sceneName` (string) — Name of the loaded scene to activate (alternative to scenePath).
+- **Result:** `success`, `activeScene`, `name`, `message`
+
 ## Screenshot (2)
 
 ### `analyze_screenshot`
@@ -714,11 +723,10 @@ Capture screenshots from Unity Editor (Game View, Scene View, or specific window
 
 - **Params:**
   - `outputPath` (string) — Path to save the screenshot (e.g., "Assets/Screenshots/capture.png"). If not provided, auto-generates with timestamp
-  - `captureMode` (string) — What to capture: game (Game View), scene (Scene View), window (a specific editor window), or camera (render an arbitrary world camera — G5) — one of: game, scene, window, camera
+  - `captureMode` (string) — What to capture: game (Game View), scene (Scene View), or camera (render an arbitrary world camera — G5). (Direct editor-window capture is not implemented and no longer advertised.) — one of: game, scene, camera
   - `width` (number) — Custom width for the screenshot (0 = use current view size)
   - `height` (number) — Custom height for the screenshot (0 = use current view size)
   - `includeUI` (boolean) — Include UI elements in the screenshot (Game View only)
-  - `windowName` (string) — Name of the window to capture (required when captureMode is "window")
   - `encodeAsBase64` (boolean) — Return the capture as viewable MCP image content (default true — the agent SEES the render). false returns only the saved path.
   - `cameraName` (string) — captureMode camera: render the camera on the GameObject with this name.
   - `cameraPath` (string) — captureMode camera: render the camera at this hierarchy path.

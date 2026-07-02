@@ -6286,11 +6286,10 @@
             "enum": [
               "game",
               "scene",
-              "window",
               "camera"
             ],
             "default": "game",
-            "description": "What to capture: game (Game View), scene (Scene View), window (a specific editor window), or camera (render an arbitrary world camera — G5)"
+            "description": "What to capture: game (Game View), scene (Scene View), or camera (render an arbitrary world camera — G5). (Direct editor-window capture is not implemented and no longer advertised.)"
           },
           "width": {
             "type": "number",
@@ -6304,10 +6303,6 @@
             "type": "boolean",
             "default": true,
             "description": "Include UI elements in the screenshot (Game View only)"
-          },
-          "windowName": {
-            "type": "string",
-            "description": "Name of the window to capture (required when captureMode is \"window\")"
           },
           "encodeAsBase64": {
             "type": "boolean",

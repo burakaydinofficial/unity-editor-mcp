@@ -293,13 +293,12 @@ namespace UnityEditorMCP.Handlers
 
                     results.Add(result);
 
-                    // Wait between actions if needed
+                    // waitBetween is NOT honored — a real inter-action delay needs the play-mode UI runtime (roadmap
+                    // K-series uGUI automation). Record it honestly as requested-but-not-applied rather than emitting a
+                    // { wait } entry that implies the delay occurred.
                     if (waitBetween > 0 && inputSequence.IndexOf(action) < inputSequence.Count - 1)
                     {
-                        // TODO (deferred — tracked in the roadmap K-series uGUI automation): simulate_ui_input does
-                        // NOT honor waitBetween — it records the wait but does not actually delay (a real inter-action
-                        // wait needs the async/runtime UI surface, a play-mode capability). Records the intent only.
-                        results.Add(new { wait = waitBetween });
+                        results.Add(new { waitBetweenRequested = waitBetween, applied = false });
                     }
                 }
 

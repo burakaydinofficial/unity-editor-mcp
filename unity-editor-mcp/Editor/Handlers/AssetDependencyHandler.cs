@@ -226,8 +226,12 @@ namespace UnityEditorMCP.Handlers
                 var visitedPaths = new HashSet<string>();
                 var currentPath = new List<string>();
 
-                // Simplified circular dependency detection for scripts
-                foreach (var guid in allAssetGuids.Take(100)) // Limit to avoid performance issues
+                // Simplified circular dependency detection for scripts. The scan is capped for performance; the cap is
+                // SURFACED in the result (scannedScripts/totalScripts/truncated) so a partial scan can't read as a
+                // full one (pre-0.21.0 audit).
+                const int maxScanned = 100;
+                var totalScripts = allAssetGuids.Length;
+                foreach (var guid in allAssetGuids.Take(maxScanned)) // Limit to avoid performance issues
                 {
                     var assetPath = AssetDatabase.GUIDToAssetPath(guid);
                     if (visitedPaths.Contains(assetPath)) continue;
@@ -252,7 +256,10 @@ namespace UnityEditorMCP.Handlers
                     action = "analyze_circular",
                     circularDependencies = circularDependencies,
                     hasCircularDependencies = circularDependencies.Count > 0,
-                    totalCycles = circularDependencies.Count
+                    totalCycles = circularDependencies.Count,
+                    scannedScripts = Math.Min(totalScripts, maxScanned),
+                    totalScripts = totalScripts,
+                    truncated = totalScripts > maxScanned
                 });
             }
             catch (Exception e)

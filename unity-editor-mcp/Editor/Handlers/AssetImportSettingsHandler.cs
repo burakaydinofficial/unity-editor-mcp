@@ -149,10 +149,9 @@ namespace UnityEditorMCP.Handlers
                 var previousSettings = new Dictionary<string, object>();
                 var appliedSettings = new Dictionary<string, object>();
 
-                // TODO (round-7 FR3 — tracked in the roadmap): this only handles a hardcoded key allow-list for
-                // TextureImporter / ModelImporter. An unrecognized key or an unsupported importer (e.g. AudioImporter)
-                // matches no case, leaves appliedSettings empty, yet still SaveAndReimport()s and returns success — a
-                // no-op reported as success. Should report the applied-key count and fail/warn when nothing applied.
+                // Only a hardcoded key allow-list for TextureImporter / ModelImporter is supported. Unrecognized keys
+                // or importers are surfaced (skippedKeys, below) and a fully no-op apply fails — nothing is silently
+                // reported as success (round-7 FR3).
                 // Apply settings based on importer type
                 if (assetImporter is TextureImporter textureImporter)
                 {
@@ -220,6 +219,23 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
+                // Nothing recognized applied — refuse rather than report a no-op as success (round-7 FR3).
+                if (appliedSettings.Count == 0)
+                {
+                    return HandlerOutcome.Fail(
+                        $"No import settings applied to '{assetPath}': importer '{assetImporter.GetType().Name}' or the given keys are unsupported " +
+                        "(supported: TextureImporter[maxTextureSize, compressionQuality, textureType, filterMode, generateMipMaps], " +
+                        "ModelImporter[scaleFactor, animationType, optimizeMesh]).",
+                        "UNSUPPORTED");
+                }
+
+                // Surface any requested keys that were NOT applied, so a partial apply isn't reported as a full one.
+                var skippedKeys = new List<string>();
+                foreach (var setting in newSettings)
+                {
+                    if (!appliedSettings.ContainsKey(setting.Key)) skippedKeys.Add(setting.Key);
+                }
+
                 // Apply the changes
                 assetImporter.SaveAndReimport();
 
@@ -230,7 +246,10 @@ namespace UnityEditorMCP.Handlers
                     assetPath = assetPath,
                     previousSettings = previousSettings,
                     newSettings = appliedSettings,
-                    message = $"Import settings modified for: {assetPath}"
+                    skippedKeys = skippedKeys,
+                    message = skippedKeys.Count == 0
+                        ? $"Import settings modified for: {assetPath}"
+                        : $"Import settings partially modified for {assetPath}: applied {appliedSettings.Count}, skipped {skippedKeys.Count} unsupported key(s): {string.Join(", ", skippedKeys)}"
                 });
             }
             catch (Exception e)
