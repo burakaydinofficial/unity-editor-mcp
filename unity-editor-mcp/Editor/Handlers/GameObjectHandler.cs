@@ -313,6 +313,35 @@ namespace UnityEditorMCP.Handlers
                 var originalScale = obj.transform.localScale;
                 var originalActive = obj.activeSelf;
 
+                // Validate ALL params BEFORE mutating — an invalid tag / unresolvable parent / out-of-range layer must
+                // not leave a PARTIAL mutation (name/position already applied) behind an error return. (Bug hunt Mut-5.)
+                string tag = parameters["tag"]?.ToString();
+                if (!string.IsNullOrEmpty(tag) && System.Array.IndexOf(UnityEditorInternal.InternalEditorUtility.tags, tag) < 0)
+                    return HandlerOutcome.Fail($"Tag '{tag}' is not defined. Create it first via manage_tags (action: add).", "VALIDATION_ERROR");
+
+                var layerToken = parameters["layer"];
+                int? layerValue = null;
+                if (layerToken != null && layerToken.Type != JTokenType.Null)
+                {
+                    int lv = layerToken.ToObject<int>();
+                    if (lv < 0 || lv > 31)
+                        return HandlerOutcome.Fail($"layer must be 0-31 (got {lv}).", "VALIDATION_ERROR");
+                    layerValue = lv;
+                }
+
+                bool reparent = parameters.ContainsKey("parentPath"); // present (even null) -> reparent/unparent
+                GameObject resolvedParent = null;
+                if (reparent)
+                {
+                    string pp = parameters["parentPath"]?.ToString();
+                    if (!string.IsNullOrEmpty(pp))
+                    {
+                        resolvedParent = FindGameObjectStageAware(pp);
+                        if (resolvedParent == null)
+                            return HandlerOutcome.Fail($"Parent GameObject not found: {pp}", "NOT_FOUND");
+                    }
+                }
+
                 // Register undo BEFORE mutating so Unity snapshots the ORIGINAL state.
                 // (RecordObject called after the change records the post-change state,
                 // which makes Ctrl+Z a no-op — the bug this fixes.)
@@ -364,42 +393,26 @@ namespace UnityEditorMCP.Handlers
                     modified = true;
                 }
                 
-                // Tag — assigning an undefined tag throws (Unity); we used to swallow that and still report
-                // success (a false-success that left the object Untagged). Pre-check the defined tags and fail.
-                string tag = parameters["tag"]?.ToString();
+                // Tag (validated above)
                 if (!string.IsNullOrEmpty(tag) && tag != obj.tag)
                 {
-                    if (System.Array.IndexOf(UnityEditorInternal.InternalEditorUtility.tags, tag) < 0)
-                        return HandlerOutcome.Fail($"Tag '{tag}' is not defined. Create it first via manage_tags (action: add).", "VALIDATION_ERROR");
                     obj.tag = tag;
                     modified = true;
                 }
-                
-                // Layer
-                int? layer = parameters["layer"]?.ToObject<int>();
-                if (layer.HasValue && layer.Value >= 0 && layer.Value < 32 && layer.Value != obj.layer)
+
+                // Layer (validated above)
+                if (layerValue.HasValue && layerValue.Value != obj.layer)
                 {
-                    obj.layer = layer.Value;
+                    obj.layer = layerValue.Value;
                     modified = true;
                 }
-                
-                // Parent
-                string parentPath = parameters["parentPath"]?.ToString();
-                if (parameters.ContainsKey("parentPath")) // Allow null to unparent
+
+                // Parent (resolved + validated above; reparent==true allows null -> unparent)
+                if (reparent)
                 {
-                    GameObject newParent = null;
-                    if (!string.IsNullOrEmpty(parentPath))
+                    if (obj.transform.parent != (resolvedParent ? resolvedParent.transform : null))
                     {
-                        newParent = FindGameObjectStageAware(parentPath); // also searches an open prefab stage's scene
-                        if (newParent == null)
-                        {
-                            return HandlerOutcome.Fail($"Parent GameObject not found: {parentPath}", "NOT_FOUND");
-                        }
-                    }
-                    
-                    if (obj.transform.parent != (newParent ? newParent.transform : null))
-                    {
-                        obj.transform.SetParent(newParent ? newParent.transform : null, true);
+                        obj.transform.SetParent(resolvedParent ? resolvedParent.transform : null, true);
                         modified = true;
                     }
                 }
