@@ -92,8 +92,12 @@ async function main() {
     failed++; console.error(`FATAL: ${e.message}`);
   } finally {
     await shutdown(state);
-    // Windows may briefly hold the editor log after kill; never let cleanup failure fail the run.
-    try { rmSync(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* OS reclaims temp */ }
+    if (process.env.E2E_KEEP) {
+      console.log(`E2E_KEEP set — scratch retained: ${scratch} (editor log: ${logPath}, probe: ${probeFile})`);
+    } else {
+      // Windows may briefly hold the editor log after kill; never let cleanup failure fail the run.
+      try { rmSync(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); } catch { /* OS reclaims temp */ }
+    }
   }
   process.exit(failed ? 1 : 0);
 }
