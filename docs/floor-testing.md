@@ -55,3 +55,8 @@ run, switch to gating releases/PRs and drop the branch trigger. It still skips o
 - The NUnit **EditMode tests** pass (~295, incl. the aftermath suite).
 - `dotnet test` on the Unity-independent `Core` (framing, dispatch, the wire classifier) —
   already in CI, version-independent, no editor needed.
+
+**Beyond the floor matrix:** the tools that **cannot** run in an EditMode test — play-mode transitions and script
+recompile, which induce the domain reload that would destroy the in-process test — are covered by the **live-editor
+E2E harness** (`npm run test:e2e:live`, `mcp-server/tests/e2e/live/`), which drives a real headed editor on
+`ci/e2e-host`. See `docs/superpowers/*/2026-06-28-live-editor-e2e-harness-*` and ADR 0007.

@@ -23,7 +23,7 @@ Unity Editor MCP (Model Context Protocol) enables AI assistants like Claude and 
 - **🖱️ UI automation** — click / set / inspect uGUI elements (Undo-tracked)
 - **🛡️ Safety rails** — a confirm-gate on irreversible commands, a project-folder path sandbox, and a local mutation audit log
 - **🔌 Version-agnostic surface** — one server works with **any Unity 2019.4+ editor** and several editors at once; the client learns each editor's real tools at runtime
-- **🧪 Deterministic verification** — a deterministic aftermath/outcome EditMode test suite asserts each tool's real side effects, run on **every floor-matrix Unity version** (2019.4 / 2020.3 / 2021.3 / 2022.3)
+- **🧪 Deterministic verification** — a deterministic aftermath/outcome EditMode test suite asserts each tool's real side effects, run on **every floor-matrix Unity version** (2019.4 / 2020.3 / 2021.3 / 2022.3), plus a live-editor E2E harness for the tools that can't run in EditMode (play mode, script recompile)
 
 ## ✅ Supported Unity versions
 

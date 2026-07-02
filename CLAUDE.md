@@ -57,7 +57,6 @@ npm install
 npm test                    # unit + integration tests (Node built-in test runner, no Jest/Mocha)
 npm run test:unit           # unit tests only
 npm run test:integration    # integration tests only
-npm run test:e2e            # legacy: Node server vs a MOCK Unity (tests/e2e/*.test.js — upstream, currently stale)
 npm run test:e2e:live       # LIVE editor harness (UNITY_PATH=<editor>) for the untestable-in-EditMode tools
                             #   (play-mode, script/recompile) — drives a real headed editor on ci/e2e-host. See
                             #   docs/superpowers/*/2026-06-28-live-editor-e2e-harness-*

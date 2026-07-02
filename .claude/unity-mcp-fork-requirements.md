@@ -61,7 +61,10 @@
 
 - **C1 (P0).** **Domain-reload survivability:** the editor-side listener re-arms via `[InitializeOnLoad]`;
   state that must span reloads uses `SessionState`/files; the Node server auto-reconnects with backoff and
-  surfaces a `reconnecting` state to the MCP client rather than failing tools.
+  surfaces a `reconnecting` state to the MCP client rather than failing tools. **Hardened (ADR 0007):** the
+  editor now force-closes accepted client sockets on `beforeAssemblyReload` (a clean FIN), so the server
+  reconnects in ~1s — previously the socket was left half-open and the server couldn't reconnect promptly, so
+  any command issued right after a reload hung. Surfaced + verified by the live E2E harness.
 - **C2 (P0).** **In-flight command contract across reloads:** every command has an id; a command whose
   execution is interrupted by a reload yields a structured `interrupted_by_reload` result (never a hang);
   reload-CAUSING commands (refresh/script-write) define their outcome channel explicitly (see C5).
