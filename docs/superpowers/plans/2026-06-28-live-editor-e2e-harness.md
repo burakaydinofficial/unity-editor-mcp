@@ -96,7 +96,7 @@ test('readProbeEvents parses jsonl, tolerates blank/partial lines', () => {
 });
 
 test('parseCompile detects a clean episode vs an error CS', () => {
-  assert.equal(parseCompile('Reloading assemblies\nAll good\n').compiled, true);
+  assert.deepEqual(parseCompile('Reloading assemblies\nAll good\n').errors, []);
   const bad = parseCompile('Reloading assemblies\nAssets/X.cs(3,5): error CS0103: broken\n');
   assert.equal(bad.errors.length, 1);
   assert.equal(bad.errors[0].code, 'CS0103');
@@ -120,7 +120,7 @@ effects — add `import { pathToFileURL } from 'node:url';` to the top and:
 
 ```js
 // Run the CLI only when invoked directly, not when imported (e.g. by the E2E harness verify helpers).
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const path = editorLogPath();
   if (!existsSync(path)) {
     console.error(`Editor.log not found at: ${path}\nSet UNITY_EDITOR_LOG to override.`);
@@ -165,7 +165,7 @@ export function readProbeEvents(path) {
 
 export function parseCompile(logText) {
   const { errors } = summarize(logText);
-  return { compiled: true, errors };
+  return { errors }; // no `compiled` flag — it can't tell "clean compile" from "no compile"; callers use errors.length
 }
 ```
 
@@ -283,7 +283,7 @@ test('bridgePort returns null before the line appears', () => {
 import { readFileSync, existsSync } from 'node:fs';
 import { retry } from './retry.mjs';
 
-const RE = /TcpTransport listening on 127\.0\.0\.1:(\d+)/;
+const RE = /TcpTransport listening on 127\.0\.0\.1:(\d+)(?=\r?\n)/; // EOL-anchored: no partial-flush port capture
 
 export function bridgePort(logText) {
   const m = logText.match(RE);

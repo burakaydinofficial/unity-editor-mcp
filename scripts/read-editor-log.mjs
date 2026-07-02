@@ -63,8 +63,10 @@ export function summarize(text) {
   return { errors: uniqueErrors, assemblies };
 }
 
-// Run the CLI only when invoked directly, not when imported (e.g. by the E2E harness verify helpers).
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Run the CLI only when invoked directly, not when imported (e.g. by the E2E harness verify helpers). The
+// `process.argv[1] &&` short-circuit avoids a throw when argv[1] is undefined (node -e / REPL / programmatic import) —
+// mirrors protocol/scripts/generate-csharp-catalog.mjs. Undefined argv[1] means this is definitionally not main.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const path = editorLogPath();
   if (!existsSync(path)) {
     console.error(`Editor.log not found at: ${path}\nSet UNITY_EDITOR_LOG to override.`);

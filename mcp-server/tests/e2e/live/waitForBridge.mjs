@@ -3,7 +3,9 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { retry } from './retry.mjs';
 
-const RE = /TcpTransport listening on 127\.0\.0\.1:(\d+)/;
+// Anchor the port to end-of-line so a partially-flushed log line (the editor is actively writing) can't capture a
+// truncated port. First match wins — the per-project port is stable across domain reloads (ADR 0003).
+const RE = /TcpTransport listening on 127\.0\.0\.1:(\d+)(?=\r?\n)/;
 
 export function bridgePort(logText) {
   const m = logText.match(RE);

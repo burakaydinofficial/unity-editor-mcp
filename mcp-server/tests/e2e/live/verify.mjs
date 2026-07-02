@@ -17,7 +17,9 @@ export function readProbeEvents(path) {
     .flatMap(l => { try { return [JSON.parse(l)]; } catch { return []; } });
 }
 
+// Returns the de-duped `error CS` list from the latest compile episode. (No `compiled` flag — it could not
+// distinguish "clean compile" from "no compile ran", so callers key off `errors.length`.)
 export function parseCompile(logText) {
   const { errors } = summarize(logText);
-  return { compiled: true, errors };
+  return { errors };
 }
