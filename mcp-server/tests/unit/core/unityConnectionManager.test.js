@@ -65,6 +65,30 @@ describe('UnityConnectionManager', () => {
     assert.equal(conn.opts.port, 7200); // pinned to the named port (no env-resolved default exists)
   });
 
+  // Bug hunt Node-1: a same-host editor binds loopback, so a project-path ref must connect via the CONFIGURED host,
+  // not the registry descriptor's machine-name (which resolves to a LAN address the loopback listener never answers).
+  it('resolveInstance connects via the configured host, not the registry machine-name', () => {
+    const { mgr } = makeManager({ instances: [{ projectPath: 'C:/proj/A', host: 'MACHINE16', port: 7400 }] });
+    assert.deepEqual(mgr.resolveInstance('C:/proj/A'), { host: 'localhost', port: 7400 });
+  });
+
+  // Bug hunt Node-6: a stale (dead-editor) descriptor must not resolve into a 30s connect stall.
+  it('resolveInstance returns null for a non-live registry descriptor', () => {
+    const { mgr } = makeManager({ instances: [{ projectPath: 'C:/proj/A', host: 'MACHINE16', port: 7400, __live: false }] });
+    assert.equal(mgr.resolveInstance('C:/proj/A'), null);
+  });
+
+  // Bug hunt Node-2: prune keyed the live set by desc.host (machine-name), never matching a port-ref connection's
+  // `localhost:port` key — so it disconnected live, in-use connections on every list_unity_instances.
+  it('prune does NOT drop a live port-ref connection when the registry keys by machine-name', () => {
+    const { mgr } = makeManager({ instances: [{ projectPath: 'C:/proj/A', host: 'MACHINE16', port: 6858 }] });
+    const conn = mgr.requireConnection('6858'); // keyed localhost:6858
+    assert.equal(mgr.connections.size, 1);
+    assert.equal(mgr.prune(), 0);
+    assert.equal(conn.disconnected, false);
+    assert.equal(mgr.connections.size, 1);
+  });
+
   it('requireConnection resolves a project-path ref via the registry to the pinned connection', () => {
     const { mgr } = makeManager({ instances: [{ projectPath: 'C:/proj/A', port: 7300 }] });
     const conn = mgr.requireConnection('C:/proj/A');

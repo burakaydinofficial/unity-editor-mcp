@@ -112,7 +112,18 @@ export class UnityConnection extends EventEmitter {
       if (typeof this.socket.setKeepAlive === 'function') this.socket.setKeepAlive(true, 10000);
       let connectionTimeout = null;
       let resolved = false;
-      
+
+      // Let disconnect() abort an in-flight connect so its awaiter never hangs: disconnect() removes the socket's
+      // listeners and nulls this.socket, after which NO other settle path fires (the timeout guard checks
+      // this.socket). Cleared once settled. (Bug hunt Node-4.)
+      this._settleConnect = (err) => {
+        if (resolved) return;
+        resolved = true;
+        if (connectionTimeout) { clearTimeout(connectionTimeout); connectionTimeout = null; }
+        this._settleConnect = null;
+        reject(err || new Error('connect aborted'));
+      };
+
       // Helper to clean up the connection timeout
       const clearConnectionTimeout = () => {
         if (connectionTimeout) {
@@ -127,6 +138,7 @@ export class UnityConnection extends EventEmitter {
         this.connected = true;
         this.reconnectAttempts = 0;
         resolved = true;
+        this._settleConnect = null;
         clearConnectionTimeout();
         this.emit('connected');
         resolve();
@@ -230,7 +242,11 @@ export class UnityConnection extends EventEmitter {
       }
       this.socket = null;
     }
-    
+
+    // Abort an in-flight connect so its awaiter fails fast instead of hanging forever (its settle paths were just
+    // removed with the socket listeners). (Bug hunt Node-4.)
+    if (this._settleConnect) this._settleConnect(new Error('Disconnected during connect'));
+
     this.connected = false;
     this.isDisconnecting = false;
   }
@@ -255,6 +271,11 @@ export class UnityConnection extends EventEmitter {
       this.reconnectAttempts++;
       this.connect().catch((error) => {
         logger.error('Reconnection failed:', error.message);
+        // The failed attempt's 'error' handler removed the socket's listeners, so its 'close' never fires to
+        // re-schedule — keep the backoff loop alive here (attempts++ -> exponential backoff). (Bug hunt Node-3.)
+        if (!this.isDisconnecting && process.env.DISABLE_AUTO_RECONNECT !== 'true') {
+          this.scheduleReconnect();
+        }
       });
     }, delay);
   }

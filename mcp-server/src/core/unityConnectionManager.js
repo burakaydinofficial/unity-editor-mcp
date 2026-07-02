@@ -94,7 +94,10 @@ export class UnityConnectionManager {
     try {
       const dir = this.discovery.defaultRegistryDirectory(this.env);
       const desc = this.discovery.findInstanceByProjectPath(dir, String(ref));
-      if (desc && Number.isFinite(desc.port)) return { host: desc.host || this.host, port: desc.port };
+      // desc.host is a machine IDENTITY from the local registry, not a connect address: same-host editors bind
+      // loopback, so always connect via the configured host (matches the port-ref path AND the pooled key space).
+      // Require the descriptor to be live so a stale dead-editor port isn't resolved into a 30s stall. (Node-1/2/6.)
+      if (desc && Number.isFinite(desc.port) && this.discovery.isLive(desc)) return { host: this.host, port: desc.port };
     } catch { /* unreadable registry -> unresolved */ }
     return null;
   }
@@ -123,7 +126,9 @@ export class UnityConnectionManager {
       live = new Set(
         this.discovery.readInstances(dir)
           .filter((d) => this.discovery.isLive(d))
-          .map((d) => this.key(d.host || this.host, d.port)),
+          // Key on the CONFIGURED host, matching getConnection() + port-refs — NOT desc.host (machine name), which
+          // would never match a port-targeted connection's `localhost:port` key and prune it on every call. (Node-2.)
+          .map((d) => this.key(this.host, d.port)),
       );
     } catch {
       return 0;
