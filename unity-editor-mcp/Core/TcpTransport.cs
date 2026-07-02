@@ -22,6 +22,13 @@ namespace UnityEditorMCP.Core
         private readonly IMcpLogger _log;
         private TcpListener _listener;
         private CancellationTokenSource _cts;
+        // Accepted clients, tracked so Stop() can force-close them. NetworkStream.ReadAsync ignores the
+        // CancellationToken for a PENDING read (Mono/.NET), so cancelling _cts does NOT unblock a client waiting for
+        // the next frame. On a domain reload that would leave the socket HALF-OPEN and orphan the peer (no FIN, so the
+        // server never sees 'close' and can't reconnect promptly). Closing the socket in Stop() forces the read to
+        // throw AND sends the FIN, so the connection is never left dangling across a reload.
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<TcpClient, byte> _clients =
+            new System.Collections.Concurrent.ConcurrentDictionary<TcpClient, byte>();
 
         public TcpTransport(IPAddress bindAddress, int port, IMcpLogger log = null)
         {
@@ -67,6 +74,13 @@ namespace UnityEditorMCP.Core
             var cts = _cts;
             _cts = null;
             try { cts?.Cancel(); } catch { /* ignore */ }
+            // Force-close accepted clients: a blocked ReadAsync won't observe the cancel, so closing the socket is what
+            // makes the read throw AND sends the FIN. Without this, a domain reload orphans the peer's connection.
+            foreach (var c in _clients.Keys)
+            {
+                try { c.Close(); } catch { /* ignore */ }
+            }
+            _clients.Clear();
             try { _listener?.Stop(); } catch { /* ignore */ }
             IsListening = false;
             _listener = null;
@@ -101,6 +115,7 @@ namespace UnityEditorMCP.Core
                     if (!ct.IsCancellationRequested) _log.Error($"Accept loop fatal: {ex.Message}");
                     break;
                 }
+                _clients[client] = 0; // track so Stop() can force-close it (see the _clients field note)
                 _ = Task.Run(() => HandleClientAsync(client, ct));
             }
         }
@@ -181,12 +196,14 @@ namespace UnityEditorMCP.Core
                     }
                 }
             }
-            catch (Exception ex) when (!ct.IsCancellationRequested)
+            catch (Exception ex)
             {
-                _log.Warn($"Client handler ended: {ex.Message}");
+                // A cancellation-triggered close (Stop() on a domain reload) is expected — only log the unexpected.
+                if (!ct.IsCancellationRequested) _log.Warn($"Client handler ended: {ex.Message}");
             }
             finally
             {
+                _clients.TryRemove(client, out _);
                 outbound.Dispose();
             }
         }

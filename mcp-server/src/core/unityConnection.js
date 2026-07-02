@@ -106,6 +106,10 @@ export class UnityConnection extends EventEmitter {
       logger.info(`Connecting to Unity at ${targetHost}:${targetPort}...`);
 
       this.socket = new net.Socket();
+      // Keepalive: detect a half-open / dead editor (a CRASH, not a clean reload close) so we reconnect instead of
+      // silently sending into a black hole. The editor's clean FIN on domain reload is the primary signal; this is
+      // defense-in-depth for the no-FIN cases.
+      this.socket.setKeepAlive(true, 10000);
       let connectionTimeout = null;
       let resolved = false;
       
