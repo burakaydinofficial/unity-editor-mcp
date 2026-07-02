@@ -212,15 +212,22 @@ namespace UnityEditorMCP.Handlers
                 // Apply to instances if requested
                 if (applyToInstances)
                 {
-                    GameObject[] allObjects = UnityEngine.Object.FindObjectsOfType<GameObject>();
+                    // Scene instances AUTOMATICALLY inherit non-overridden asset changes — there is nothing to "apply".
+                    // The old RevertPrefabInstance() here WIPED every matching object's overrides (including the
+                    // name/position overrides InstantiatePrefab deliberately records, and it also hit instance CHILDREN,
+                    // not just roots) — silent data loss reported as success. Just COUNT instance roots (including
+                    // inactive) so the report is honest without mutating anything.
+#if UNITY_2020_1_OR_NEWER
+                    GameObject[] allObjects = UnityEngine.Object.FindObjectsOfType<GameObject>(true);
+#else
+                    GameObject[] allObjects = Resources.FindObjectsOfTypeAll<GameObject>();
+#endif
                     foreach (var obj in allObjects)
                     {
-                        if (PrefabUtility.GetCorrespondingObjectFromSource(obj) == prefabAsset ||
-                            PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(obj) == prefabPath)
-                        {
-                            PrefabUtility.RevertPrefabInstance(obj, InteractionMode.AutomatedAction);
+                        if (obj.scene.IsValid()
+                            && PrefabUtility.IsAnyPrefabInstanceRoot(obj)
+                            && PrefabUtility.GetCorrespondingObjectFromSource(obj) == prefabAsset)
                             affectedInstances++;
-                        }
                     }
                 }
 
@@ -249,6 +256,8 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                if (EditorApplication.isPlaying)
+                    return HandlerOutcome.Fail("instantiate_prefab refuses in play mode — the instance would evaporate on stop.", "PLAY_MODE");
                 // Parse parameters
                 string prefabPath = parameters["prefabPath"]?.ToString();
                 { var g = PathSafety.Guard(prefabPath, "prefabPath"); if (g != null) return g; } // H4
@@ -1135,6 +1144,8 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                if (EditorApplication.isPlaying)
+                    return HandlerOutcome.Fail("save_prefab refuses in play mode — it would write play-time values into the prefab ASSET permanently.", "PLAY_MODE");
                 // Parse parameters
                 string gameObjectPath = parameters["gameObjectPath"]?.ToString();
                 bool includeChildren = parameters["includeChildren"]?.ToObject<bool>() ?? true;

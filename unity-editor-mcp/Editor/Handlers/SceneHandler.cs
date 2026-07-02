@@ -99,7 +99,7 @@ namespace UnityEditorMCP.Handlers
                 }
 
                 // Create the scene
-                var newScene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, 
+                var newScene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects,
                     loadScene ? NewSceneMode.Single : NewSceneMode.Additive);
                 
                 // Save the scene
@@ -195,7 +195,7 @@ namespace UnityEditorMCP.Handlers
                 }
                 
                 LoadSceneMode loadMode = loadModeStr == "Single" ? LoadSceneMode.Single : LoadSceneMode.Additive;
-                
+
                 // Store previous scene info (for Single mode)
                 string previousSceneName = SceneManager.GetActiveScene().name;
                 
@@ -217,6 +217,13 @@ namespace UnityEditorMCP.Handlers
                         return HandlerOutcome.Fail($"Scene file not found: {scenePath}", "NOT_FOUND");
                     }
 
+                    // Single mode discards unsaved changes in ALL open scenes with no Unity prompt when scripted —
+                    // guard it (path already validated above): save:true saves first, force:true discards, else refuse.
+                    if (loadMode == LoadSceneMode.Single)
+                    {
+                        var dirtyGuard = GuardDirtyOpenScenesForSingleReplace(parameters);
+                        if (dirtyGuard != null) return dirtyGuard;
+                    }
                     // Load the scene
                     loadedScene = EditorSceneManager.OpenScene(scenePath, loadMode == LoadSceneMode.Single ?
                         OpenSceneMode.Single : OpenSceneMode.Additive);
@@ -234,9 +241,15 @@ namespace UnityEditorMCP.Handlers
                     }
                     
                     actualScenePath = sceneInBuild.path;
-                    
+
+                    // Single mode discards unsaved changes in ALL open scenes — guard it (scene resolved above).
+                    if (loadMode == LoadSceneMode.Single)
+                    {
+                        var dirtyGuard = GuardDirtyOpenScenesForSingleReplace(parameters);
+                        if (dirtyGuard != null) return dirtyGuard;
+                    }
                     // Load the scene
-                    loadedScene = EditorSceneManager.OpenScene(actualScenePath, loadMode == LoadSceneMode.Single ? 
+                    loadedScene = EditorSceneManager.OpenScene(actualScenePath, loadMode == LoadSceneMode.Single ?
                         OpenSceneMode.Single : OpenSceneMode.Additive);
                 }
                 
@@ -939,6 +952,30 @@ namespace UnityEditorMCP.Handlers
             return n;
         }
 
+        /// <summary>
+        /// Guard a Single-mode load/new that REPLACES all open scenes: if any open scene is dirty, save first
+        /// (save:true), refuse with CONFIRMATION_REQUIRED (no flag), or discard (force:true). Returns a Fail outcome
+        /// to abort, or null to proceed. Mirrors close_scene's unsaved-changes contract.
+        /// </summary>
+        private static HandlerOutcome GuardDirtyOpenScenesForSingleReplace(JObject parameters)
+        {
+            bool anyDirty = false;
+            for (int i = 0; i < EditorSceneManager.sceneCount; i++)
+                if (EditorSceneManager.GetSceneAt(i).isDirty) { anyDirty = true; break; }
+            if (!anyDirty) return null;
+
+            bool save = parameters["save"]?.ToObject<bool>() ?? false;
+            bool force = parameters["force"]?.ToObject<bool>() ?? false;
+            if (save)
+            {
+                if (!EditorSceneManager.SaveOpenScenes())
+                    return HandlerOutcome.Fail("Failed to save open scenes before the single-mode replace — aborted to avoid data loss.", "INTERNAL_ERROR");
+                return null;
+            }
+            if (force) return null;
+            return HandlerOutcome.Fail("Open scene(s) have unsaved changes — a single-mode load/new would discard them. Pass save:true to save first, or force:true to discard.", "CONFIRMATION_REQUIRED");
+        }
+
         // ===== close_scene — selectively unload one open scene (vs load_scene Single, which closes ALL + reloads) =====
         public static HandlerOutcome CloseScene(JObject parameters)
         {
@@ -968,7 +1005,12 @@ namespace UnityEditorMCP.Handlers
                 {
                     bool save = parameters["save"]?.ToObject<bool>() ?? false;
                     bool force = parameters["force"]?.ToObject<bool>() ?? false;
-                    if (save) EditorSceneManager.SaveScene(target);
+                    if (save)
+                    {
+                        // Check the result — a failed save (empty path / read-only / VCS lock) must NOT proceed to close.
+                        if (!EditorSceneManager.SaveScene(target))
+                            return HandlerOutcome.Fail($"Failed to save scene '{target.name}' — not closed, to avoid losing unsaved changes.", "INTERNAL_ERROR");
+                    }
                     else if (!force)
                         return HandlerOutcome.Fail($"Scene '{target.name}' has unsaved changes — pass save:true to save, or force:true to discard.", "CONFIRMATION_REQUIRED");
                 }

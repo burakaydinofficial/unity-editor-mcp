@@ -64,6 +64,8 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                if (EditorApplication.isPlaying)
+                    return HandlerOutcome.Fail("create_gameobject refuses in play mode — the object would evaporate on stop.", "PLAY_MODE");
                 // Parse parameters
                 string name = parameters["name"]?.ToString() ?? "GameObject";
                 // round-6 bug #3: an explicit empty/whitespace name creates a GameObject whose path is "/", which
@@ -284,6 +286,8 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                if (EditorApplication.isPlaying)
+                    return HandlerOutcome.Fail("modify_gameobject refuses in play mode — scene changes evaporate on stop.", "PLAY_MODE");
                 string path = parameters["path"]?.ToString();
                 if (string.IsNullOrEmpty(path))
                 {
@@ -543,6 +547,8 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                if (EditorApplication.isPlaying)
+                    return HandlerOutcome.Fail("delete_gameobject refuses in play mode — scene changes evaporate on stop.", "PLAY_MODE");
                 string path = parameters["path"]?.ToString();
                 string[] paths = parameters["paths"]?.ToObject<string[]>();
                 bool includeChildren = parameters["includeChildren"]?.ToObject<bool>() ?? true;
