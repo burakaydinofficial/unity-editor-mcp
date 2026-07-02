@@ -8,6 +8,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { waitForBridge } from './waitForBridge.mjs';
+import { readProbeEvents } from './verify.mjs';
 import { McpDriver } from './mcpDriver.mjs';
 
 // Launch a HEADED editor (no -batchmode — play-mode freezes in batch). The launched Unity inherits E2E_PROBE_FILE so
@@ -61,8 +62,8 @@ async function main() {
   const flagFlow = process.argv.find(a => a.startsWith('--flow='));
   const which = flagFlow ? flagFlow.split('=')[1] : 'all';
   const selfcheck = process.argv.includes('--selfcheck');
-  if (!['all', 'playmode', 'scripts'].includes(which)) {
-    console.error(`unknown --flow=${which} (expected: all | playmode | scripts)`);
+  if (!['all', 'playmode', 'scripts', 'selfcheck'].includes(which)) {
+    console.error(`unknown --flow=${which} (expected: all | playmode | scripts | selfcheck)`);
     process.exit(2); // never silently pass on a typo'd flow (the whole point of the negative controls)
   }
 
@@ -75,10 +76,18 @@ async function main() {
     state.driver = new McpDriver();
     await state.driver.start({ port: state.editor.port });
 
+    // Probe liveness: the [InitializeOnLoad] probe must have written probeLoaded during editor boot. Assert it HERE —
+    // before the per-flow truncation below wipes it — so a dead probe fails fast instead of failing every flow.
+    if (!readProbeEvents(probeFile).some(e => e.event === 'probeLoaded')) {
+      throw new Error('probe not live: no probeLoaded event in E2E_PROBE_FILE (is E2EProbe.cs in the host project?)');
+    }
+
     const ctx = { driver: state.driver, hostPath, probeFile, logPath };
     const names = [];
+    if (which === 'all' || which === 'selfcheck') names.push('selfcheck'); // negative controls first: prove we CAN fail
     if (which === 'all' || which === 'playmode') names.push('playmode');
     if (which === 'all' || which === 'scripts') names.push('scripts');
+    if (selfcheck && which !== 'all' && which !== 'selfcheck') names.unshift('selfcheck');
     if (selfcheck) names.push('playmode'); // reconnect stability: a second reload cycle through the one editor
     if (names.length === 0) throw new Error('no flows selected'); // guard against a silent zero-flow pass
 

@@ -32,8 +32,11 @@ tests/
 
 ### End-to-End Tests (`tests/e2e/`)
 - `tests/e2e/live/` — the **live-editor harness** (`npm run test:e2e:live`, `UNITY_PATH=<editor>`): drives a real headed
-  editor on `ci/e2e-host` for the tools that can't run in the EditMode floor-matrix (play-mode, script/recompile). Its
-  pure-Node units are in `tests/unit/e2e-live/` (CI-safe). See `docs/superpowers/*/2026-06-28-live-editor-e2e-harness-*`.
+  editor on `ci/e2e-host` for the tools that can't run in the EditMode floor-matrix (play-mode, script/recompile).
+  Flows: `--flow=playmode | scripts | selfcheck | all` (default `all`; `selfcheck` = the negative controls);
+  `--selfcheck` appends the controls + a second play-mode pass (reconnect stability); `E2E_KEEP=1` retains the scratch
+  dir for debugging. Its pure-Node units are in `tests/unit/e2e-live/` (CI-safe).
+  See `docs/superpowers/*/2026-06-28-live-editor-e2e-harness-*` and ADR 0007.
 
 ### Performance Tests (`tests/performance/`)
 - **Purpose**: Benchmark and validate performance metrics
@@ -46,12 +49,11 @@ tests/
 ### Basic Commands
 
 ```bash
-# Run all tests
+# Run all tests (note: the glob-based dev scripts need Node >= 21; test:ci works on any supported Node)
 npm test
 
 # Run specific test categories
 npm run test:unit
-npm run test:integration
 npm run test:e2e:live       # live-editor harness (needs UNITY_PATH; see the E2E section)
 npm run test:performance
 

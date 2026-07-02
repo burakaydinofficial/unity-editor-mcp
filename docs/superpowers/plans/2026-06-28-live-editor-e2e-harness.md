@@ -1,5 +1,13 @@
 # Live-Editor E2E Harness — Implementation Plan
 
+> **STATUS: COMPLETE (2026-07-02).** All 8 tasks implemented, agent-reviewed, and verified live on 2022.3.62f2
+> (selfcheck + playmode + scripts + reconnect-stability pass; see `mcp-server/tests/e2e/live/`). Deviations from this
+> plan, discovered during execution: `call_unity_tool` args are `{ instance, tool, params }` (not `{toolName,parameters}`);
+> `get_editor_state` nests its payload under `state`; the compile signal is `parseCompile` on the `-logFile` (NOT
+> `get_compilation_state.errorCount`, which is monitoring-based and resets on reload); `pause_game` is a toggle and is
+> driven via the driver's `{ once }` no-retry path; the harness also surfaced + fixed a real bridge reload-recovery bug
+> (ADR 0007). This document is retained as the historical plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

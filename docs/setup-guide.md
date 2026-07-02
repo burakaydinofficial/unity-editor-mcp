@@ -101,13 +101,32 @@ to `list_unity_tools` for one tool's full param schema and result-field hints.
 Node server (from `mcp-server/`):
 
 ```bash
-npm test           # unit + integration
-npm run test:ci    # the curated CI gate
+npm test           # unit tests (note: the dev glob scripts need Node >= 21; the server itself runs on >= 18)
+npm run test:ci    # the curated CI gate (explicit file list — works on any supported Node)
 ```
 
 Unity EditMode tests: open the project and run **Window → General → Test Runner →
 EditMode → Run All**. See [floor-testing.md](floor-testing.md) for the
 multi-version (2019.4 / 2020.3 / 2021.3 / 2022.3) floor matrix.
+
+### Live E2E harness (maintainers)
+
+The tools that *cannot* run in an EditMode test — play-mode transitions and script recompiles destroy the test's own
+app domain — are covered by a live harness that launches a real **headed** editor on the committed host project
+`ci/e2e-host` and drives it through the actual MCP chain (client → server subprocess → editor):
+
+```bash
+cd mcp-server
+UNITY_PATH="C:/Program Files/Unity/Hub/Editor/<version>/Editor/Unity.exe" npm run test:e2e:live
+```
+
+- Flows: `--flow=playmode | scripts | selfcheck | all` (default `all`); `--selfcheck` appends the negative controls
+  and a second play-mode pass (reconnect stability). `E2E_KEEP=1` retains the scratch dir (editor log + probe file)
+  for debugging; `E2E_HOST_PROJECT` overrides the host; `E2E_TIMEOUT` bounds bridge bring-up (default 180s).
+- First run on a new machine provisions the host `Library` (one-time cold import); later runs reuse it warm.
+- Every effect is verified by outcome through **two channels**: bridge read-back *and* an independent signal (the
+  in-editor probe's JSONL, the filesystem, or the `error CS` log grammar). See ADR 0007 and
+  `docs/superpowers/specs/2026-06-28-live-editor-e2e-harness-design.md`.
 
 ## Troubleshooting
 
