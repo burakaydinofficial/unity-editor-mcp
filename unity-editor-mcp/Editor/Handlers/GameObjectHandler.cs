@@ -338,10 +338,22 @@ namespace UnityEditorMCP.Handlers
                 int? layerValue = null;
                 if (layerToken != null && layerToken.Type != JTokenType.Null)
                 {
-                    int lv = layerToken.ToObject<int>();
+                    int lv;
+                    try { lv = layerToken.ToObject<int>(); }
+                    catch { return HandlerOutcome.Fail("layer must be an integer in 0-31.", "VALIDATION_ERROR"); }
                     if (lv < 0 || lv > 31)
                         return HandlerOutcome.Fail($"layer must be 0-31 (got {lv}).", "VALIDATION_ERROR");
                     layerValue = lv;
+                }
+
+                // Parse + validate 'active' BEFORE any mutation (Mut-5 invariant) — a non-boolean value previously threw
+                // AFTER name/transform were applied, persisting a partial mutation under the error. (Bug hunt.)
+                var activeToken = parameters["active"];
+                bool? activeValue = null;
+                if (activeToken != null && activeToken.Type != JTokenType.Null)
+                {
+                    try { activeValue = activeToken.ToObject<bool>(); }
+                    catch { return HandlerOutcome.Fail("active must be a boolean.", "VALIDATION_ERROR"); }
                 }
 
                 bool reparent = parameters.ContainsKey("parentPath"); // present (even null) -> reparent/unparent
@@ -405,11 +417,10 @@ namespace UnityEditorMCP.Handlers
                     modified = true;
                 }
                 
-                // Active state
-                bool? active = parameters["active"]?.ToObject<bool>();
-                if (active.HasValue && active.Value != obj.activeSelf)
+                // Active state (parsed + validated above)
+                if (activeValue.HasValue && activeValue.Value != obj.activeSelf)
                 {
-                    obj.SetActive(active.Value);
+                    obj.SetActive(activeValue.Value);
                     modified = true;
                 }
                 
@@ -498,15 +509,30 @@ namespace UnityEditorMCP.Handlers
                 if (limit <= 0) limit = 200;
 
                 List<GameObject> results = new List<GameObject>();
-                
-                // Get all GameObjects in scene (including inactive). FindObjectsOfType<T>(includeInactive) is
-                // 2020.1+; on the floor, FindObjectsOfTypeAll returns inactive too (plus assets/hidden), so filter
-                // to scene objects. (COMPATIBILITY.md)
+
+                // Stage-aware: when a prefab stage is open, search the STAGE (matching FindGameObjectStageAware + the
+                // mutation resolvers) so find_gameobject doesn't miss the prefab's objects / return background objects
+                // while modify/delete target the stage. (Bug hunt: find not stage-aware.)
+                GameObject[] allObjects;
+                var stageScene = AssetManagementHandler.GetOpenPrefabStageScene();
+                if (stageScene.HasValue && stageScene.Value.IsValid())
+                {
+                    var stageList = new List<GameObject>();
+                    foreach (var root in stageScene.Value.GetRootGameObjects())
+                        foreach (var tr in root.GetComponentsInChildren<Transform>(true)) stageList.Add(tr.gameObject);
+                    allObjects = stageList.ToArray();
+                }
+                else
+                {
+                    // Get all GameObjects in scene (including inactive). FindObjectsOfType<T>(includeInactive) is
+                    // 2020.1+; on the floor, FindObjectsOfTypeAll returns inactive too (plus assets/hidden), so filter
+                    // to scene objects. (COMPATIBILITY.md)
 #if UNITY_2020_1_OR_NEWER
-                GameObject[] allObjects = GameObject.FindObjectsOfType<GameObject>(true);
+                    allObjects = GameObject.FindObjectsOfType<GameObject>(true);
 #else
-                GameObject[] allObjects = Resources.FindObjectsOfTypeAll<GameObject>().Where(go => go.scene.IsValid()).ToArray();
+                    allObjects = Resources.FindObjectsOfTypeAll<GameObject>().Where(go => go.scene.IsValid()).ToArray();
 #endif
+                }
                 
                 foreach (var obj in allObjects)
                 {

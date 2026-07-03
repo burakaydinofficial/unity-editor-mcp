@@ -1205,8 +1205,10 @@ namespace UnityEditorMCP.Handlers
                     else
                     {
                         // Apply ONLY the root GameObject's own object override — child/component overrides stay unapplied.
+                        // Count honestly: if the root itself has no override, ApplyObjectOverride is a no-op (report 0). (Bug hunt.)
+                        bool rootHasOverride = PrefabUtility.GetObjectOverrides(gameObject, false).Any(o => o.instanceObject == gameObject);
                         PrefabUtility.ApplyObjectOverride(gameObject, AssetDatabase.GetAssetPath(PrefabUtility.GetCorrespondingObjectFromSource(gameObject)), InteractionMode.UserAction);
-                        overridesApplied = 1; // root object only
+                        overridesApplied = rootHasOverride ? 1 : 0; // root object only
                     }
 
                     return HandlerOutcome.Ok(new

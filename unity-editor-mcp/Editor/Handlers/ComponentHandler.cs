@@ -909,6 +909,10 @@ namespace UnityEditorMCP.Handlers
                     int count = 0;
                     foreach (var prop in publicProperties.Where(p => p.CanRead).Take(10))
                     {
+                        // Skip properties whose GETTER has edit-mode side effects: reading a UnityEngine.Object-typed
+                        // property (Renderer.material, MeshFilter.mesh) INSTANCES + leaks the asset and DIRTIES the scene
+                        // on a READ. Only read value-type / string properties. (Bug hunt: read-with-side-effects.)
+                        if (typeof(UnityEngine.Object).IsAssignableFrom(prop.PropertyType)) continue;
                         try
                         {
                             var value = prop.GetValue(component);

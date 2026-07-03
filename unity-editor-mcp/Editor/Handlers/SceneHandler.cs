@@ -393,8 +393,10 @@ namespace UnityEditorMCP.Handlers
                 bool saved = false;
                 if (saveAs && !string.IsNullOrEmpty(scenePath))
                 {
-                    // Save as new scene
-                    saved = EditorSceneManager.SaveScene(currentScene, savePath, true);
+                    // Save As = RE-ASSOCIATE the open scene to the new path (like File > Save As) and clear its dirty
+                    // flag. The old 3-arg saveAsCopy=true wrote a COPY while leaving the open scene DIRTY at its ORIGINAL
+                    // path — yet we report isDirty:false + the new path, a false success / wrong result. (Bug hunt.)
+                    saved = EditorSceneManager.SaveScene(currentScene, savePath);
                 }
                 else
                 {
