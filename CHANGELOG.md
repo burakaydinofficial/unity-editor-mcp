@@ -6,6 +6,58 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; CI-verified on 2019.4 / 2020.3 / 2021.3 / 2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
+## [0.21.0] — Live-editor E2E harness, reload-recovery, and an 8-round hardening campaign
+
+The largest correctness pass in the fork's history. A new **live-editor E2E harness** drives the real MCP chain
+(client → server → editor) to cover the ~two dozen tools that are structurally untestable in the EditMode floor
+matrix (play mode, script recompile, refresh). Building it surfaced a latent bridge bug affecting **every** client;
+that fix, a pre-release honest-failure audit, an adversarial bug hunt, and an eight-round loop-until-dry adversarial
+audit together resolved ~125 verified faults — each traced to the code, fixed in a gated wave, and re-verified. All
+CI-verified across 2019.4 / 2020.3 / 2021.3 / 2022.3 (298 EditMode + 152 dotnet + 314 server unit tests), with the
+full live suite green end-to-end.
+
+### Added
+
+- **Live-editor E2E harness** (`mcp-server/tests/e2e/live/`, `npm run test:e2e:live`) — drives the real
+  client→server→editor chain against a headed editor, verifying each effect through both the bridge and a
+  version-robust independent channel (file existence, the `error CS` grammar, an in-editor probe's own JSON). Flows:
+  play-mode (enter/exit reload stability), script CRUD + recompile, and negative-control self-checks.
+
+### Fixed
+
+- **Bridge reload-recovery (ADR 0007)** — on a domain reload the editor's `TcpTransport.Stop()` cancelled its token but
+  never closed the accepted client socket (a pending `NetworkStream.ReadAsync` ignores cancellation on Mono), leaving a
+  half-open socket so the server never saw `close` and every command after the reload hung until an OS reset. The
+  transport now tracks accepted clients and force-closes them on reload (clean FIN → ~1s reconnect), plus server-side
+  TCP keepalive. **This was latent for every client after any reload (including script recompile), not just the harness.**
+- **~125 verified faults from a pre-release bug hunt + an eight-round adversarial audit campaign** (convergence
+  31→27→13→7→5→2→0; each finding traced to the code, fixed in a gated wave, re-verified). The dominant classes, all
+  against the fork's *no-false-success / no-silent-data-loss / floor-true* identity:
+  - **Silent data corruption / loss** — `[Flags]` enum writes stored the display ordinal not the underlying value;
+    material properties were set by JSON *shape* rather than the shader's declared type (writing the wrong typed table);
+    composite (Vector/Color/Quaternion) writes zero-filled omitted components; a serialized write on an ambiguous
+    `scenePath` silently hit the wrong GameObject.
+  - **False success** — many handlers reported success on an ignored Unity API result, a no-op, a partial apply, or a
+    mutation that evaporated on play-mode exit / was never saved (`create_folder`, `set_platform`, `close_scene`,
+    prefab overrides, `simulate_ui_input`, `modify_prefab`, and more) — now fail or report honestly.
+  - **Security** — `capture_screenshot` could overwrite the audit log / ProjectSettings / a `.cs` with PNG bytes;
+    `create_script` could write into `Library/`; `execute_menu_item` didn't block `File/Exit`; the invoke-policy
+    per-type grant leaked to same-named sub-namespace types and exposed private static methods. All closed.
+  - **Reads with side effects** — inspecting a component (`list_components`, `get_component_values`) invoked
+    `Renderer.material` / `MeshFilter.mesh` getters that instance + leak assets and dirty the scene on a pure read.
+  - **Prefab-stage awareness** — several find/enumerate/mutate paths silently targeted the background scene while a
+    prefab was open in isolation.
+  - **Partial-mutation-under-error** — mutation handlers now validate *all* inputs before the first mutation
+    (`modify_gameobject`, `manage_asset_import_settings`), so a bad value can't persist a half-applied change.
+  - **Connection / wire robustness (Node)** — project-path identity is verified on the handshake (no more driving the
+    wrong editor on a reused port); a remote-host descriptor is no longer resolved to a loopback port; the reconnect
+    loop can't be resurrected by a racing `disconnect()`; an oversize (>1MB) command is refused cleanly instead of
+    tearing down the connection; the Roslyn sidecar no longer crashes the server on a spawn error.
+
+### Notes
+
+- No protocol change — the wire contract stays at protocol `1.0.0` (102 catalog commands, 0 drift).
+
 ## [0.20.6] — Second-review fixes + documentation refresh
 
 A deeper second code review (a 5-lens panel with adversarial verification, over the released 0.20.5) plus a full
