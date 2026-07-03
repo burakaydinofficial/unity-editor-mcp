@@ -747,108 +747,78 @@ namespace UnityEditorMCP.Handlers
                     return false;
                 }
 
-                // Get property type and apply value
                 int propId = Shader.PropertyToID(propertyName);
-                
-                // Try to determine property type by value
-                if (value.Type == JTokenType.Array)
-                {
-                    var array = value as JArray;
-                    if (array != null)
-                    {
-                        if (array.Count == 4)
-                        {
-                            // Color property
-                            material.SetColor(propId, new Color(
-                                array[0].ToObject<float>(),
-                                array[1].ToObject<float>(),
-                                array[2].ToObject<float>(),
-                                array[3].ToObject<float>()
-                            ));
-                            return true;
-                        }
-                        else if (array.Count == 3)
-                        {
-                            // Vector3 property
-                            material.SetVector(propId, new Vector4(
-                                array[0].ToObject<float>(),
-                                array[1].ToObject<float>(),
-                                array[2].ToObject<float>(),
-                                0
-                            ));
-                            return true;
-                        }
-                        else if (array.Count == 2)
-                        {
-                            // Vector2 property
-                            material.SetVector(propId, new Vector4(
-                                array[0].ToObject<float>(),
-                                array[1].ToObject<float>(),
-                                0, 0
-                            ));
-                            return true;
-                        }
-                    }
-                }
-                else if (value.Type == JTokenType.Object)
-                {
-                    // Color/Vector as an object — accept {r,g,b,a} (the array form [r,g,b,a] is handled above) and
-                    // {x,y,z,w}; callers reasonably pass either shape. An object used to silently fall through to
-                    // propertiesFailed with no reason.
-                    var obj = (JObject)value;
-                    if (obj["r"] != null || obj["g"] != null || obj["b"] != null)
-                    {
-                        material.SetColor(propId, new Color(
-                            obj["r"]?.ToObject<float>() ?? 0f,
-                            obj["g"]?.ToObject<float>() ?? 0f,
-                            obj["b"]?.ToObject<float>() ?? 0f,
-                            obj["a"]?.ToObject<float>() ?? 1f));
-                        return true;
-                    }
-                    if (obj["x"] != null || obj["y"] != null || obj["z"] != null || obj["w"] != null)
-                    {
-                        material.SetVector(propId, new Vector4(
-                            obj["x"]?.ToObject<float>() ?? 0f,
-                            obj["y"]?.ToObject<float>() ?? 0f,
-                            obj["z"]?.ToObject<float>() ?? 0f,
-                            obj["w"]?.ToObject<float>() ?? 0f));
-                        return true;
-                    }
-                }
-                else if (value.Type == JTokenType.Float || value.Type == JTokenType.Integer)
-                {
-                    // Float property
-                    material.SetFloat(propId, value.ToObject<float>());
-                    return true;
-                }
-                else if (value.Type == JTokenType.String)
-                {
-                    // Could be a texture reference
-                    string texturePath = value.ToString();
-                    if (texturePath.StartsWith("Assets/"))
-                    {
-                        Texture texture = AssetDatabase.LoadAssetAtPath<Texture>(texturePath);
-                        if (texture != null)
-                        {
-                            material.SetTexture(propId, texture);
-                            return true;
-                        }
-                    }
-                }
-                else if (value.Type == JTokenType.Boolean)
-                {
-                    // Boolean as float (0 or 1)
-                    material.SetFloat(propId, value.ToObject<bool>() ? 1f : 0f);
-                    return true;
-                }
 
-                return false;
+                // Dispatch by the shader's DECLARED property type, NOT the JSON value's SHAPE. Unity keeps float / color /
+                // vector / texture in SEPARATE typed tables and Material.HasProperty is type-agnostic, so a shape-chosen
+                // setter writes the WRONG table (a phantom slot the shader never reads) and returns success — silent data
+                // loss (e.g. a Color fed [r,g,b] loses alpha; a Float fed a 4-array is dropped). Shader.GetProperty* is
+                // available on the 2019.4 floor. (Bug hunt: material shape-vs-type.)
+                if (!TryGetShaderPropertyType(material.shader, propertyName, out var ptype))
+                    return false; // HasProperty true but type unresolved -> refuse rather than guess
+
+                switch (ptype)
+                {
+                    case UnityEngine.Rendering.ShaderPropertyType.Color:
+                        material.SetColor(propId, ColorFromToken(value)); return true;
+                    case UnityEngine.Rendering.ShaderPropertyType.Vector:
+                        material.SetVector(propId, VectorFromToken(value)); return true;
+                    case UnityEngine.Rendering.ShaderPropertyType.Float:
+                    case UnityEngine.Rendering.ShaderPropertyType.Range:
+                        if (!TryFloatFromToken(value, out var f)) return false;
+                        material.SetFloat(propId, f); return true;
+                    case UnityEngine.Rendering.ShaderPropertyType.Texture:
+                        if (value.Type != JTokenType.String) return false;
+                        var tex = AssetDatabase.LoadAssetAtPath<Texture>(value.ToString());
+                        if (tex == null) return false;
+                        material.SetTexture(propId, tex); return true;
+                    default: // Int (2021.1+) or any future type -> coerce to a float scalar
+                        if (!TryFloatFromToken(value, out var iv)) return false;
+                        material.SetFloat(propId, iv); return true;
+                }
             }
             catch (Exception e)
             {
                 Debug.LogWarning($"Failed to set material property {propertyName}: {e.Message}");
                 return false;
             }
+        }
+
+        // The shader's declared type for a named property, or false if the shader doesn't declare it. (2019.3+ / floor-safe.)
+        private static bool TryGetShaderPropertyType(Shader shader, string name, out UnityEngine.Rendering.ShaderPropertyType type)
+        {
+            type = default;
+            if (shader == null) return false;
+            int count = shader.GetPropertyCount();
+            for (int i = 0; i < count; i++)
+                if (shader.GetPropertyName(i) == name) { type = shader.GetPropertyType(i); return true; }
+            return false;
+        }
+
+        private static float ArrF(JArray a, int i) => i < a.Count ? a[i].ToObject<float>() : 0f;
+
+        private static Color ColorFromToken(JToken v)
+        {
+            if (v is JArray a) return new Color(ArrF(a, 0), ArrF(a, 1), ArrF(a, 2), a.Count > 3 ? ArrF(a, 3) : 1f);
+            if (v is JObject o) return new Color(o["r"]?.ToObject<float>() ?? 0f, o["g"]?.ToObject<float>() ?? 0f, o["b"]?.ToObject<float>() ?? 0f, o["a"]?.ToObject<float>() ?? 1f);
+            var f = v.ToObject<float>(); return new Color(f, f, f, 1f); // scalar -> grayscale
+        }
+
+        private static Vector4 VectorFromToken(JToken v)
+        {
+            if (v is JArray a) return new Vector4(ArrF(a, 0), ArrF(a, 1), ArrF(a, 2), a.Count > 3 ? ArrF(a, 3) : 0f);
+            if (v is JObject o) return new Vector4(o["x"]?.ToObject<float>() ?? 0f, o["y"]?.ToObject<float>() ?? 0f, o["z"]?.ToObject<float>() ?? 0f, o["w"]?.ToObject<float>() ?? 0f);
+            var f = v.ToObject<float>(); return new Vector4(f, 0, 0, 0);
+        }
+
+        // Accept only genuine scalars for a Float/Range property — an array/object/string is NOT a float (return false so
+        // the caller records it in propertiesFailed instead of silently coercing to the wrong table). (Bug hunt.)
+        private static bool TryFloatFromToken(JToken v, out float f)
+        {
+            f = 0f;
+            if (v.Type == JTokenType.Float || v.Type == JTokenType.Integer) { f = v.ToObject<float>(); return true; }
+            if (v.Type == JTokenType.Boolean) { f = v.ToObject<bool>() ? 1f : 0f; return true; }
+            return false;
         }
 
         private static Vector3? ParseVector3(JToken token)
@@ -1222,19 +1192,21 @@ namespace UnityEditorMCP.Handlers
                     // Get prefab path
                     string prefabPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(gameObject);
 
-                    // Count overrides before applying
-                    var overrides = PrefabUtility.GetObjectOverrides(gameObject, includeChildren);
-                    int overrideCount = overrides.Count;
-
-                    // Apply overrides
+                    // GetObjectOverrides' 2nd param is includeDefaultOverrides (NOT a children flag) — it always spans
+                    // the WHOLE instance, so it can't be the "applied" count for a root-only apply. Report the honest
+                    // applied count + the total, and say plainly when child/component overrides were left. (Bug hunt.)
+                    int totalOverrides = PrefabUtility.GetObjectOverrides(gameObject, false).Count;
+                    int overridesApplied;
                     if (includeChildren)
                     {
                         PrefabUtility.ApplyPrefabInstance(gameObject, InteractionMode.UserAction);
+                        overridesApplied = totalOverrides; // whole instance applied
                     }
                     else
                     {
-                        // Apply only root object overrides
+                        // Apply ONLY the root GameObject's own object override — child/component overrides stay unapplied.
                         PrefabUtility.ApplyObjectOverride(gameObject, AssetDatabase.GetAssetPath(PrefabUtility.GetCorrespondingObjectFromSource(gameObject)), InteractionMode.UserAction);
+                        overridesApplied = 1; // root object only
                     }
 
                     return HandlerOutcome.Ok(new
@@ -1242,9 +1214,12 @@ namespace UnityEditorMCP.Handlers
                         success = true,
                         gameObjectPath = gameObjectPath,
                         prefabPath = prefabPath,
-                        overridesApplied = overrideCount,
+                        overridesApplied = overridesApplied,
+                        totalOverrides = totalOverrides,
                         includedChildren = includeChildren,
-                        message = $"Applied {overrideCount} overrides to prefab"
+                        message = includeChildren
+                            ? $"Applied all {overridesApplied} override(s) to prefab"
+                            : $"Applied the root object override only — {System.Math.Max(0, totalOverrides - overridesApplied)} child/component override(s) NOT applied (pass includeChildren:true to apply all)"
                     });
                 }
                 else
@@ -1340,7 +1315,11 @@ namespace UnityEditorMCP.Handlers
 
         private static HandlerOutcome ApplyAllOverrides(GameObject go, string gameObjectPath)
         {
-            int count = PrefabUtility.GetObjectOverrides(go, true).Count;
+            // A no-op (no user overrides) is a FAILURE, not a success — consistent with the apply_property/revert_property
+            // no-op fix (Mut-11). HasPrefabInstanceAnyOverrides(false) excludes the always-present default overrides. (Bug hunt.)
+            if (!PrefabUtility.HasPrefabInstanceAnyOverrides(go, false))
+                return HandlerOutcome.Fail("No overrides to apply on this instance.", "INVALID_STATE");
+            int count = PrefabUtility.GetObjectOverrides(go, false).Count;
             PrefabUtility.ApplyPrefabInstance(go, InteractionMode.UserAction);
             return HandlerOutcome.Ok(new
             {
@@ -1354,6 +1333,8 @@ namespace UnityEditorMCP.Handlers
 
         private static HandlerOutcome RevertAllOverrides(GameObject go, string gameObjectPath)
         {
+            if (!PrefabUtility.HasPrefabInstanceAnyOverrides(go, false))
+                return HandlerOutcome.Fail("No overrides to revert on this instance.", "INVALID_STATE");
             PrefabUtility.RevertPrefabInstance(go, InteractionMode.UserAction);
             return HandlerOutcome.Ok(new
             {

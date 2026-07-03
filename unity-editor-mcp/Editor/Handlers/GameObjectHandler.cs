@@ -17,6 +17,13 @@ namespace UnityEditorMCP.Handlers
         // same-named main-scene object would shadow the stage object and a by-path mutation would silently hit the
         // wrong target while the user is editing the prefab (code-review HIGH). Fall back to the main scene
         // (GameObject.Find) only when the path isn't in the stage, or when no stage is open.
+        // True if `t` is `ancestor` itself or nested under it (used to reject a self/own-descendant reparent up-front).
+        private static bool IsDescendantOf(Transform t, Transform ancestor)
+        {
+            for (var cur = t; cur != null; cur = cur.parent) if (cur == ancestor) return true;
+            return false;
+        }
+
         public static GameObject FindGameObjectStageAware(string path)
         {
             var stageScene = AssetManagementHandler.GetOpenPrefabStageScene();
@@ -347,6 +354,11 @@ namespace UnityEditorMCP.Handlers
                         resolvedParent = FindGameObjectStageAware(pp);
                         if (resolvedParent == null)
                             return HandlerOutcome.Fail($"Parent GameObject not found: {pp}", "NOT_FOUND");
+                        // Reject a self / own-descendant reparent BEFORE any mutation — Unity silently refuses it, and a
+                        // late verify would fire AFTER name/transform/tag/layer were already applied, persisting a PARTIAL
+                        // mutation under an error. Validate-first (the Mut-5 invariant). (Bug hunt: partial-mutation regression.)
+                        if (IsDescendantOf(resolvedParent.transform, obj.transform))
+                            return HandlerOutcome.Fail("Cannot parent a GameObject under itself or its own descendant.", "VALIDATION_ERROR");
                     }
                 }
 
@@ -421,11 +433,9 @@ namespace UnityEditorMCP.Handlers
                     var desiredParent = resolvedParent ? resolvedParent.transform : null;
                     if (obj.transform.parent != desiredParent)
                     {
+                        // The self / own-descendant case (Unity's only silent SetParent refusal) was rejected up-front,
+                        // before any mutation — so no late Fail is needed here (which would leave a partial mutation). (Bug hunt.)
                         obj.transform.SetParent(desiredParent, true);
-                        // Unity silently REFUSES an invalid reparent (e.g. into the object's own descendant) — verify it
-                        // actually took rather than reporting modified:true for a no-op. (Bug hunt: unverified SetParent.)
-                        if (obj.transform.parent != desiredParent)
-                            return HandlerOutcome.Fail("Reparent refused by Unity — cannot parent a GameObject under its own descendant.", "INVALID_STATE");
                         modified = true;
                     }
                 }

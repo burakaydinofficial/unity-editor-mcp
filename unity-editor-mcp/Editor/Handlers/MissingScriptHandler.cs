@@ -81,7 +81,7 @@ namespace UnityEditorMCP.Handlers
                     removed += r;
                     if (r > 0) objectsAffected++;
                 }
-                if (removed > 0) EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+                if (removed > 0) EditorSceneManager.MarkSceneDirty(CurrentScene());
 
                 return HandlerOutcome.Ok(new
                 {
@@ -96,10 +96,18 @@ namespace UnityEditorMCP.Handlers
 
         private static IEnumerable<GameObject> ActiveSceneObjects()
         {
-            var scene = SceneManager.GetActiveScene();
+            // Stage-aware: when a prefab stage is open in isolation, enumerate the STAGE scene — otherwise find/remove
+            // silently targeted the hidden BACKGROUND scene, not the prefab the user is editing. (Bug hunt: prefab-stage.)
+            var scene = CurrentScene();
             foreach (var root in scene.GetRootGameObjects())
                 foreach (var t in root.GetComponentsInChildren<Transform>(true)) // includes inactive
                     yield return t.gameObject;
+        }
+
+        private static Scene CurrentScene()
+        {
+            var stage = AssetManagementHandler.GetOpenPrefabStageScene();
+            return (stage.HasValue && stage.Value.IsValid()) ? stage.Value : SceneManager.GetActiveScene();
         }
 
         private static string HierarchyPath(GameObject go)

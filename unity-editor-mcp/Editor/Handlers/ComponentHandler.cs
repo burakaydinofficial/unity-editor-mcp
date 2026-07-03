@@ -607,7 +607,10 @@ namespace UnityEditorMCP.Handlers
                 FieldInfo field = type.GetField(propertyName, BindingFlags.Public | BindingFlags.Instance);
                 if (field != null)
                 {
-                    object convertedValue = ConvertValue(value, field.FieldType, field.GetValue(component)); // pass current -> merge composites
+                    // Read the current value ONLY for a composite merge. Reading arbitrary getters (e.g. Renderer.material,
+                    // MeshFilter.mesh) has edit-mode INSTANCING side effects — never call one just to "merge". (Bug hunt: merge side-effect.)
+                    object cur = NeedsCurrentForMerge(field.FieldType) ? field.GetValue(component) : null;
+                    object convertedValue = ConvertValue(value, field.FieldType, cur);
                     field.SetValue(component, convertedValue);
                     return true;
                 }
@@ -616,7 +619,8 @@ namespace UnityEditorMCP.Handlers
                 PropertyInfo property = type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
                 if (property != null && property.CanWrite)
                 {
-                    object convertedValue = ConvertValue(value, property.PropertyType, property.CanRead ? property.GetValue(component) : null);
+                    object cur = (property.CanRead && NeedsCurrentForMerge(property.PropertyType)) ? property.GetValue(component) : null;
+                    object convertedValue = ConvertValue(value, property.PropertyType, cur);
                     property.SetValue(component, convertedValue);
                     return true;
                 }
@@ -739,6 +743,11 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Converts a JSON value to the target type
         /// </summary>
+        // Only composite structs need the current value for a partial-update MERGE; everything else must NOT read the
+        // getter (some getters instance assets in edit mode). (Bug hunt: merge side-effect.)
+        private static bool NeedsCurrentForMerge(Type t) =>
+            t == typeof(Vector2) || t == typeof(Vector3) || t == typeof(Color) || t == typeof(Quaternion);
+
         public static object ConvertValue(JToken value, Type targetType) => ConvertValue(value, targetType, null);
 
         // `current` is the field/property's CURRENT value: composite writes MERGE with it so an omitted component keeps
