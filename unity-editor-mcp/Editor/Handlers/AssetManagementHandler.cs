@@ -231,15 +231,19 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
+                // Zero modifications applied is a FAILURE, not a success-with-a-note: the requested keys were
+                // unrecognized/unsettable, so the caller's intent did not happen. (The idempotent re-save above is
+                // harmless.) The Mut-6 fix made the inner apply return false here; close the outer contract too. (Bug hunt L.)
+                if (modifiedProperties.Count == 0)
+                    return HandlerOutcome.Fail($"No modifications applied to '{prefabPath}' — none of the requested keys are recognized or settable.", "VALIDATION_ERROR");
+
                 return HandlerOutcome.Ok(new
                 {
                     success = true,
                     prefabPath = prefabPath,
                     modifiedProperties = modifiedProperties.ToArray(),
                     affectedInstances = affectedInstances,
-                    message = modifiedProperties.Count == 0
-                        ? "Prefab saved, but NONE of the requested modifications applied" // F1: was "modified successfully"
-                        : (applyToInstances ? "Prefab modified successfully" : "Prefab modified without updating instances")
+                    message = applyToInstances ? "Prefab modified successfully" : "Prefab modified without updating instances"
                 });
             }
             catch (Exception e)
@@ -593,15 +597,17 @@ namespace UnityEditorMCP.Handlers
                     material = new Material(shaderAsset);
                 }
 
-                // Apply properties if provided
+                // Apply properties if provided — track failures too (a typo'd shader property was silently dropped
+                // while still reporting "created successfully"). The material IS created, so this stays Ok. (Bug hunt W.)
+                var propertiesFailed = new List<string>();
                 if (properties != null && properties.HasValues)
                 {
                     foreach (var prop in properties.Properties())
                     {
                         if (ApplyMaterialProperty(material, prop.Name, prop.Value))
-                        {
                             propertiesSet.Add(prop.Name);
-                        }
+                        else
+                            propertiesFailed.Add(prop.Name);
                     }
                 }
 
@@ -619,10 +625,11 @@ namespace UnityEditorMCP.Handlers
                     shader = material.shader.name,
                     guid = guid,
                     propertiesSet = propertiesSet.ToArray(),
+                    propertiesFailed = propertiesFailed.ToArray(),
                     copiedFrom = copyFrom,
-                    message = !string.IsNullOrEmpty(copyFrom) ?
-                        "Material created from copy successfully" :
-                        "Material created successfully"
+                    message = (!string.IsNullOrEmpty(copyFrom) ? "Material created from copy" : "Material created")
+                        + (propertiesFailed.Count == 0 ? " successfully"
+                           : $"; {propertiesFailed.Count} property(ies) not applied ({string.Join(", ", propertiesFailed)})")
                 });
             }
             catch (Exception e)

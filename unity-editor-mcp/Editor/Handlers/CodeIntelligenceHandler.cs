@@ -41,6 +41,10 @@ namespace UnityEditorMCP.Handlers
                 var full = ResolveScript(path);
                 if (full == null) return Err($"Path is not a .cs file inside the project: {path}", "VALIDATION_ERROR");
                 if (!File.Exists(full)) return Err($"File not found: {path}", "NOT_FOUND");
+                // Size cap, matching find_symbol / resolve_symbol / get_symbol_body — get_symbols was the one op that
+                // read the whole file unbounded (a huge generated .cs would stall the main thread + churn LOH). (Bug hunt U.)
+                if (new FileInfo(full).Length > MaxFileBytes)
+                    return Err($"File exceeds the {MaxFileBytes}-byte code-intelligence size limit: {path}", "VALIDATION_ERROR");
 
                 var src = File.ReadAllText(full);
                 var symbols = Extract(src);

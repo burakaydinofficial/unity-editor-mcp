@@ -72,16 +72,19 @@ namespace UnityEditorMCP.Handlers
                 // properties go with it. (Audit finding #29.)
                 Undo.RegisterCreatedObjectUndo(newComponent, $"Add {componentType}");
 
-                // Apply properties if provided
+                // Apply properties if provided. Track failures too — a dropped invalid property was previously
+                // silent, so the response claimed success with fewer writes than requested. The component IS added
+                // (a real effect), so this stays Ok, but failedProperties is surfaced. (Bug hunt T; matches modify_component.)
                 var appliedProperties = new List<string>();
+                var failedProperties = new List<string>();
                 if (properties != null && properties.HasValues)
                 {
                     foreach (var prop in properties.Properties())
                     {
                         if (SetComponentProperty(newComponent, prop.Name, prop.Value))
-                        {
                             appliedProperties.Add(prop.Name);
-                        }
+                        else
+                            failedProperties.Add(prop.Name);
                     }
                 }
 
@@ -90,8 +93,11 @@ namespace UnityEditorMCP.Handlers
                     success = true,
                     componentType = type.Name,
                     gameObjectPath = gameObjectPath,
-                    message = $"Component {type.Name} added successfully",
-                    appliedProperties = appliedProperties.ToArray()
+                    message = failedProperties.Count == 0
+                        ? $"Component {type.Name} added successfully"
+                        : $"Component {type.Name} added; {failedProperties.Count} property(ies) not applied ({string.Join(", ", failedProperties)})",
+                    appliedProperties = appliedProperties.ToArray(),
+                    failedProperties = failedProperties.ToArray()
                 });
             }
             catch (Exception ex)

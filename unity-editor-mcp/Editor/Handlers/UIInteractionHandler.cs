@@ -264,6 +264,7 @@ namespace UnityEditorMCP.Handlers
                 }
 
                 List<object> results = new List<object>();
+                int failedActions = 0; // count per-action failures so an all-failed run isn't reported as success (Bug hunt J)
 
                 foreach (JObject action in inputSequence)
                 {
@@ -273,6 +274,7 @@ namespace UnityEditorMCP.Handlers
                     if (string.IsNullOrEmpty(actionType) || actionParams == null)
                     {
                         results.Add(new { error = "Invalid action format" });
+                        failedActions++;
                         continue;
                     }
 
@@ -281,13 +283,22 @@ namespace UnityEditorMCP.Handlers
                     switch (actionType.ToLower())
                     {
                         case "click":
-                            result = Flatten(ClickUIElement(actionParams));
+                        {
+                            var oc = ClickUIElement(actionParams);
+                            if (oc.IsError) failedActions++;
+                            result = Flatten(oc);
                             break;
+                        }
                         case "setvalue":
-                            result = Flatten(SetUIElementValue(actionParams));
+                        {
+                            var oc = SetUIElementValue(actionParams);
+                            if (oc.IsError) failedActions++;
+                            result = Flatten(oc);
                             break;
+                        }
                         default:
                             result = new { error = $"Unknown action type: {actionType}" };
+                            failedActions++;
                             break;
                     }
 
@@ -302,9 +313,14 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
+                // `success` now REFLECTS reality — previously it was hardcoded true even when EVERY action errored.
+                // Keep the Ok envelope (simple mode is ACCEPTED, not rejected — a missing element is a per-action
+                // failure, not a bad-input error), but report success:false + failedActions so an all-failed run is
+                // not a false success and the caller sees the per-action outcomes in results. (Bug hunt J.)
                 return HandlerOutcome.Ok(new
                 {
-                    success = true,
+                    success = failedActions == 0,
+                    failedActions = failedActions,
                     results = results,
                     totalActions = inputSequence.Count
                 });
@@ -589,6 +605,9 @@ namespace UnityEditorMCP.Handlers
             var dropdown = target.GetComponent<Dropdown>();
             if (dropdown != null)
             {
+                Undo.RecordObject(dropdown, "Set UI Value"); // record the serialized change so it persists — the
+                                                             // Toggle/Slider branches do; Dropdown/Text didn't, so the
+                                                             // edit-mode value was lost yet reported success. (Bug hunt K.)
                 dropdown.value = value.ToObject<int>();
                 if (triggerEvents)
                 {
@@ -601,6 +620,7 @@ namespace UnityEditorMCP.Handlers
             var text = target.GetComponent<Text>();
             if (text != null)
             {
+                Undo.RecordObject(text, "Set UI Value"); // persist the serialized change (Bug hunt K)
                 text.text = value.ToString();
                 return true;
             }

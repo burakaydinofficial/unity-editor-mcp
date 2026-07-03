@@ -98,6 +98,15 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
+                // A loadScene:true create uses Single mode, which REPLACES all open scenes — guard their unsaved work
+                // (save:true saves first, force:true discards, else CONFIRMATION_REQUIRED), mirroring load_scene +
+                // Unity's own New Scene prompt. This was the load_scene guard's sibling path left unfixed. (Bug hunt A.)
+                if (loadScene)
+                {
+                    var guard = GuardDirtyOpenScenesForSingleReplace(parameters);
+                    if (guard != null) return guard;
+                }
+
                 // Create the scene
                 var newScene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects,
                     loadScene ? NewSceneMode.Single : NewSceneMode.Additive);

@@ -62,7 +62,8 @@ namespace UnityEditorMCP.Tests
         {
             var parameters = new JObject
             {
-                ["sceneName"] = "TestScene"
+                ["sceneName"] = "TestScene",
+                ["force"] = true // loadScene defaults true -> Single replace; accept it so the dirty-scene guard (Bug hunt A) doesn't gate this happy-path test
             };
 
             var result = Create(parameters);
@@ -86,7 +87,8 @@ namespace UnityEditorMCP.Tests
             var parameters = new JObject
             {
                 ["sceneName"] = "CustomScene",
-                ["path"] = testSceneFolder + "/"
+                ["path"] = testSceneFolder + "/",
+                ["force"] = true // accept the Single-mode replace (Bug hunt A)
             };
 
             var result = Create(parameters);
@@ -129,7 +131,8 @@ namespace UnityEditorMCP.Tests
             {
                 ["sceneName"] = "BuildScene",
                 ["path"] = testSceneFolder + "/",
-                ["addToBuildSettings"] = true
+                ["addToBuildSettings"] = true,
+                ["force"] = true // accept the Single-mode replace (Bug hunt A)
             };
 
             var result = Create(parameters);

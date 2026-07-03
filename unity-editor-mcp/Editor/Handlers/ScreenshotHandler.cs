@@ -51,6 +51,17 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail("outputPath must stay within the project root", "VALIDATION_ERROR");
                 }
 
+                // Restrict WRITES to under Assets/ with a .png extension. Without this, a caller (or a direct TCP
+                // client) could set outputPath to Library/UnityEditorMCP/audit-log.jsonl, a ProjectSettings/*.asset,
+                // or a source .cs and OVERWRITE it with binary PNG bytes — destroying the H5 audit log / settings /
+                // source and reporting success. capture_screenshot has no Node-side guard, so this is the sole gate.
+                // (Bug hunt: capture write-anywhere-in-project.)
+                var lowerOut = outputPath.Replace('\\', '/').ToLowerInvariant();
+                if (!lowerOut.StartsWith("assets/"))
+                    return HandlerOutcome.Fail("outputPath must be under Assets/ (screenshots are written as project assets).", "VALIDATION_ERROR");
+                if (!lowerOut.EndsWith(".png"))
+                    return HandlerOutcome.Fail("outputPath must end with .png", "VALIDATION_ERROR");
+
                 // Ensure directory exists
                 string directory = Path.GetDirectoryName(outputPath);
                 if (!AssetDatabase.IsValidFolder(directory))
@@ -207,26 +218,29 @@ namespace UnityEditorMCP.Handlers
                 
                 // Create render texture
                 RenderTexture renderTexture = new RenderTexture(captureWidth, captureHeight, 24);
-                sceneCamera.targetTexture = renderTexture;
-                
-                // Render the scene
-                sceneCamera.Render();
-                
-                // Read pixels
-                RenderTexture.active = renderTexture;
-                Texture2D screenshot = new Texture2D(captureWidth, captureHeight, TextureFormat.RGB24, false);
-                screenshot.ReadPixels(new Rect(0, 0, captureWidth, captureHeight), 0, 0);
-                screenshot.Apply();
-                
-                // Reset camera and render texture
-                sceneCamera.targetTexture = null;
-                RenderTexture.active = null;
-                UnityEngine.Object.DestroyImmediate(renderTexture);
-                
-                // Encode to PNG
-                byte[] imageBytes = screenshot.EncodeToPNG();
-                UnityEngine.Object.DestroyImmediate(screenshot);
-                
+                var prevActive = RenderTexture.active;
+                Texture2D screenshot = null;
+                byte[] imageBytes;
+                try
+                {
+                    sceneCamera.targetTexture = renderTexture;
+                    sceneCamera.Render();
+                    RenderTexture.active = renderTexture;
+                    screenshot = new Texture2D(captureWidth, captureHeight, TextureFormat.RGB24, false);
+                    screenshot.ReadPixels(new Rect(0, 0, captureWidth, captureHeight), 0, 0);
+                    screenshot.Apply();
+                    imageBytes = screenshot.EncodeToPNG();
+                }
+                finally
+                {
+                    // ALWAYS restore the live Scene View camera and release the textures, even on exception — otherwise
+                    // the camera keeps rendering into a destroyed RT and the RT/Texture2D leak native memory. (Bug hunt.)
+                    sceneCamera.targetTexture = null;
+                    RenderTexture.active = prevActive;
+                    UnityEngine.Object.DestroyImmediate(renderTexture);
+                    if (screenshot != null) UnityEngine.Object.DestroyImmediate(screenshot);
+                }
+
                 // Save to file
                 File.WriteAllBytes(outputPath, imageBytes);
                 AssetDatabase.Refresh();
@@ -286,18 +300,27 @@ namespace UnityEditorMCP.Handlers
                 RenderTexture renderTexture = new RenderTexture(captureWidth, captureHeight, 24);
                 var prevTarget = cam.targetTexture;
                 var prevActive = RenderTexture.active;
-                cam.targetTexture = renderTexture;
-                cam.Render();
-                RenderTexture.active = renderTexture;
-                Texture2D screenshot = new Texture2D(captureWidth, captureHeight, TextureFormat.RGB24, false);
-                screenshot.ReadPixels(new Rect(0, 0, captureWidth, captureHeight), 0, 0);
-                screenshot.Apply();
-                cam.targetTexture = prevTarget;
-                RenderTexture.active = prevActive;
-                UnityEngine.Object.DestroyImmediate(renderTexture);
-
-                byte[] imageBytes = screenshot.EncodeToPNG();
-                UnityEngine.Object.DestroyImmediate(screenshot);
+                Texture2D screenshot = null;
+                byte[] imageBytes;
+                try
+                {
+                    cam.targetTexture = renderTexture;
+                    cam.Render();
+                    RenderTexture.active = renderTexture;
+                    screenshot = new Texture2D(captureWidth, captureHeight, TextureFormat.RGB24, false);
+                    screenshot.ReadPixels(new Rect(0, 0, captureWidth, captureHeight), 0, 0);
+                    screenshot.Apply();
+                    imageBytes = screenshot.EncodeToPNG();
+                }
+                finally
+                {
+                    // ALWAYS restore the target camera (may be Camera.main / a gameplay camera) and release textures,
+                    // even on exception — else the camera is left rendering into a destroyed RT and memory leaks. (Bug hunt.)
+                    cam.targetTexture = prevTarget;
+                    RenderTexture.active = prevActive;
+                    UnityEngine.Object.DestroyImmediate(renderTexture);
+                    if (screenshot != null) UnityEngine.Object.DestroyImmediate(screenshot);
+                }
                 File.WriteAllBytes(outputPath, imageBytes);
                 AssetDatabase.Refresh();
 
@@ -427,8 +450,14 @@ namespace UnityEditorMCP.Handlers
                 }
 
                 // Match the Node handler's contract so a direct TCP caller can't probe the byte size of arbitrary
-                // in-project files (e.g. ProjectSettings/*.asset): require an under-Assets image. (Bug hunt Sec-5.)
-                var lowerImg = imagePath.Replace('\\', '/').ToLowerInvariant();
+                // in-project files: require an under-Assets/Packages image. Normalize an ABSOLUTE in-project path to
+                // project-relative FIRST, so a path capture_screenshot itself returns is accepted, not just a literal
+                // "Assets/..." string. (Bug hunt Sec-5 + the absolute-path over-denial regression.)
+                var relImg = imagePath.Replace('\\', '/');
+                var dataPath = Application.dataPath.Replace('\\', '/'); // <proj>/Assets
+                var projRoot = dataPath.Substring(0, dataPath.Length - "Assets".Length); // <proj>/
+                if (relImg.StartsWith(projRoot, StringComparison.OrdinalIgnoreCase)) relImg = relImg.Substring(projRoot.Length);
+                var lowerImg = relImg.TrimStart('/').ToLowerInvariant();
                 if (!(lowerImg.StartsWith("assets/") || lowerImg.StartsWith("packages/")))
                     return HandlerOutcome.Fail("imagePath must be under Assets/ or Packages/", "VALIDATION_ERROR");
                 if (!(lowerImg.EndsWith(".png") || lowerImg.EndsWith(".jpg") || lowerImg.EndsWith(".jpeg")))
@@ -439,50 +468,49 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail($"Image file not found: {imagePath}", "NOT_FOUND");
                 }
                 
-                // Load the image
+                // Load the image — destroyed in the finally so a pixel-analysis exception can't leak it. (Bug hunt.)
                 byte[] imageBytes = File.ReadAllBytes(imagePath);
                 Texture2D texture = new Texture2D(2, 2);
                 texture.LoadImage(imageBytes);
-                
-                var analysis = new
+                try
                 {
-                    success = true,
-                    imagePath = imagePath,
-                    width = texture.width,
-                    height = texture.height,
-                    format = texture.format.ToString(),
-                    fileSize = imageBytes.Length,
-                    analysisType = analysisType
-                };
-                
-                // Basic analysis
-                if (analysisType == "basic" || analysisType == "ui")
-                {
-                    // Analyze dominant colors
-                    var dominantColors = AnalyzeDominantColors(texture);
-                    
-                    // Check for UI elements (simplified)
-                    var uiAnalysis = AnalyzeUIElements(texture);
-                    
-                    UnityEngine.Object.DestroyImmediate(texture);
-
-                    return HandlerOutcome.Ok(new
+                    var analysis = new
                     {
-                        analysis.success,
-                        analysis.imagePath,
-                        analysis.width,
-                        analysis.height,
-                        analysis.format,
-                        analysis.fileSize,
-                        analysis.analysisType,
-                        dominantColors = dominantColors,
-                        uiElements = uiAnalysis,
-                        message = "Screenshot analyzed successfully"
-                    });
-                }
+                        success = true,
+                        imagePath = imagePath,
+                        width = texture.width,
+                        height = texture.height,
+                        format = texture.format.ToString(),
+                        fileSize = imageBytes.Length,
+                        analysisType = analysisType
+                    };
 
-                UnityEngine.Object.DestroyImmediate(texture);
-                return HandlerOutcome.Ok(analysis);
+                    // Basic analysis
+                    if (analysisType == "basic" || analysisType == "ui")
+                    {
+                        var dominantColors = AnalyzeDominantColors(texture);
+                        var uiAnalysis = AnalyzeUIElements(texture);
+                        return HandlerOutcome.Ok(new
+                        {
+                            analysis.success,
+                            analysis.imagePath,
+                            analysis.width,
+                            analysis.height,
+                            analysis.format,
+                            analysis.fileSize,
+                            analysis.analysisType,
+                            dominantColors = dominantColors,
+                            uiElements = uiAnalysis,
+                            message = "Screenshot analyzed successfully"
+                        });
+                    }
+
+                    return HandlerOutcome.Ok(analysis);
+                }
+                finally
+                {
+                    UnityEngine.Object.DestroyImmediate(texture);
+                }
             }
             catch (Exception ex)
             {

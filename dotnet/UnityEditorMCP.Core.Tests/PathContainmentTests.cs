@@ -35,20 +35,22 @@ namespace UnityEditorMCP.Core.Tests
             Assert.False(PathContainment.IsWithin(null, "Assets/x"));
         }
 
-        // Bug hunt Sec-3: drive-relative shapes ("C:foo") are IsPathRooted==true but resolve against the process's
-        // per-drive CWD, not the project root — they must be rejected outright.
+        private static readonly bool IsWindows =
+            System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows);
+
+        // Bug hunt Sec-3: drive-relative shapes resolve against the per-drive CWD on WINDOWS and must be denied there;
+        // on Linux ':' is a legal filename char, so "C:foo" is just an in-project relative path -> allowed (over-denial fix).
         [Fact]
-        public void DriveRelative_Denied()
+        public void DriveRelative_DeniedOnWindows()
         {
-            Assert.False(PathContainment.IsWithin(Root, "C:foo"));
-            Assert.False(PathContainment.IsWithin(Root, "C:..\\..\\x"));
-            Assert.False(PathContainment.IsWithin(Root, "Z:secret.txt"));
+            Assert.Equal(!IsWindows, PathContainment.IsWithin(Root, "C:foo"));
+            Assert.Equal(!IsWindows, PathContainment.IsWithin(Root, "Z:secret.txt"));
         }
 
-        // Bug hunt Sec-6: an NTFS alternate-data-stream colon in the final segment is denied deterministically.
+        // Bug hunt Sec-6: NTFS ADS colon is a Windows-only hazard — denied on Windows, a legal in-project filename on Linux.
         [Fact]
-        public void AlternateDataStream_Denied()
-            => Assert.False(PathContainment.IsWithin(Root, "Assets/Foo.cs:hidden"));
+        public void AlternateDataStream_DeniedOnWindows()
+            => Assert.Equal(!IsWindows, PathContainment.IsWithin(Root, "Assets/Foo.cs:hidden"));
 
         // Case-variant sibling: denied on case-sensitive filesystems (Linux CI), allowed on Windows/macOS — pins the
         // platform-aware comparison instead of the old unconditional ignore-case.

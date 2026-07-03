@@ -101,8 +101,6 @@ namespace UnityEditorMCP.Handlers
 
                 // Extract parameters
                 bool clearOnPlay = parameters["clearOnPlay"]?.ToObject<bool>() ?? true;
-                bool clearOnRecompile = parameters["clearOnRecompile"]?.ToObject<bool>() ?? true;
-                bool clearOnBuild = parameters["clearOnBuild"]?.ToObject<bool>() ?? true;
                 bool preserveWarnings = parameters["preserveWarnings"]?.ToObject<bool>() ?? false;
                 bool preserveErrors = parameters["preserveErrors"]?.ToObject<bool>() ?? false;
 
@@ -138,8 +136,10 @@ namespace UnityEditorMCP.Handlers
                     remainingCount = remainingCount,
                     settingsUpdated = settingsUpdated,
                     clearOnPlay = clearOnPlay,
-                    clearOnRecompile = clearOnRecompile,
-                    clearOnBuild = clearOnBuild,
+                    // clearOnRecompile/clearOnBuild are accepted params but NOT applied here (Unity exposes no stable
+                    // EditorPref for them) — report that honestly instead of echoing them back as if set. (Bug hunt E.)
+                    clearOnRecompileApplied = false,
+                    clearOnBuildApplied = false,
                     timestamp = DateTime.UtcNow.ToString("o")
                 });
             }

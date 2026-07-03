@@ -137,11 +137,19 @@ namespace UnityEditorMCP.Handlers
                     }
                 }
 
-                // Set layer — reject an explicitly-provided out-of-range layer instead of silently ignoring it.
+                // Set layer — reject an explicitly-provided out-of-range OR non-numeric layer instead of silently
+                // ignoring it. ToObject<int> THROWS on a non-numeric token (e.g. "abc"); without this try/catch that
+                // throw escaped to the outer catch AFTER the object was created -> a leaked orphan object. (Bug hunt Q.)
                 var layerToken = parameters["layer"];
                 if (layerToken != null && layerToken.Type != JTokenType.Null)
                 {
-                    int layer = layerToken.ToObject<int>();
+                    int layer;
+                    try { layer = layerToken.ToObject<int>(); }
+                    catch
+                    {
+                        UnityEngine.Object.DestroyImmediate(newObject);
+                        return HandlerOutcome.Fail("layer must be an integer in 0-31.", "VALIDATION_ERROR");
+                    }
                     if (layer < 0 || layer > 31)
                     {
                         UnityEngine.Object.DestroyImmediate(newObject);

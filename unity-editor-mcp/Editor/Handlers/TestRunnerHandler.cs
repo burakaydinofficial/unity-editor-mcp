@@ -35,10 +35,24 @@ namespace UnityEditorMCP.Handlers
         //  - RunFinished journals the full result tree to Library/, and get_test_results falls back to that file
         //    when a later reload has wiped the in-memory dictionary.
         private const string RunningKey = "UnityEditorMCP.TestRunner.IsRunning";
+        private const string RunStartedKey = "UnityEditorMCP.TestRunner.StartedTicks";
+        private const string RunModeKey = "UnityEditorMCP.TestRunner.RunMode";
         private static bool IsRunningTests
         {
             get { return SessionState.GetBool(RunningKey, false); }
             set { SessionState.SetBool(RunningKey, value); }
+        }
+
+        // The SessionState guard survives reloads (correct), but if a run dies WITHOUT a RunFinished (PlayMode Stop,
+        // crash, a reload that drops the run) it would LATCH forever and wedge run_tests. Treat it as stale if it has
+        // been set for >15 min (or has no start stamp), so run_tests self-heals. (Bug hunt H.)
+        private static bool IsRunGuardStale()
+        {
+            if (!IsRunningTests) return false;
+            var s = SessionState.GetString(RunStartedKey, "");
+            if (string.IsNullOrEmpty(s)) return true;
+            return long.TryParse(s, out var ticks)
+                && (DateTime.UtcNow - new DateTime(ticks, DateTimeKind.Utc)).TotalMinutes > 15;
         }
 
         private static string ResultsFilePath
@@ -61,9 +75,25 @@ namespace UnityEditorMCP.Handlers
 
         private static void EnsureCallbacksRegistered()
         {
-            if (currentCallback != null) return;
-            currentCallback = new TestRunCallback();
-            testRunnerApi.RegisterCallbacks(currentCallback);
+            if (currentCallback == null)
+            {
+                currentCallback = new TestRunCallback();
+                testRunnerApi.RegisterCallbacks(currentCallback);
+            }
+            // Also clear a latched guard when play mode ends without a RunFinished (idempotent -=/+=). (Bug hunt H.)
+            EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+            EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+        }
+
+        private static void OnPlayModeStateChanged(PlayModeStateChange state)
+        {
+            // A PlayMode test run cannot outlive play mode: if it was Stopped/crashed so RunFinished never cleared the
+            // running guard, clear it on return to edit mode so run_tests isn't wedged. (Bug hunt H.)
+            if (state == PlayModeStateChange.EnteredEditMode && IsRunningTests
+                && SessionState.GetString(RunModeKey, "").IndexOf("PlayMode", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                IsRunningTests = false;
+            }
         }
 
         /// <summary>
@@ -113,10 +143,11 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
-                if (IsRunningTests)
+                if (IsRunningTests && !IsRunGuardStale())
                 {
                     return HandlerOutcome.Fail("Tests are already running. Please wait for them to complete or cancel.", "INVALID_STATE");
                 }
+                if (IsRunningTests) Debug.LogWarning("[TestRunner] Clearing a stale IsRunningTests guard (no RunFinished within 15 min).");
 
                 var testMode = ParseTestMode(parameters["testMode"]?.ToString());
                 var testNames = parameters["testNames"]?.ToObject<string[]>();
@@ -166,6 +197,8 @@ namespace UnityEditorMCP.Handlers
                 EnsureCallbacksRegistered();
 
                 IsRunningTests = true;
+                SessionState.SetString(RunStartedKey, DateTime.UtcNow.Ticks.ToString());
+                SessionState.SetString(RunModeKey, testMode.ToString());
 
                 // Execute tests
                 var executionSettings = new ExecutionSettings(filter);
@@ -354,22 +387,26 @@ namespace UnityEditorMCP.Handlers
                     });
                 }
 
-                // Unity doesn't provide a direct way to cancel tests, but we can try to stop the test runner
+                var runMode = SessionState.GetString(RunModeKey, "");
+                bool isPlayMode = runMode.IndexOf("PlayMode", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                if (!isPlayMode)
+                {
+                    // Unity has NO API to abort an in-progress EDITMODE run. Stopping play mode does nothing, and
+                    // unregistering the callback (as the old code did) only DROPS the still-arriving results and clears
+                    // the guard while the run continues -> lost results + a possible double-run. Refuse honestly and
+                    // leave the run + callback intact. (Bug hunt P.)
+                    return HandlerOutcome.Fail("An EditMode test run cannot be cancelled — Unity has no abort API. It will finish on its own; poll get_test_results.", "UNSUPPORTED");
+                }
+
+                // PlayMode run: exiting play mode aborts it. RunFinished (partial) and/or the play-exit guard clear
+                // (Bug hunt H) settle IsRunningTests; keep the (always-registered) callback so partial results arrive.
                 EditorApplication.isPlaying = false;
                 IsRunningTests = false;
 
-                // Unregister + clear the run callback so it isn't left registered after a cancel; the
-                // next run re-creates a fresh one (RunTests registers only when currentCallback == null).
-                // (Audit #32.)
-                if (currentCallback != null)
-                {
-                    testRunnerApi.UnregisterCallbacks(currentCallback);
-                    currentCallback = null;
-                }
-
                 return HandlerOutcome.Ok(new
                 {
-                    message = "Test cancellation requested",
+                    message = "Play-mode test cancellation requested (exiting play mode).",
                     wasCancelled = true,
                     timestamp = DateTime.UtcNow.ToString("o")
                 });
