@@ -6,7 +6,7 @@
  * lite editor layer keeps working. The base npm install ships no .NET.
  */
 import { spawn as cpSpawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { promises as fs, createWriteStream } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -31,6 +31,13 @@ export class RoslynSidecarClient {
       this._failAll(new Error('roslyn sidecar exited'));
       // Tell the owner (RoslynManager) the process died — otherwise its state stays READY forever and
       // gated calls surface raw EPIPE instead of an honest unavailable. (Bug hunt Node-8.)
+      for (const cb of this._exitCbs.splice(0)) { try { cb(); } catch { /* observer only */ } }
+    });
+    child.on('error', (err) => {
+      // A spawn failure (ENOENT / EACCES / corrupt or wrong-arch cached binary) or process error is emitted ASYNC —
+      // an EventEmitter with no 'error' listener THROWS and crashes the whole MCP server. Treat it like an exit:
+      // fail pending calls and notify the manager to go UNAVAILABLE. (Bug hunt: roslyn no-error-listener.)
+      this._failAll(err instanceof Error ? err : new Error(String(err)));
       for (const cb of this._exitCbs.splice(0)) { try { cb(); } catch { /* observer only */ } }
     });
   }
@@ -125,17 +132,25 @@ export async function ensureBinary({ version = SIDECAR_VERSION, fetchManifest = 
   const root = cacheRoot || path.join(os.homedir(), '.cache', 'unity-editor-mcp-roslyn', version);
   const binPath = path.join(root, rid, exe);
   try { await fs.access(binPath); return binPath; } catch { /* not cached → download */ }
+  // Download to a UNIQUE temp, verify, then ATOMICALLY rename — two editors on one server hitting start_roslyn on a
+  // cold cache must not truncate each other's bytes into the shared binPath ('w' truncate-on-open). (Bug hunt: cold-cache race.)
+  const tmp = `${binPath}.${randomBytes(6).toString('hex')}.tmp`;
   try {
     await fs.mkdir(path.dirname(binPath), { recursive: true });
     const manifest = await fetchManifest(version);
     const asset = manifest && manifest.assets && manifest.assets[rid];
     if (!asset || !asset.url || !asset.sha256) return null; // refuse an asset with no integrity hash — never spawn unverified
-    await download(asset.url, binPath);
-    const sha = createHash('sha256').update(await fs.readFile(binPath)).digest('hex');
-    if (sha.toLowerCase() !== String(asset.sha256).toLowerCase()) { await fs.rm(binPath, { force: true }); return null; }
-    if (process.platform !== 'win32') await fs.chmod(binPath, 0o755);
+    await download(asset.url, tmp);
+    const sha = createHash('sha256').update(await fs.readFile(tmp)).digest('hex');
+    if (sha.toLowerCase() !== String(asset.sha256).toLowerCase()) return null;
+    if (process.platform !== 'win32') await fs.chmod(tmp, 0o755);
+    await fs.rename(tmp, binPath); // atomic; last writer wins with identical verified content
     return binPath;
-  } catch { try { await fs.rm(binPath, { force: true }); } catch { /* ignore */ } return null; } // clean up any partial download
+  } catch {
+    return null;
+  } finally {
+    try { await fs.rm(tmp, { force: true }); } catch { /* rename consumed it, or nothing to clean */ }
+  }
 }
 
 /**

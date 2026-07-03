@@ -39,6 +39,7 @@ export class UnityConnectionManager {
       // Clear any manifest from a previous session BEFORE re-handshaking, so a failed reconnect
       // handshake never leaves a stale/phantom manifest in place. (Audit finding.)
       conn.editorInfo = null;
+      conn._handshakeRetries = 0; // fresh connection -> fresh retry budget for the null-manifest re-issue below
       // Store the in-flight handshake so ensureReady() can await manifest readiness. The handler
       // runs synchronously during emit('connected') (before connect() resolves), so the promise is
       // set by the time the caller's `await connect()` returns.
@@ -68,13 +69,18 @@ export class UnityConnectionManager {
       try { await conn.handshakePromise; } catch { /* handshake failures are non-fatal */ }
     }
     // If the socket is up but the handshake produced no manifest (e.g. it timed out while the editor was compiling
-    // right after connect), re-issue it rather than awaiting the memoized failure forever — otherwise list_unity_tools
-    // returns count:0 and every call_unity_tool says "not available" until the socket happens to close. (Node-7.)
-    if (conn.editorInfo == null && typeof conn.isConnected === 'function' && conn.isConnected()) {
+    // right after connect), re-issue it rather than awaiting the memoized failure forever. But CAP the retries: a
+    // legacy/pre-handshake editor returns UNKNOWN_COMMAND every time, and an uncapped re-issue would run a doomed
+    // handshake on EVERY tool call. After the cap we serve editorInfo=null (list_unity_tools count:0) without the
+    // wasted round-trips, and a reconnect resets the budget. (Bug hunt: ensureReady re-handshake loop.)
+    if (conn.editorInfo == null && typeof conn.isConnected === 'function' && conn.isConnected()
+        && (conn._handshakeRetries || 0) < 3) {
+      conn._handshakeRetries = (conn._handshakeRetries || 0) + 1;
       try {
         const r = await this.performHandshake(conn, { expectedProjectPath: null });
         conn.editorInfo = r?.handshake ?? null;
-      } catch { /* still no manifest — leave editorInfo null and let a later call retry */ }
+        if (conn.editorInfo != null) conn._handshakeRetries = 0; // success -> reset
+      } catch { /* still no manifest — leave editorInfo null; capped retries prevent a doomed loop */ }
     }
     return conn;
   }

@@ -226,12 +226,17 @@ export class UnityConnection extends EventEmitter {
    */
   disconnect() {
     this.isDisconnecting = true;
-    
+    // PERMANENT: an explicit disconnect must never be resurrected by auto-reconnect. isDisconnecting is reset
+    // synchronously at the end of this method, but an in-flight reconnect's connect().catch runs as a LATER microtask
+    // and would see isDisconnecting=false and re-arm the loop on this (already-pruned) connection. _noReconnect is
+    // never reset, so it gates that race. (Bug hunt: disconnect-resurrects-reconnect.)
+    this._noReconnect = true;
+
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    
+
     if (this.socket) {
       try {
         // Remove all listeners before destroying to prevent async callbacks
@@ -247,6 +252,13 @@ export class UnityConnection extends EventEmitter {
     // removed with the socket listeners). (Bug hunt Node-4.)
     if (this._settleConnect) this._settleConnect(new Error('Disconnected during connect'));
 
+    // Drain in-flight commands NOW — the 'close' handler that normally rejects them won't fire (listeners removed),
+    // so without this they'd hang until their 30s per-command timeout when a connection is pruned. (Bug hunt.)
+    for (const [, pending] of this.pendingCommands) {
+      try { pending.reject(new Error('Connection closed (disconnected)')); } catch { /* ignore */ }
+    }
+    this.pendingCommands.clear();
+
     this.connected = false;
     this.isDisconnecting = false;
   }
@@ -255,7 +267,7 @@ export class UnityConnection extends EventEmitter {
    * Schedules a reconnection attempt
    */
   scheduleReconnect() {
-    if (this.reconnectTimer) {
+    if (this._noReconnect || this.reconnectTimer) {
       return;
     }
 
@@ -271,9 +283,10 @@ export class UnityConnection extends EventEmitter {
       this.reconnectAttempts++;
       this.connect().catch((error) => {
         logger.error('Reconnection failed:', error.message);
-        // The failed attempt's 'error' handler removed the socket's listeners, so its 'close' never fires to
-        // re-schedule — keep the backoff loop alive here (attempts++ -> exponential backoff). (Bug hunt Node-3.)
-        if (!this.isDisconnecting && process.env.DISABLE_AUTO_RECONNECT !== 'true') {
+        // Keep the backoff loop alive (the failed attempt's 'error' handler removed the socket listeners, so its
+        // 'close' never re-schedules). Gate on _noReconnect too: a disconnect() that raced this in-flight attempt
+        // resets isDisconnecting synchronously BEFORE this microtask runs, so isDisconnecting alone is insufficient.
+        if (!this._noReconnect && !this.isDisconnecting && process.env.DISABLE_AUTO_RECONNECT !== 'true') {
           this.scheduleReconnect();
         }
       });
@@ -316,7 +329,9 @@ export class UnityConnection extends EventEmitter {
         // header sits well past byte 100; capping the scan would discard it.
         let recoveryIndex = -1;
         let partialIndex = -1; // a plausible frame whose body hasn't fully arrived yet (Node-9)
-        for (let i = 4; i <= this.messageBuffer.length - 4; i++) {
+        // Scan from offset 1 (NOT 4): a 1-3 byte stream desync leaves the real header at offset 1/2/3, which the
+        // old `i = 4` start silently skipped, discarding the valid response after it. (Bug hunt: recovery-start.)
+        for (let i = 1; i <= this.messageBuffer.length - 4; i++) {
           const testLength = this.messageBuffer.readInt32BE(i);
           if (testLength > 0 && testLength <= 1024 * 1024) {
             // Check if this could be a valid JSON message
@@ -326,12 +341,12 @@ export class UnityConnection extends EventEmitter {
                 recoveryIndex = i;
                 break;
               }
-            } else if (partialIndex < 0) {
-              // Body still streaming in — possibly a legitimate next frame mid-transfer. Verify what we CAN
-              // (the first body byte, when present, must look like JSON) and remember the offset instead of
-              // clearing the buffer, which would discard that in-flight response. (Bug hunt Node-9.)
-              const firstByte = i + 4 < this.messageBuffer.length ? String.fromCharCode(this.messageBuffer[i + 4]) : null;
-              if (firstByte === null || firstByte === '{' || firstByte === ' ') partialIndex = i;
+            } else if (partialIndex < 0 && i + 4 < this.messageBuffer.length) {
+              // Body still streaming — latch this offset ONLY if the first body byte is ALREADY present and looks
+              // like JSON. A plausible length at the exact buffer tail (no body byte) is UNVERIFIABLE and must not
+              // latch: a garbage 4-byte prefix would otherwise mis-frame the next real frame. (Bug hunt: recovery-partial.)
+              const firstByte = String.fromCharCode(this.messageBuffer[i + 4]);
+              if (firstByte === '{' || firstByte === ' ') partialIndex = i;
             }
           }
         }
@@ -493,6 +508,17 @@ export class UnityConnection extends EventEmitter {
       // Send command with framing
       const json = JSON.stringify(command);
       const messageBuffer = Buffer.from(json, 'utf8');
+
+      // Outbound size cap, symmetric with the receive path + the editor's send-side cap: a >1MB command would be
+      // rejected by the editor's MessageFramer as a corrupt length and TEAR DOWN the whole connection (all pending
+      // commands lost), not just fail this one. Refuse it here with a clean, actionable error. (Bug hunt: outbound cap.)
+      if (messageBuffer.length > 1024 * 1024) {
+        this.pendingCommands.delete(id);
+        clearTimeout(timeout);
+        reject(new Error(`Command too large: ${messageBuffer.length} bytes exceeds the 1MB wire cap (tool=${command.type}). Reduce the payload — e.g. a smaller scriptContent, or split the operation.`));
+        return;
+      }
+
       const lengthBuffer = Buffer.allocUnsafe(4);
       lengthBuffer.writeInt32BE(messageBuffer.length, 0);
       

@@ -53,3 +53,35 @@ test('Node-3: a failed reconnect re-schedules the next attempt (backoff loop sta
     }
   });
 });
+
+// Bug hunt (audit round 2): disconnect() during an in-flight reconnect must NOT resurrect the reconnect loop — the
+// interaction of the Node-3 re-arm + Node-4 abort could re-schedule on a pruned connection because isDisconnecting
+// is reset synchronously before the reject's .catch microtask runs. _noReconnect must gate it.
+test('disconnect() during an in-flight reconnect does not resurrect the loop', async () => {
+  await withLiveEnv(async () => {
+    const conn = new UnityConnection({ host: '127.0.0.1', port: 61999 });
+    let scheduledAfterDisconnect = 0;
+    const realSchedule = conn.scheduleReconnect.bind(conn);
+    // real connect() that stays in-flight (mock socket never settles), so _settleConnect is set and a reconnect is mid-flight.
+    conn.scheduleReconnect = () => { if (conn._noReconnect) scheduledAfterDisconnect++; realSchedule(); };
+    conn._doConnect = () => new Promise((resolve, reject) => { conn._settleConnect = (e) => reject(e || new Error('abort')); });
+    const p = conn.connect(); // in-flight (never settles on its own)
+    p.catch(() => {});
+    conn.disconnect();        // aborts the in-flight connect; its reject .catch runs as a later microtask
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(scheduledAfterDisconnect, 0, 'no reconnect may be scheduled after an explicit disconnect');
+    assert.equal(conn.reconnectTimer, null, 'no orphaned reconnect timer after disconnect');
+  });
+});
+
+// disconnect() must drain in-flight commands (the 'close' handler that normally rejects them won't fire).
+test('disconnect() rejects in-flight pending commands instead of leaving them to time out', async () => {
+  await withLiveEnv(async () => {
+    const conn = new UnityConnection({ host: '127.0.0.1', port: 61999 });
+    let rejected = false;
+    conn.pendingCommands.set('c1', { resolve: () => {}, reject: () => { rejected = true; } });
+    conn.disconnect();
+    assert.equal(rejected, true, 'pending command must be rejected on disconnect');
+    assert.equal(conn.pendingCommands.size, 0, 'pendingCommands must be cleared');
+  });
+});
