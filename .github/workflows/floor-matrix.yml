@@ -40,7 +40,7 @@ jobs:
           - 2020.3.49f1
           - 2021.3.45f2
           - 2022.3.62f2
-          # - 6000.0.34f1   # add once a Unity 6 host project exists
+          - 6000.0.78f1     # Unity 6.0 LTS — verifies the UNITY_6000_0_OR_NEWER guard branches (Rigidbody damping / Light rectangle)
     steps:
       - uses: actions/checkout@v4
 
