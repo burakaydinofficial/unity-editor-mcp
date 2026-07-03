@@ -144,7 +144,14 @@ export async function ensureBinary({ version = SIDECAR_VERSION, fetchManifest = 
     const sha = createHash('sha256').update(await fs.readFile(tmp)).digest('hex');
     if (sha.toLowerCase() !== String(asset.sha256).toLowerCase()) return null;
     if (process.platform !== 'win32') await fs.chmod(tmp, 0o755);
-    await fs.rename(tmp, binPath); // atomic; last writer wins with identical verified content
+    try {
+      await fs.rename(tmp, binPath); // atomic; last writer wins with identical verified content
+    } catch (e) {
+      // A peer editor may have won the race and already renamed + SPAWNED binPath (a running/locked exe on Windows ->
+      // EPERM/EBUSY when replacing). If binPath now exists, use the peer's identically-verified binary rather than
+      // returning a spurious 'unavailable'. (Bug hunt: rename-race on peer-locked binary.)
+      try { await fs.access(binPath); return binPath; } catch { throw e; }
+    }
     return binPath;
   } catch {
     return null;

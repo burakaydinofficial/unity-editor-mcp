@@ -39,16 +39,21 @@ export class UnityConnectionManager {
       // Clear any manifest from a previous session BEFORE re-handshaking, so a failed reconnect
       // handshake never leaves a stale/phantom manifest in place. (Audit finding.)
       conn.editorInfo = null;
-      conn._handshakeRetries = 0; // fresh connection -> fresh retry budget for the null-manifest re-issue below
+      conn._handshakeNextAttempt = 0; // fresh connection -> allow an immediate null-manifest re-issue below
       // Store the in-flight handshake so ensureReady() can await manifest readiness. The handler
       // runs synchronously during emit('connected') (before connect() resolves), so the promise is
       // set by the time the caller's `await connect()` returns.
       conn.handshakePromise = (async () => {
         try {
-          // Every connection is a pinned instance targeted explicitly, so skip the env project-path check.
-          const r = await this.performHandshake(conn, { expectedProjectPath: null });
-          conn.editorInfo = r.handshake ?? null;
-          if (r.performed && !r.compatible) logger.warn(`[Manager ${k}] ${r.code}: ${r.message}`);
+          // Verify the connected editor is actually the targeted PROJECT (the check was dead — expectedProjectPath
+          // was hardcoded null, so a wrong editor on a reused port was driven silently). (Bug hunt: project-path.)
+          const r = await this.performHandshake(conn, { expectedProjectPath: conn._expectedProjectPath ?? null });
+          // REFUSE (cache no manifest -> no tools served) a definitively-wrong target: wrong project, or an
+          // incompatible protocol major. Do NOT refuse a legacy NO_PROTOCOL_VERSION editor — driving old builds is the
+          // fork's purpose; warn and serve. (Bug hunt: mismatch warn-only.)
+          const refuse = r.performed && !r.compatible && (r.code === 'PROJECT_PATH_MISMATCH' || r.code === 'PROTOCOL_VERSION_MISMATCH');
+          conn.editorInfo = refuse ? null : (r.handshake ?? null);
+          if (r.performed && !r.compatible) logger.warn(`[Manager ${k}] ${r.code}: ${r.message}${refuse ? ' (refused)' : ''}`);
           return r;
         } catch (e) {
           conn.editorInfo = null; // failed handshake -> no manifest (don't serve a phantom one)
@@ -68,29 +73,34 @@ export class UnityConnectionManager {
     if (conn.handshakePromise) {
       try { await conn.handshakePromise; } catch { /* handshake failures are non-fatal */ }
     }
-    // If the socket is up but the handshake produced no manifest (e.g. it timed out while the editor was compiling
-    // right after connect), re-issue it rather than awaiting the memoized failure forever. But CAP the retries: a
-    // legacy/pre-handshake editor returns UNKNOWN_COMMAND every time, and an uncapped re-issue would run a doomed
-    // handshake on EVERY tool call. After the cap we serve editorInfo=null (list_unity_tools count:0) without the
-    // wasted round-trips, and a reconnect resets the budget. (Bug hunt: ensureReady re-handshake loop.)
+    // If the socket is up but the handshake produced no manifest (it timed out while the editor was compiling right
+    // after connect), re-issue it rather than awaiting the memoized failure forever — but THROTTLE to at most one
+    // attempt per window, not one per tool call. A hard retry CAP (the prior fix) permanently BRICKED a healthy
+    // editor whose handshake merely timed out on a persistent connection that never reconnects to reset the counter.
+    // Time-windowing always re-attempts, so a transiently-blocked editor recovers, while a legacy pre-handshake
+    // editor only wastes one handshake per window. (Bug hunt: retry-cap bricks healthy editor.)
     if (conn.editorInfo == null && typeof conn.isConnected === 'function' && conn.isConnected()
-        && (conn._handshakeRetries || 0) < 3) {
-      conn._handshakeRetries = (conn._handshakeRetries || 0) + 1;
+        && Date.now() >= (conn._handshakeNextAttempt || 0)) {
       try {
-        const r = await this.performHandshake(conn, { expectedProjectPath: null });
-        conn.editorInfo = r?.handshake ?? null;
-        if (conn.editorInfo != null) conn._handshakeRetries = 0; // success -> reset
-      } catch { /* still no manifest — leave editorInfo null; capped retries prevent a doomed loop */ }
+        const r = await this.performHandshake(conn, { expectedProjectPath: conn._expectedProjectPath ?? null });
+        const refuse = r?.performed && !r.compatible && (r.code === 'PROJECT_PATH_MISMATCH' || r.code === 'PROTOCOL_VERSION_MISMATCH');
+        conn.editorInfo = refuse ? null : (r?.handshake ?? null);
+      } catch { /* still no manifest — leave editorInfo null */ }
+      if (conn.editorInfo == null) conn._handshakeNextAttempt = Date.now() + 30_000; // back off, but never permanently
     }
     return conn;
   }
 
   /** Lazily returns the PINNED connection for a host:port. */
-  getConnection(host, port) {
+  getConnection(host, port, expectedProjectPath = null) {
     const k = this.key(host, port);
     const existing = this.connections.get(k);
-    if (existing) return existing;
+    if (existing) {
+      if (expectedProjectPath && !existing._expectedProjectPath) existing._expectedProjectPath = expectedProjectPath;
+      return existing;
+    }
     const conn = this.wireHandshake(this.createConnection({ host, port }), k);
+    conn._expectedProjectPath = expectedProjectPath; // verified by the handshake (Bug hunt: project-path)
     this.connections.set(k, conn);
     return conn;
   }
@@ -113,7 +123,8 @@ export class UnityConnectionManager {
       // desc.host is a machine IDENTITY from the local registry, not a connect address: same-host editors bind
       // loopback, so always connect via the configured host (matches the port-ref path AND the pooled key space).
       // Require the descriptor to be live so a stale dead-editor port isn't resolved into a 30s stall. (Node-1/2/6.)
-      if (desc && Number.isFinite(desc.port) && this.discovery.isLive(desc)) return { host: this.host, port: desc.port };
+      if (desc && Number.isFinite(desc.port) && this.discovery.isLive(desc))
+        return { host: this.host, port: desc.port, projectPath: desc.projectPath || String(ref) };
     } catch { /* unreadable registry -> unresolved */ }
     return null;
   }
@@ -131,7 +142,7 @@ export class UnityConnectionManager {
     if (!t) {
       throw new Error(`No Unity instance found for "${ref}". Use list_unity_instances to see what is running.`);
     }
-    return this.getConnection(t.host, t.port);
+    return this.getConnection(t.host, t.port, t.projectPath ?? null);
   }
 
   /** Closes + drops connections whose editor is no longer live in the registry. */

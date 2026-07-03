@@ -10,11 +10,11 @@ class FakeConn extends EventEmitter {
   disconnect() { this.disconnected = true; this.connected = false; }
 }
 
-function makeManager({ instances = [], resolvePort = 6400 } = {}) {
+function makeManager({ instances = [], resolvePort = 6400, handshake } = {}) {
   const created = [];
   const mgr = new UnityConnectionManager({
     createConnection: (opts) => { const c = new FakeConn(opts); created.push(c); return c; },
-    performHandshake: async () => ({ performed: true, compatible: true, handshake: { commands: [{ name: 'ping' }] } }),
+    performHandshake: handshake || (async () => ({ performed: true, compatible: true, handshake: { commands: [{ name: 'ping' }] } })),
     discovery: {
       resolveUnityPort: () => resolvePort,
       defaultRegistryDirectory: () => '/reg',
@@ -69,7 +69,8 @@ describe('UnityConnectionManager', () => {
   // not the registry descriptor's machine-name (which resolves to a LAN address the loopback listener never answers).
   it('resolveInstance connects via the configured host, not the registry machine-name', () => {
     const { mgr } = makeManager({ instances: [{ projectPath: 'C:/proj/A', host: 'MACHINE16', port: 7400 }] });
-    assert.deepEqual(mgr.resolveInstance('C:/proj/A'), { host: 'localhost', port: 7400 });
+    // path-refs now also carry projectPath so the handshake can verify the connected editor IS this project (Bug hunt).
+    assert.deepEqual(mgr.resolveInstance('C:/proj/A'), { host: 'localhost', port: 7400, projectPath: 'C:/proj/A' });
   });
 
   // Bug hunt Node-6: a stale (dead-editor) descriptor must not resolve into a 30s connect stall.
@@ -125,14 +126,42 @@ describe('UnityConnectionManager', () => {
     assert.equal(conn.editorInfo.commands[0].name, 'ping');
   });
 
+  // Bug hunt (audit round 3): a wrong-PROJECT editor (reused port) must be REFUSED — editorInfo stays null so no
+  // tools are served — not merely warned-and-driven; and the project-path is actually passed to the handshake.
+  it('refuses (no manifest) an editor whose handshake reports PROJECT_PATH_MISMATCH', async () => {
+    let sawExpected = null;
+    const { mgr } = makeManager({
+      instances: [{ projectPath: 'C:/proj/A', host: 'localhost', port: 7400 }],
+      handshake: async (_conn, opts) => {
+        sawExpected = opts.expectedProjectPath;
+        return { performed: true, compatible: false, code: 'PROJECT_PATH_MISMATCH', message: 'wrong project', handshake: { commands: [{ name: 'ping' }] } };
+      },
+    });
+    const conn = mgr.requireConnection('C:/proj/A');
+    await mgr.ensureReady(conn);
+    assert.equal(sawExpected, 'C:/proj/A', 'the targeted project path must reach the handshake');
+    assert.equal(conn.editorInfo, null, 'a project-path mismatch must NOT cache a manifest');
+  });
+
+  // A legacy NO_PROTOCOL_VERSION editor (the fork exists to drive old builds) must still be SERVED, only warned.
+  it('still serves a legacy NO_PROTOCOL_VERSION editor (warn, not refuse)', async () => {
+    const { mgr } = makeManager({
+      instances: [{ projectPath: 'C:/proj/A', host: 'localhost', port: 7400 }],
+      handshake: async () => ({ performed: true, compatible: false, code: 'NO_PROTOCOL_VERSION', message: 'legacy', handshake: { commands: [{ name: 'ping' }] } }),
+    });
+    const conn = mgr.requireConnection('C:/proj/A');
+    await mgr.ensureReady(conn);
+    assert.ok(conn.editorInfo, 'a legacy editor that responded must still be served');
+  });
+
   it('resolveInstance handles a port, a project path, null, and the unknown case', () => {
     const { mgr } = makeManager({
       instances: [{ projectPath: 'C:/proj/A', port: 7100, host: 'localhost' }],
       resolvePort: 6400,
     });
-    assert.deepEqual(mgr.resolveInstance(7100), { host: 'localhost', port: 7100 });
+    assert.deepEqual(mgr.resolveInstance(7100), { host: 'localhost', port: 7100 });        // port-ref: no projectPath
     assert.deepEqual(mgr.resolveInstance('7100'), { host: 'localhost', port: 7100 });
-    assert.deepEqual(mgr.resolveInstance('C:/proj/A'), { host: 'localhost', port: 7100 });
+    assert.deepEqual(mgr.resolveInstance('C:/proj/A'), { host: 'localhost', port: 7100, projectPath: 'C:/proj/A' });
     assert.equal(mgr.resolveInstance(null), null); // no default instance (ADR 0006)
     assert.equal(mgr.resolveInstance('C:/proj/missing'), null);
   });

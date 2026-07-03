@@ -11,7 +11,7 @@
  * endpoint directory; the derived port is only the default the editor tries
  * first (it falls back to an ephemeral port on collision).
  */
-import { readdirSync, readFileSync, existsSync, unlinkSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync, unlinkSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir, hostname } from 'node:os';
 
@@ -117,6 +117,16 @@ export function isLive(descriptor, nowMs = Date.now(), currentHost = hostname(),
   return isFresh(descriptor, nowMs);
 }
 
+/**
+ * True if the descriptor was published by THIS machine, so its port is reachable on loopback. A descriptor with no
+ * host predates host-tagging and is treated as local (single-machine registry). A remote descriptor resolved to a
+ * localhost port would connect to the WRONG editor (or nothing). (Bug hunt: remote-to-loopback.)
+ */
+export function isSameHost(descriptor, currentHost = hostname()) {
+  if (!descriptor?.host) return true; // legacy / local descriptor
+  return asciiLower(descriptor.host) === asciiLower(currentHost);
+}
+
 /** All readable descriptors in the registry; corrupt/foreign files are skipped. */
 export function readInstances(registryDir) {
   if (!existsSync(registryDir)) return [];
@@ -140,8 +150,14 @@ export function reapStale(registryDir, nowMs = Date.now(), currentHost = hostnam
   if (!existsSync(registryDir)) return 0;
   let reaped = 0;
   for (const entry of readdirSync(registryDir)) {
-    if (!entry.endsWith('.json')) continue;
     const file = join(registryDir, entry);
+    if (entry.endsWith('.tmp')) {
+      // Orphaned publish temp (an editor crashed mid-write) — remove if stale. C# ReapStale reaps these too; the Node
+      // path skipped .tmp entirely, leaking them forever. (Bug hunt: tmp parity.)
+      try { if (nowMs - statSync(file).mtimeMs > STALE_AFTER_MS) { unlinkSync(file); reaped++; } } catch { /* ignore */ }
+      continue;
+    }
+    if (!entry.endsWith('.json')) continue;
     let dead;
     try {
       dead = !isLive(JSON.parse(readFileSync(file, 'utf8')), nowMs, currentHost, isAlive);
@@ -149,7 +165,13 @@ export function reapStale(registryDir, nowMs = Date.now(), currentHost = hostnam
       dead = true; // corrupt
     }
     if (dead) {
-      try { unlinkSync(file); reaped++; } catch { /* held elsewhere — skip */ }
+      try {
+        // Re-verify right before delete: a live descriptor republished between the read above and here (a restarted
+        // editor for the same project) must not be reaped. (Bug hunt: reap TOCTOU.)
+        let stillDead = true;
+        try { stillDead = !isLive(JSON.parse(readFileSync(file, 'utf8')), nowMs, currentHost, isAlive); } catch { stillDead = true; }
+        if (stillDead) { unlinkSync(file); reaped++; }
+      } catch { /* held elsewhere — skip */ }
     }
   }
   return reaped;
@@ -187,7 +209,9 @@ export function resolveUnityPort(env = process.env) {
   if (projectPath) {
     try {
       const instance = findInstanceByProjectPath(defaultRegistryDirectory(env), projectPath);
-      if (instance && isLive(instance) && Number.isFinite(instance.port)) {
+      // Only a LOCAL, live editor is reachable on loopback — a remote descriptor's port would connect to the wrong
+      // editor (or nothing) on this machine. (Bug hunt: remote-to-loopback.)
+      if (instance && isLive(instance) && isSameHost(instance) && Number.isFinite(instance.port)) {
         return instance.port;
       }
     } catch {
