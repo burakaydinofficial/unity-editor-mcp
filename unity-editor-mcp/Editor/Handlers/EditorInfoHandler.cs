@@ -147,7 +147,9 @@ namespace UnityEditorMCP.Handlers
                     case "runInBackground":
                         if (value.Type != JTokenType.Boolean) return Err("runInBackground must be a boolean", "VALIDATION_ERROR");
                         PlayerSettings.runInBackground = value.ToObject<bool>(); break;
-                    case "colorSpace": PlayerSettings.colorSpace = (ColorSpace)Enum.Parse(typeof(ColorSpace), value.ToString(), true); break;
+                    case "colorSpace":
+                        if (!Enum.TryParse<ColorSpace>(value.ToString(), true, out var cs)) return Err($"Invalid colorSpace: {value}", "VALIDATION_ERROR");
+                        PlayerSettings.colorSpace = cs; break;
                     case "scriptingDefineSymbols": PlayerSettings.SetScriptingDefineSymbolsForGroup(group, value.ToString()); break;
                     default:
                         return Err($"Unsupported setting key: {key}. Supported: productName, companyName, bundleVersion, defaultScreenWidth, defaultScreenHeight, runInBackground, colorSpace, scriptingDefineSymbols.", "VALIDATION_ERROR");

@@ -763,7 +763,11 @@ namespace UnityEditorMCP.Handlers
                 {
                     try
                     {
-                        if (prop.CanRead && !prop.GetIndexParameters().Any())
+                        // Skip UnityEngine.Object-typed getters: reading Renderer.material / MeshFilter.mesh in edit
+                        // mode INSTANCES + leaks the asset and dirties the scene on a pure READ (get_component_values).
+                        // Matches the ComponentHandler read-path guard. (Bug hunt: read-with-side-effects.)
+                        if (prop.CanRead && !prop.GetIndexParameters().Any()
+                            && !typeof(UnityEngine.Object).IsAssignableFrom(prop.PropertyType))
                         {
                             var value = prop.GetValue(targetComponent);
                             if (value != null)

@@ -155,68 +155,49 @@ namespace UnityEditorMCP.Handlers
                 // Apply settings based on importer type
                 if (assetImporter is TextureImporter textureImporter)
                 {
+                    // Mut-5: PARSE + VALIDATE every value into a deferred plan BEFORE applying ANY setter. This loop
+                    // previously interleaved setter + Enum.Parse/Value<T>, so a bad value mid-loop threw AFTER earlier
+                    // keys had already mutated the (cached, dirty) importer — a partial change a later save silently
+                    // flushes. Building the plan first means any parse failure returns before a single setter runs. (Bug hunt.)
+                    var plan = new System.Collections.Generic.List<Action>();
                     foreach (var setting in newSettings)
                     {
                         var key = setting.Key;
                         var value = setting.Value;
-
                         switch (key)
                         {
                             case "maxTextureSize":
-                                previousSettings[key] = textureImporter.maxTextureSize;
-                                textureImporter.maxTextureSize = value.Value<int>();
-                                appliedSettings[key] = value.Value<int>();
-                                break;
+                            { var v = value.Value<int>(); previousSettings[key] = textureImporter.maxTextureSize; appliedSettings[key] = v; plan.Add(() => textureImporter.maxTextureSize = v); break; }
                             case "compressionQuality":
-                                previousSettings[key] = textureImporter.textureCompression == TextureImporterCompression.Compressed ? 50 : 100;
-                                var quality = value.Value<int>();
-                                textureImporter.textureCompression = quality < 100 ? TextureImporterCompression.Compressed : TextureImporterCompression.Uncompressed;
-                                appliedSettings[key] = quality;
-                                break;
+                            { var q = value.Value<int>(); previousSettings[key] = textureImporter.textureCompression == TextureImporterCompression.Compressed ? 50 : 100; appliedSettings[key] = q; plan.Add(() => textureImporter.textureCompression = q < 100 ? TextureImporterCompression.Compressed : TextureImporterCompression.Uncompressed); break; }
                             case "textureType":
-                                previousSettings[key] = textureImporter.textureType.ToString();
-                                textureImporter.textureType = (TextureImporterType)Enum.Parse(typeof(TextureImporterType), value.ToString());
-                                appliedSettings[key] = value.ToString();
-                                break;
+                            { if (!Enum.TryParse<TextureImporterType>(value.ToString(), out var tt)) return HandlerOutcome.Fail($"Invalid textureType: {value}", "VALIDATION_ERROR"); previousSettings[key] = textureImporter.textureType.ToString(); appliedSettings[key] = tt.ToString(); plan.Add(() => textureImporter.textureType = tt); break; }
                             case "filterMode":
-                                previousSettings[key] = textureImporter.filterMode.ToString();
-                                textureImporter.filterMode = (FilterMode)Enum.Parse(typeof(FilterMode), value.ToString());
-                                appliedSettings[key] = value.ToString();
-                                break;
+                            { if (!Enum.TryParse<FilterMode>(value.ToString(), out var fm)) return HandlerOutcome.Fail($"Invalid filterMode: {value}", "VALIDATION_ERROR"); previousSettings[key] = textureImporter.filterMode.ToString(); appliedSettings[key] = fm.ToString(); plan.Add(() => textureImporter.filterMode = fm); break; }
                             case "generateMipMaps":
-                                previousSettings[key] = textureImporter.mipmapEnabled;
-                                textureImporter.mipmapEnabled = value.Value<bool>();
-                                appliedSettings[key] = value.Value<bool>();
-                                break;
+                            { var mm = value.Value<bool>(); previousSettings[key] = textureImporter.mipmapEnabled; appliedSettings[key] = mm; plan.Add(() => textureImporter.mipmapEnabled = mm); break; }
                         }
                     }
+                    foreach (var apply in plan) apply();
                 }
                 else if (assetImporter is ModelImporter modelImporter)
                 {
+                    var plan = new System.Collections.Generic.List<Action>();
                     foreach (var setting in newSettings)
                     {
                         var key = setting.Key;
                         var value = setting.Value;
-
                         switch (key)
                         {
                             case "scaleFactor":
-                                previousSettings[key] = modelImporter.globalScale;
-                                modelImporter.globalScale = value.Value<float>();
-                                appliedSettings[key] = value.Value<float>();
-                                break;
+                            { var sf = value.Value<float>(); previousSettings[key] = modelImporter.globalScale; appliedSettings[key] = sf; plan.Add(() => modelImporter.globalScale = sf); break; }
                             case "animationType":
-                                previousSettings[key] = modelImporter.animationType.ToString();
-                                modelImporter.animationType = (ModelImporterAnimationType)Enum.Parse(typeof(ModelImporterAnimationType), value.ToString());
-                                appliedSettings[key] = value.ToString();
-                                break;
+                            { if (!Enum.TryParse<ModelImporterAnimationType>(value.ToString(), out var at)) return HandlerOutcome.Fail($"Invalid animationType: {value}", "VALIDATION_ERROR"); previousSettings[key] = modelImporter.animationType.ToString(); appliedSettings[key] = at.ToString(); plan.Add(() => modelImporter.animationType = at); break; }
                             case "optimizeMesh":
-                                previousSettings[key] = modelImporter.optimizeMeshPolygons;
-                                modelImporter.optimizeMeshPolygons = value.Value<bool>();
-                                appliedSettings[key] = value.Value<bool>();
-                                break;
+                            { var om = value.Value<bool>(); previousSettings[key] = modelImporter.optimizeMeshPolygons; appliedSettings[key] = om; plan.Add(() => modelImporter.optimizeMeshPolygons = om); break; }
                         }
                     }
+                    foreach (var apply in plan) apply();
                 }
 
                 // Nothing recognized applied — refuse rather than report a no-op as success (round-7 FR3).
