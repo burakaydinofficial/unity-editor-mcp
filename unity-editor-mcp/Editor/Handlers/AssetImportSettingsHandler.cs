@@ -526,6 +526,12 @@ namespace UnityEditorMCP.Handlers
                 importer.SetPlatformTextureSettings(s);
                 importer.SaveAndReimport();
 
+                // Validate the override actually persisted — Unity SILENTLY IGNORES an unknown/misspelled platform name
+                // (GetPlatformTextureSettings returns defaults, SetPlatformTextureSettings no-ops), so a typo like
+                // "Andriod" (or an unmodularized platform) would report the override as applied when it wasn't. (Bug hunt.)
+                if (s.overridden && !importer.GetPlatformTextureSettings(resolved).overridden)
+                    return HandlerOutcome.Fail($"Platform '{resolved}' is not a recognized texture platform (or its build module isn't installed) — override not applied.", "VALIDATION_ERROR");
+
                 return HandlerOutcome.Ok(new
                 {
                     success = true,

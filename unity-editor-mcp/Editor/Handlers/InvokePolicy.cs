@@ -62,7 +62,15 @@ namespace UnityEditorMCP.Handlers
             if (string.IsNullOrEmpty(pattern)) return false;
             if (pattern == "*") return true;
             if (pattern.EndsWith(".*"))
-                return target.StartsWith(pattern.Substring(0, pattern.Length - 1), StringComparison.Ordinal);
+            {
+                // "Ns.Type.*" = any METHOD of EXACTLY type Ns.Type. Require the remainder after "Ns.Type." to be a
+                // single segment (the method name, no further dots) — else a DIFFERENT type in a same-named sub-
+                // namespace ("Ns.Type.Secrets.M") would leak past a per-type grant. (Bug hunt: over-broad prefix.)
+                var prefix = pattern.Substring(0, pattern.Length - 1); // "Ns.Type."
+                if (!target.StartsWith(prefix, StringComparison.Ordinal)) return false;
+                var rest = target.Substring(prefix.Length);
+                return rest.Length > 0 && rest.IndexOf('.') < 0;
+            }
             return string.Equals(pattern, target, StringComparison.Ordinal);
         }
     }

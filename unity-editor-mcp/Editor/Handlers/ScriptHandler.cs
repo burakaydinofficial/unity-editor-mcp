@@ -48,13 +48,15 @@ namespace UnityEditorMCP.Handlers
                     path.StartsWith("Assets/") ? path.Substring(7) : path);
                 string fileName = $"{scriptName}.cs";
                 string fullPath = Path.Combine(fullDirectory, fileName);
-                // Containment on the RESOLVED path — blocks `..` traversal AND an absolute-path bypass
-                // (Path.Combine discards dataPath when handed a rooted segment like "Assets/C:/..."). Uses
-                // the same PathSafety gate as the read/update/delete/validate siblings; the editor is the
-                // sole guard since create_script is reached via call_unity_tool with no Node passthrough.
-                if (!PathSafety.IsWithinProject(fullPath))
+                // Containment: scripts must be written UNDER Assets/ (Unity only compiles Assets/ + Packages). The old
+                // PathSafety.IsWithinProject gate allowed the whole PROJECT, so path:"../Library" (or ../ProjectSettings,
+                // ../Temp) wrote a stray, never-compiled .cs there and reported success. Canonicalize + require the
+                // resolved path under Application.dataPath — defeats "..", absolute, and rooted-segment bypasses. (Bug hunt.)
+                var canonFull = Path.GetFullPath(fullPath).Replace('\\', '/');
+                var assetsRoot = Application.dataPath.Replace('\\', '/').TrimEnd('/');
+                if (!(canonFull.Equals(assetsRoot, StringComparison.OrdinalIgnoreCase) || canonFull.StartsWith(assetsRoot + "/", StringComparison.OrdinalIgnoreCase)))
                 {
-                    return HandlerOutcome.Fail("path must stay within the project root", "VALIDATION_ERROR");
+                    return HandlerOutcome.Fail("path must stay under Assets/ (within the project root)", "VALIDATION_ERROR");
                 }
                 string relativePath = Path.Combine(path, fileName).Replace('\\', '/');
 

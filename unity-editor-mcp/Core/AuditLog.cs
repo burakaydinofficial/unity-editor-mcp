@@ -10,6 +10,10 @@ namespace UnityEditorMCP.Core
     /// dotnet test. Every method is FAIL-SAFE: audit logging must never break command dispatch or reads.</summary>
     public static class AuditLog
     {
+        /// <summary>Optional sink for append failures (read-only file, disk full, lock) — the editor wires this to
+        /// Debug.LogWarning so a swallowed audit-write failure (a silently-disabled SECURITY control) is VISIBLE. (Bug hunt.)</summary>
+        public static Action<Exception> OnAppendFailure;
+
         /// <summary>Append one entry {t,type,target,ok}. If the file exceeds capBytes, drop the oldest half
         /// first (crude rotation — the truncate is occasional, so most appends are O(1)).</summary>
         public static void Append(string filePath, string type, string target, bool ok, long capBytes = 2_097_152)
@@ -31,9 +35,22 @@ namespace UnityEditorMCP.Core
                     ["target"] = target ?? "",
                     ["ok"] = ok
                 };
-                File.AppendAllText(filePath, entry.ToString(Newtonsoft.Json.Formatting.None) + "\n");
+                var text = entry.ToString(Newtonsoft.Json.Formatting.None) + "\n";
+                // If a prior append was interrupted (crash mid-write), the file may end WITHOUT a newline; a leading
+                // newline prevents gluing this entry onto that partial line (which would corrupt/lose BOTH on read). (Bug hunt.)
+                if (File.Exists(filePath) && new FileInfo(filePath).Length > 0)
+                {
+                    using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                    { fs.Seek(-1, SeekOrigin.End); if (fs.ReadByte() != '\n') text = "\n" + text; }
+                }
+                File.AppendAllText(filePath, text);
             }
-            catch { /* logging must never throw */ }
+            catch (Exception e)
+            {
+                // A swallowed audit-write failure silently disables a security control — surface it (best-effort,
+                // still never throws into dispatch). (Bug hunt.)
+                try { OnAppendFailure?.Invoke(e); } catch { }
+            }
         }
 
         /// <summary>The last <paramref name="max"/> entries (chronological), filtered by a case-insensitive

@@ -16,9 +16,11 @@ namespace UnityEditorMCP.Handlers
         // Includes dialog-opening menus that cause MCP hanging
         private static readonly HashSet<string> BlacklistedMenus = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            // Application control
+            // Application control — macOS uses "File/Quit"; Windows/Linux use "File/Exit". Block BOTH so the editor
+            // can't be terminated on the DECLARED-SUPPORTED platforms (the floor matrix runs Windows + Linux). (Bug hunt.)
             "File/Quit",
-            
+            "File/Exit",
+
             // Dialog-opening file operations (cause MCP hanging)
             "File/Open Scene",
             "File/New Scene",

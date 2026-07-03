@@ -31,7 +31,13 @@ namespace UnityEditorMCP.Core
                 .ToList();
             if (split.Count == 0) return payload;
 
-            return ProjectSegments(payload, split);
+            var projected = ProjectSegments(payload, split);
+            // Guard against SILENT TOTAL DATA LOSS: if a projection matches NOTHING at the top level (every requested
+            // path a typo / case-mismatch), return the FULL payload rather than an empty {} that reads as empty
+            // success — the caller sees their data and can fix `fields`. (Bug hunt: all-miss projection.)
+            if (payload is JObject src && src.Count > 0 && projected is JObject proj && proj.Count == 0)
+                return payload;
+            return projected;
         }
 
         private static JToken ProjectSegments(JToken token, List<string[]> paths)
@@ -50,7 +56,8 @@ namespace UnityEditorMCP.Core
                 foreach (var group in paths.GroupBy(p => p[0]))
                 {
                     var head = group.Key;
-                    if (!obj.TryGetValue(head, out var child)) continue; // missing → omit (lenient)
+                    // Case-INSENSITIVE head match — a "Name" vs "name" mismatch previously dropped the whole key. (Bug hunt.)
+                    if (!obj.TryGetValue(head, System.StringComparison.OrdinalIgnoreCase, out var child)) continue; // missing → omit (lenient)
 
                     // A leaf selection ("head") includes the whole subtree; deeper paths refine.
                     // If both are present for the same head, the leaf wins (whole subtree).

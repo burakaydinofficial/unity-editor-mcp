@@ -51,15 +51,22 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail("outputPath must stay within the project root", "VALIDATION_ERROR");
                 }
 
-                // Restrict WRITES to under Assets/ with a .png extension. Without this, a caller (or a direct TCP
-                // client) could set outputPath to Library/UnityEditorMCP/audit-log.jsonl, a ProjectSettings/*.asset,
-                // or a source .cs and OVERWRITE it with binary PNG bytes — destroying the H5 audit log / settings /
-                // source and reporting success. capture_screenshot has no Node-side guard, so this is the sole gate.
-                // (Bug hunt: capture write-anywhere-in-project.)
-                var lowerOut = outputPath.Replace('\\', '/').ToLowerInvariant();
-                if (!lowerOut.StartsWith("assets/"))
-                    return HandlerOutcome.Fail("outputPath must be under Assets/ (screenshots are written as project assets).", "VALIDATION_ERROR");
-                if (!lowerOut.EndsWith(".png"))
+                // Restrict WRITES to under the Assets/ folder as .png so a caller can't overwrite the H5 audit log,
+                // ProjectSettings, Library, or a source .cs with PNG bytes. CANONICALIZE first (resolve absolute +
+                // collapse ..) and check the RESULT is under Application.dataPath — a literal StartsWith("assets/")
+                // both let "Assets/../Packages/x.png" ESCAPE and rejected a legit absolute in-project path. (Bug hunt capture gate.)
+                var dataPath = Application.dataPath.Replace('\\', '/').TrimEnd('/'); // <proj>/Assets
+                string absOut;
+                try
+                {
+                    absOut = Path.GetFullPath(Path.IsPathRooted(outputPath)
+                        ? outputPath
+                        : Path.Combine(Directory.GetParent(Application.dataPath).FullName, outputPath)).Replace('\\', '/');
+                }
+                catch { return HandlerOutcome.Fail("Invalid outputPath.", "VALIDATION_ERROR"); }
+                if (!(absOut.Equals(dataPath, StringComparison.OrdinalIgnoreCase) || absOut.StartsWith(dataPath + "/", StringComparison.OrdinalIgnoreCase)))
+                    return HandlerOutcome.Fail("outputPath must be under the Assets/ folder (screenshots are written as project assets).", "VALIDATION_ERROR");
+                if (!absOut.ToLowerInvariant().EndsWith(".png"))
                     return HandlerOutcome.Fail("outputPath must end with .png", "VALIDATION_ERROR");
 
                 // Ensure directory exists

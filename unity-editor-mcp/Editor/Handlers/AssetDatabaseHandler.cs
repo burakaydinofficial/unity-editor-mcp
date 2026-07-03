@@ -224,6 +224,10 @@ namespace UnityEditorMCP.Handlers
                 }
 
                 var guid = AssetDatabase.CreateFolder(parentPath, folderName);
+                // CreateFolder returns "" (empty GUID) on failure (invalid name, or a name colliding with a non-folder
+                // asset). The return was ignored -> success reported for a folder that was never created. (Bug hunt.)
+                if (string.IsNullOrEmpty(guid))
+                    return HandlerOutcome.Fail($"Failed to create folder '{folderName}' in '{parentPath}' — invalid name or a name collision.", "INTERNAL_ERROR");
 
                 return HandlerOutcome.Ok(new
                 {

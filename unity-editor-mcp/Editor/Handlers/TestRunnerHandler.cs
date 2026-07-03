@@ -35,24 +35,11 @@ namespace UnityEditorMCP.Handlers
         //  - RunFinished journals the full result tree to Library/, and get_test_results falls back to that file
         //    when a later reload has wiped the in-memory dictionary.
         private const string RunningKey = "UnityEditorMCP.TestRunner.IsRunning";
-        private const string RunStartedKey = "UnityEditorMCP.TestRunner.StartedTicks";
         private const string RunModeKey = "UnityEditorMCP.TestRunner.RunMode";
         private static bool IsRunningTests
         {
             get { return SessionState.GetBool(RunningKey, false); }
             set { SessionState.SetBool(RunningKey, value); }
-        }
-
-        // The SessionState guard survives reloads (correct), but if a run dies WITHOUT a RunFinished (PlayMode Stop,
-        // crash, a reload that drops the run) it would LATCH forever and wedge run_tests. Treat it as stale if it has
-        // been set for >15 min (or has no start stamp), so run_tests self-heals. (Bug hunt H.)
-        private static bool IsRunGuardStale()
-        {
-            if (!IsRunningTests) return false;
-            var s = SessionState.GetString(RunStartedKey, "");
-            if (string.IsNullOrEmpty(s)) return true;
-            return long.TryParse(s, out var ticks)
-                && (DateTime.UtcNow - new DateTime(ticks, DateTimeKind.Utc)).TotalMinutes > 15;
         }
 
         private static string ResultsFilePath
@@ -143,11 +130,13 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
-                if (IsRunningTests && !IsRunGuardStale())
+                if (IsRunningTests)
                 {
+                    // Hard refuse — NEVER auto-clear on wall-clock (that clobbered a legitimately long-running suite,
+                    // a fresh regression). A stopped/crashed PlayMode run is cleared by the play-mode-exit hook below;
+                    // a normal completion by RunFinished; an editor restart clears the SessionState guard. (Bug hunt.)
                     return HandlerOutcome.Fail("Tests are already running. Please wait for them to complete or cancel.", "INVALID_STATE");
                 }
-                if (IsRunningTests) Debug.LogWarning("[TestRunner] Clearing a stale IsRunningTests guard (no RunFinished within 15 min).");
 
                 var testMode = ParseTestMode(parameters["testMode"]?.ToString());
                 var testNames = parameters["testNames"]?.ToObject<string[]>();
@@ -197,7 +186,6 @@ namespace UnityEditorMCP.Handlers
                 EnsureCallbacksRegistered();
 
                 IsRunningTests = true;
-                SessionState.SetString(RunStartedKey, DateTime.UtcNow.Ticks.ToString());
                 SessionState.SetString(RunModeKey, testMode.ToString());
 
                 // Execute tests

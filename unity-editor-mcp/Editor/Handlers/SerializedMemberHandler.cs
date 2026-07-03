@@ -218,8 +218,12 @@ namespace UnityEditorMCP.Handlers
             var set = p["set"] as JObject;
             if (set == null) return HandlerOutcome.Fail("match write needs set{}", "VALIDATION_ERROR");
             var paths = set.Properties().Select(x => x.Name).ToList();
-            var targets = SerializedTargeting.ResolveMatch(match, p, MaxObjectsCeiling, out var code, out var msg);
+            // Probe ONE past the ceiling so a truncated match is DETECTABLE, then cap + signal it. A silent 500-cap on
+            // a bulk WRITE (Inspect reports `truncated`; this didn't) partially updated with no signal. (Bug hunt.)
+            var targets = SerializedTargeting.ResolveMatch(match, p, MaxObjectsCeiling + 1, out var code, out var msg);
             if (code != null) return HandlerOutcome.Fail(msg, code);
+            bool truncated = targets.Count > MaxObjectsCeiling;
+            if (truncated) targets = targets.Take(MaxObjectsCeiling).ToList();
 
             var liveToken = MatchToken(targets, paths);
             var providedToken = p["token"]?.ToString();
@@ -233,7 +237,7 @@ namespace UnityEditorMCP.Handlers
                     foreach (var path in paths) { var sp = so.FindProperty(path); cur[path] = sp != null ? SerializedValue.Read(sp) : JValue.CreateNull(); }
                     objects.Add(new JObject { ["target"] = t.Describe, ["current"] = cur });
                 }
-                return HandlerOutcome.Ok(new JObject { ["applied"] = false, ["count"] = targets.Count, ["objects"] = objects, ["token"] = liveToken });
+                return HandlerOutcome.Ok(new JObject { ["applied"] = false, ["count"] = targets.Count, ["truncated"] = truncated, ["objects"] = objects, ["token"] = liveToken });
             }
 
             if (!force && providedToken != liveToken) return HandlerOutcome.Fail("matched set or values changed since preview", "STALE_MATCH");
@@ -265,7 +269,7 @@ namespace UnityEditorMCP.Handlers
                 finally { if (!withoutUndo) { Undo.SetCurrentGroupName(undoLabel); Undo.CollapseUndoOperations(Undo.GetCurrentGroup()); } }
                 foreach (var o in dirty.Distinct()) EditorUtility.SetDirty(o);
             }
-            return HandlerOutcome.Ok(new JObject { ["applied"] = !dryRun, ["forced"] = force, ["changed"] = changed, ["skipped"] = skipped });
+            return HandlerOutcome.Ok(new JObject { ["applied"] = !dryRun, ["forced"] = force, ["truncated"] = truncated, ["changed"] = changed, ["skipped"] = skipped });
         }
 
         // Stateless token: SHA-256 over (sorted instanceId + current canonical value at each touched path).

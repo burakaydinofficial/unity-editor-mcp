@@ -27,8 +27,11 @@ namespace UnityEditorMCP.Core
         // The live transport is Core's dotnet-tested TcpTransport (ADR 0002): framing/accept/send
         // come from Core.
         private static TcpTransport _transport;
-        private static readonly Queue<(Command command, Action<string> respond)> commandQueue = new Queue<(Command, Action<string>)>();
+        private static readonly Queue<(Command command, Action<string> respond, DateTime enqueuedUtc)> commandQueue = new Queue<(Command, Action<string>, DateTime)>();
         private static readonly object queueLock = new object();
+        // A queued command that waited longer than the client's command timeout has been ABANDONED by the Node client;
+        // skip its dispatch so a mutation the agent was told FAILED doesn't silently commit (phantom mutation). (Bug hunt.)
+        private const double StaleCommandSeconds = 30;
 
         /// <summary>Bridges Core's logging seam (IMcpLogger) to the Unity console.</summary>
         private sealed class EditorLogger : IMcpLogger
@@ -373,18 +376,20 @@ namespace UnityEditorMCP.Core
                 var command = JsonConvert.DeserializeObject<Command>(json);
                 if (command == null)
                 {
-                    respond(Response.ErrorResult("Invalid command format", "PARSE_ERROR", null));
+                    // NAMED args: (string,string,null) otherwise binds to the id-FIRST ErrorResult overload (null->string
+                    // code is more specific than object details), scrambling id/message/code. (Bug hunt: error overload.)
+                    respond(Response.ErrorResult(errorMessage: "Invalid command format", code: "PARSE_ERROR"));
                     return;
                 }
 
                 lock (queueLock)
                 {
-                    commandQueue.Enqueue((command, respond));
+                    commandQueue.Enqueue((command, respond, DateTime.UtcNow));
                 }
             }
             catch (JsonException ex)
             {
-                respond(Response.ErrorResult($"JSON parsing error: {ex.Message}", "JSON_ERROR", null));
+                respond(Response.ErrorResult(errorMessage: $"JSON parsing error: {ex.Message}", code: "JSON_ERROR"));
             }
         }
         
@@ -403,16 +408,25 @@ namespace UnityEditorMCP.Core
             // Drain the queue under the lock, then dispatch OUTSIDE it so a slow handler
             // (or a blocked respond) never stalls the background network thread that is
             // trying to enqueue newly-arrived messages.
-            List<(Command command, Action<string> respond)> batch;
+            List<(Command command, Action<string> respond, DateTime enqueuedUtc)> batch;
             lock (queueLock)
             {
                 if (commandQueue.Count == 0) return;
-                batch = new List<(Command, Action<string>)>(commandQueue.Count);
+                batch = new List<(Command, Action<string>, DateTime)>(commandQueue.Count);
                 while (commandQueue.Count > 0) batch.Add(commandQueue.Dequeue());
             }
 
-            foreach (var (command, respond) in batch)
+            foreach (var (command, respond, enqueuedUtc) in batch)
             {
+                // If this command waited in the queue longer than the client's command timeout (behind a slow handler),
+                // the Node client has already rejected it with a timeout — executing it now would land a MUTATION the
+                // agent was told FAILED (a phantom mutation). Skip the dispatch and reply with a stale error. (Bug hunt.)
+                if ((DateTime.UtcNow - enqueuedUtc).TotalSeconds > StaleCommandSeconds)
+                {
+                    try { respond(Response.ErrorResult(command?.Id, "Command skipped — it waited past the client timeout behind a slower command and was NOT executed.", "STALE_COMMAND")); }
+                    catch { /* client gone */ }
+                    continue;
+                }
                 // Every command rides the Core CommandDispatcher rail; Dispatch returns a proper
                 // UNKNOWN_COMMAND error for any unregistered type (the legacy switch is retired).
                 DispatchViaCore(command, respond);

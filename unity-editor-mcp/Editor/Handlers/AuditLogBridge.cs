@@ -16,6 +16,12 @@ namespace UnityEditorMCP.Handlers
         // On by default; UNITY_MCP_AUDIT_LOG=0 disables.
         private static bool Enabled => Environment.GetEnvironmentVariable("UNITY_MCP_AUDIT_LOG") != "0";
 
+        static AuditLogBridge()
+        {
+            // Surface a swallowed audit-write failure (a silently-disabled security control) in the editor console. (Bug hunt.)
+            AuditLog.OnAppendFailure = e => Debug.LogWarning($"[UnityEditorMCP] Audit-log append FAILED (security event not recorded): {e.Message}");
+        }
+
         public static void Record(string type, JObject parameters, bool ok)
         {
             if (!Enabled || string.IsNullOrEmpty(type)) return;
