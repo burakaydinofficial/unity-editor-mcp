@@ -45,15 +45,16 @@ in sync when you add or remove a guard.
 
 Tracked openly so the list is the work list:
 
-1. **Floor CI-verified (2019.4–2022.3); Unity 6 pending.** The **floor-matrix**
+1. **Floor CI-verified (2019.4 → Unity 6.0).** The **floor-matrix**
    (`.github/workflows/floor-matrix.yml`) cold-compiles the package and runs the full
-   EditMode suite on **2019.4 / 2020.3 / 2021.3 / 2022.3** (GameCI, per-version host
+   EditMode suite on **2019.4 / 2020.3 / 2021.3 / 2022.3 / 6000.0** (GameCI, per-version host
    projects under `ci/unity-host-<ver>/`) on every release tag and on PRs touching the
    package. Backed by two pure-Node PR gates: **compat-lint** (`scripts/compat-lint.mjs`,
-   flags unguarded floor-divergent APIs) and the **Core `dotnet test`** lane. Still
-   open: a **Unity 6 (6000.x)** host in the matrix (the API is guarded; the host
-   project is pending). Lesson: floor-compat needs a *cold* compile — an interactive
-   editor's incremental compile can hide a floor break with a stale assembly.
+   flags unguarded floor-divergent APIs) and the **Core `dotnet test`** lane. Unity 6.0
+   (`6000.0.78f1`) is CI-verified as of 0.21.0 (297/297 EditMode green — the
+   `UNITY_6000_0_OR_NEWER` guard branches confirmed); newer 6.x remain API-guarded. Lesson:
+   floor-compat needs a *cold* compile — an interactive editor's incremental compile can
+   hide a floor break with a stale assembly.
 2. **Test Runner wiring — fixed and verified live.** Added the
    `UnityEditor.TestRunner` assembly reference to `UnityEditorMCP.Editor.asmdef`,
    declared `com.unity.test-framework` (>= 1.1.33; UPM resolves higher on newer

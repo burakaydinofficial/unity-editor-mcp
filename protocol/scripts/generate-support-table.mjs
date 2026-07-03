@@ -17,7 +17,7 @@ let inUnity = false;
 for (const line of workflow.split(/\r?\n/)) {
   if (/^\s*unity:\s*$/.test(line)) { inUnity = true; continue; }
   if (!inUnity) continue;
-  const m = line.match(/^\s*-\s*(\d+\.\d+\.\d+\S*)\s*$/);
+  const m = line.match(/^\s*-\s*(\d+\.\d+\.\d+\S*)\s*(?:#.*)?$/); // tolerate an inline "# comment" after the version
   if (m) { versions.push(m[1]); continue; }
   const t = line.trim();
   if (t && !t.startsWith('#') && !t.startsWith('-')) break; // a less-indented key ends the matrix block
@@ -37,8 +37,8 @@ const table = [
   '',
   '**Floor = 2019.4 LTS** — the lowest version in the CI matrix. The versions above run the full EditMode suite in',
   'the [floor-matrix CI](.github/workflows/floor-matrix.yml) on every release tag, each version-divergent API',
-  'guarded under `#if` with both branches (see [`COMPATIBILITY.md`](COMPATIBILITY.md)). **Unity 6 (6000.x)** is',
-  'guarded; a CI host project is pending.',
+  'guarded under `#if` with both branches (see [`COMPATIBILITY.md`](COMPATIBILITY.md)). **Unity 6.0** is CI-verified',
+  'in the matrix above; newer 6.x releases remain API-guarded.',
   '<!-- SUPPORT-TABLE:END -->',
 ].join('\n');
 

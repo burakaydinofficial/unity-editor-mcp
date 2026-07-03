@@ -71,8 +71,8 @@ floor-treadmill, then polish.
 11. C# dispatch codegen from the catalog (compile-time half; conformance covers runtime).
 12. game-ci single floor lane (2020.3, license-gated).
 13. ~~2019.4 exploration (C# 7.3)~~ — **DONE:** 2019.4 is the declared floor and a CI lane — the
-    floor-matrix compiles + EditMode-tests all of 2019.4 / 2020.3 / 2021.3 / 2022.3 (Unity 2019.4 = the
-    floor; Unity 6000.x is API-guarded but its CI host is still pending).
+    floor-matrix compiles + EditMode-tests all of 2019.4 / 2020.3 / 2021.3 / 2022.3 / 6000.0 (Unity 2019.4 =
+    the floor; Unity 6.0 CI-verified as of 0.21.0; newer 6.x API-guarded).
 
 ## Adversarial audit (2026-06-13)
 

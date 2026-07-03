@@ -36,11 +36,12 @@ Unity Editor MCP (Model Context Protocol) enables AI assistants like Claude and 
 | 2020.3 LTS | `2020.3.49f1` | ✅ compiles + EditMode tests green |
 | 2021.3 LTS | `2021.3.45f2` | ✅ compiles + EditMode tests green |
 | 2022.3 LTS | `2022.3.62f2` | ✅ compiles + EditMode tests green |
+| 6000.0 LTS | `6000.0.78f1` | ✅ compiles + EditMode tests green |
 
 **Floor = 2019.4 LTS** — the lowest version in the CI matrix. The versions above run the full EditMode suite in
 the [floor-matrix CI](.github/workflows/floor-matrix.yml) on every release tag, each version-divergent API
-guarded under `#if` with both branches (see [`COMPATIBILITY.md`](COMPATIBILITY.md)). **Unity 6 (6000.x)** is
-guarded; a CI host project is pending.
+guarded under `#if` with both branches (see [`COMPATIBILITY.md`](COMPATIBILITY.md)). **Unity 6.0** is CI-verified
+in the matrix above; newer 6.x releases remain API-guarded.
 <!-- SUPPORT-TABLE:END -->
 
 ## 🚀 Quick Start

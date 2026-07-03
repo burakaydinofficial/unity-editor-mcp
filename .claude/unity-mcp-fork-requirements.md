@@ -7,8 +7,8 @@
 > **P0** = the fork's identity (ship nothing without these) · **P1** = first releases · **P2** = stretch.
 >
 > **Floor-proof status (as of 0.20.5): DONE.** The declared floor is **Unity 2019.4 LTS** (UPM `unity`
-> = `2019.4`) and the floor-matrix CI cold-compiles + EditMode-tests all four of **2019.4 / 2020.3 /
-> 2021.3 / 2022.3** (Unity 6000.x is API-guarded but its CI host is still pending).
+> = `2019.4`) and the floor-matrix CI cold-compiles + EditMode-tests all five of **2019.4 / 2020.3 /
+> 2021.3 / 2022.3 / 6000.0** — Unity 6.0 CI-verified as of 0.21.0; newer 6.x remain API-guarded.
 
 ---
 
@@ -24,7 +24,7 @@
   while the manifest said 6000.0.)
 - **A3 (P0). ✅ DONE** (`.github/workflows/floor-matrix.yml`). **CI version matrix as the product:** GitHub
   Actions (game-ci/unity-builder or equivalent) compiling the Unity package + running the EditMode suite on
-  **2019.4 / 2020.3 / 2021.3 / 2022.3 (a Unity 6 host still pending)** on every PR; releases blocked on full
+  **2019.4 / 2020.3 / 2021.3 / 2022.3 / 6000.0** on every PR; releases blocked on full
   green. Add editor versions only with their matrix lane.
 - **A4 (P0).** Lockstep versioning: one release tags Unity package + npm server with the same semver; the
   server validates the version pair at handshake and reports a mismatch as a structured error (not a

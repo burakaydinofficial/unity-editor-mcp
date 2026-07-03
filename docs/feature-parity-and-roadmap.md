@@ -60,8 +60,8 @@ resolve/type-members/implementations)
   fabricated at read time.
 - **`clear_console`** — `clearOnRecompile` / `clearOnBuild` params are accepted but not applied (no stable EditorPref);
   the response now reports this honestly (`clearOnRecompileApplied: false`).
-- **Unity 6 (6000.x)** — guarded in code per `COMPATIBILITY.md` but **not yet CI-verified** (no floor-matrix host
-  project for Unity 6 yet). Adding a 6000.x host to `floor-matrix.yml` is the one outstanding compat item.
+- **Unity 6 (6000.x)** — **6.0 is now CI-verified** (`6000.0.78f1` in the floor-matrix as of 0.21.0, 297/297 EditMode
+  green); newer 6.x (6.1+) remain API-guarded but not in the matrix — add a host only if you want a newer-6.x ceiling.
 
 ## Roadmap — closing the gap (by impact per effort)
 
