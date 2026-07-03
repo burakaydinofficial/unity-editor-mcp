@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.Serialization;
 using UnityEditor;
 using Newtonsoft.Json.Linq;
 
@@ -27,9 +26,15 @@ namespace UnityEditorMCP.Handlers
             { error = $"CONSTRAINT_NOT_RESOLVED: cannot resolve the field's managed-reference constraint '{fieldConstraint}'"; return false; }
             if (constraint != null && !constraint.IsAssignableFrom(type)) { error = $"TYPE_NOT_ASSIGNABLE: {type.FullName} is not assignable to {constraint.FullName}"; return false; }
             object instance;
-            try { instance = Activator.CreateInstance(type); }                       // run a parameterless ctor for defaults
-            catch { try { instance = FormatterServices.GetUninitializedObject(type); } // fallback: no ctor (Unity's path)
-                    catch (Exception e) { error = $"cannot instantiate {type.FullName}: {e.Message}"; return false; } }
+            try { instance = Activator.CreateInstance(type); } // requires a parameterless ctor (Unity needs one to serialize the reference)
+            catch (Exception e)
+            {
+                // Do NOT fall back to FormatterServices.GetUninitializedObject: it skips the constructor AND field
+                // initializers, assigning a HALF-CONSTRUCTED value that serializes as garbage while reporting success.
+                // Require a usable constructor instead. (Bug hunt: half-constructed managed reference.)
+                error = $"cannot instantiate {type.FullName} — a [SerializeReference] type needs a public parameterless constructor: {e.Message}";
+                return false;
+            }
             p.managedReferenceValue = instance;
             return true;
         }

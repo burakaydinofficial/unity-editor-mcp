@@ -607,7 +607,7 @@ namespace UnityEditorMCP.Handlers
                 FieldInfo field = type.GetField(propertyName, BindingFlags.Public | BindingFlags.Instance);
                 if (field != null)
                 {
-                    object convertedValue = ConvertValue(value, field.FieldType);
+                    object convertedValue = ConvertValue(value, field.FieldType, field.GetValue(component)); // pass current -> merge composites
                     field.SetValue(component, convertedValue);
                     return true;
                 }
@@ -616,7 +616,7 @@ namespace UnityEditorMCP.Handlers
                 PropertyInfo property = type.GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
                 if (property != null && property.CanWrite)
                 {
-                    object convertedValue = ConvertValue(value, property.PropertyType);
+                    object convertedValue = ConvertValue(value, property.PropertyType, property.CanRead ? property.GetValue(component) : null);
                     property.SetValue(component, convertedValue);
                     return true;
                 }
@@ -739,7 +739,11 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Converts a JSON value to the target type
         /// </summary>
-        public static object ConvertValue(JToken value, Type targetType)
+        public static object ConvertValue(JToken value, Type targetType) => ConvertValue(value, targetType, null);
+
+        // `current` is the field/property's CURRENT value: composite writes MERGE with it so an omitted component keeps
+        // its current value instead of being zero-filled (a partial {x:2} must not clobber y/z). (Bug hunt: composite.)
+        public static object ConvertValue(JToken value, Type targetType, object current)
         {
             if (value == null || value.Type == JTokenType.Null)
                 return null;
@@ -749,9 +753,10 @@ namespace UnityEditorMCP.Handlers
             {
                 if (value.Type == JTokenType.Object)
                 {
-                    float x = value["x"]?.ToObject<float>() ?? 0f;
-                    float y = value["y"]?.ToObject<float>() ?? 0f;
-                    float z = value["z"]?.ToObject<float>() ?? 0f;
+                    var c = current is Vector3 cv ? cv : Vector3.zero;
+                    float x = value["x"]?.ToObject<float>() ?? c.x;
+                    float y = value["y"]?.ToObject<float>() ?? c.y;
+                    float z = value["z"]?.ToObject<float>() ?? c.z;
                     return new Vector3(x, y, z);
                 }
             }
@@ -759,8 +764,9 @@ namespace UnityEditorMCP.Handlers
             {
                 if (value.Type == JTokenType.Object)
                 {
-                    float x = value["x"]?.ToObject<float>() ?? 0f;
-                    float y = value["y"]?.ToObject<float>() ?? 0f;
+                    var c = current is Vector2 cv ? cv : Vector2.zero;
+                    float x = value["x"]?.ToObject<float>() ?? c.x;
+                    float y = value["y"]?.ToObject<float>() ?? c.y;
                     return new Vector2(x, y);
                 }
             }
@@ -768,10 +774,11 @@ namespace UnityEditorMCP.Handlers
             {
                 if (value.Type == JTokenType.Object)
                 {
-                    float r = value["r"]?.ToObject<float>() ?? 0f;
-                    float g = value["g"]?.ToObject<float>() ?? 0f;
-                    float b = value["b"]?.ToObject<float>() ?? 0f;
-                    float a = value["a"]?.ToObject<float>() ?? 1f;
+                    var c = current is Color cv ? cv : new Color(0f, 0f, 0f, 1f);
+                    float r = value["r"]?.ToObject<float>() ?? c.r;
+                    float g = value["g"]?.ToObject<float>() ?? c.g;
+                    float b = value["b"]?.ToObject<float>() ?? c.b;
+                    float a = value["a"]?.ToObject<float>() ?? c.a;
                     return new Color(r, g, b, a);
                 }
             }
@@ -779,16 +786,29 @@ namespace UnityEditorMCP.Handlers
             {
                 if (value.Type == JTokenType.Object)
                 {
-                    float x = value["x"]?.ToObject<float>() ?? 0f;
-                    float y = value["y"]?.ToObject<float>() ?? 0f;
-                    float z = value["z"]?.ToObject<float>() ?? 0f;
-                    float w = value["w"]?.ToObject<float>() ?? 1f;
+                    var c = current is Quaternion cv ? cv : Quaternion.identity;
+                    float x = value["x"]?.ToObject<float>() ?? c.x;
+                    float y = value["y"]?.ToObject<float>() ?? c.y;
+                    float z = value["z"]?.ToObject<float>() ?? c.z;
+                    float w = value["w"]?.ToObject<float>() ?? c.w;
                     return new Quaternion(x, y, z, w);
                 }
             }
             else if (targetType.IsEnum)
             {
-                return Enum.Parse(targetType, value.ToString(), true);
+                // Validate the value — Enum.Parse casts an out-of-range NUMBER to an undefined member with NO exception
+                // (a corrupt enum stored + reported as success). Require a defined member, or a valid [Flags] bit
+                // combination. Throws on invalid -> the caller records it in failedProperties. (Bug hunt: enum.)
+                var parsed = Enum.Parse(targetType, value.ToString(), true);
+                bool ok = Enum.IsDefined(targetType, parsed);
+                if (!ok && targetType.GetCustomAttributes(typeof(FlagsAttribute), false).Length > 0)
+                {
+                    long pv = Convert.ToInt64(parsed), mask = 0;
+                    foreach (var ev in Enum.GetValues(targetType)) mask |= Convert.ToInt64(ev);
+                    ok = (pv & ~mask) == 0;
+                }
+                if (!ok) throw new ArgumentException($"{value} is not a valid value of {targetType.Name}");
+                return parsed;
             }
 
             // Use JSON.NET for other conversions

@@ -20,7 +20,16 @@ namespace UnityEditorMCP.Handlers
             if (target?["instanceId"] != null) obj = EditorUtility.InstanceIDToObject(target["instanceId"].Value<int>());
             else if (target?["assetPath"] != null) obj = AssetDatabase.LoadMainAssetAtPath(target["assetPath"].Value<string>());
             else if (target?["guid"] != null) obj = AssetDatabase.LoadMainAssetAtPath(AssetDatabase.GUIDToAssetPath(target["guid"].Value<string>()));
-            else if (target?["scenePath"] != null) obj = FindByScenePath(target["scenePath"].Value<string>());
+            else if (target?["scenePath"] != null)
+            {
+                // A single-target scenePath must be UNAMBIGUOUS: same-named roots across additive scenes (or same-named
+                // siblings) previously resolved to the FIRST match, landing the write on the WRONG GameObject silently.
+                // Fail AMBIGUOUS_TARGET so the caller disambiguates by instanceId. (Bug hunt: wrong-object write.)
+                var sp = target["scenePath"].Value<string>();
+                var matches = AllGameObjects(LoadedRootObjects()).Where(g => ScenePath(g) == sp).Take(2).ToList();
+                if (matches.Count > 1) { code = "AMBIGUOUS_TARGET"; message = $"scenePath '{sp}' matches multiple GameObjects — target by instanceId to disambiguate"; return false; }
+                obj = matches.FirstOrDefault();
+            }
             else { code = "VALIDATION_ERROR"; message = "target needs one of instanceId/assetPath/guid/scenePath"; return false; }
 
             if (obj == null) { code = "TARGET_NOT_FOUND"; message = "target did not resolve"; return false; }
@@ -66,7 +75,19 @@ namespace UnityEditorMCP.Handlers
             foreach (var go in gos.Distinct())
             {
                 if (list.Count >= max) break;
-                if (ResolveSingle(new JObject { ["instanceId"] = go.GetInstanceID() }, effParent, out var rt, out _, out _)) list.Add(rt);
+                if (matchComp != null)
+                {
+                    // Edit EVERY component of the matched type on this GameObject, not just index 0 — a GO carrying two
+                    // same-type components (e.g. two AudioSource) previously left the extras silently untouched. (Bug hunt.)
+                    var comps = go.GetComponents<Component>().Where(c => c != null && (c.GetType().Name == matchComp || c.GetType().FullName == matchComp)).ToList();
+                    for (int ci = 0; ci < comps.Count && list.Count < max; ci++)
+                    {
+                        var ep = (JObject)effParent.DeepClone();
+                        ep["component"] = matchComp; ep["componentIndex"] = ci;
+                        if (ResolveSingle(new JObject { ["instanceId"] = go.GetInstanceID() }, ep, out var rt, out _, out _)) list.Add(rt);
+                    }
+                }
+                else if (ResolveSingle(new JObject { ["instanceId"] = go.GetInstanceID() }, effParent, out var rt2, out _, out _)) list.Add(rt2);
             }
             return list;
         }
@@ -99,7 +120,13 @@ namespace UnityEditorMCP.Handlers
             // open. Stage first (matches the by-path resolvers' stage-first preference).
             var stage = AssetManagementHandler.GetOpenPrefabStageScene();
             if (stage.HasValue && stage.Value.IsValid())
+            {
+                // A prefab stage is open in ISOLATION — scope to the stage ONLY. Previously this ALSO yielded every
+                // loaded (hidden background) scene's roots, so a bulk match (tag/componentType/prefab) silently mutated
+                // the background scene while a prefab was open. (Bug hunt: prefab-stage background mutation.)
                 foreach (var r in stage.Value.GetRootGameObjects()) yield return r;
+                yield break;
+            }
             for (int i = 0; i < SceneManager.sceneCount; i++) { var sc = SceneManager.GetSceneAt(i); if (sc.isLoaded) foreach (var r in sc.GetRootGameObjects()) yield return r; }
         }
         private static IEnumerable<GameObject> AllGameObjects(IEnumerable<GameObject> roots) { foreach (var r in roots) foreach (var t in r.GetComponentsInChildren<Transform>(true)) yield return t.gameObject; }

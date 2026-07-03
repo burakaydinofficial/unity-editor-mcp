@@ -56,14 +56,19 @@ namespace UnityEditorMCP.Core
                 foreach (var group in paths.GroupBy(p => p[0]))
                 {
                     var head = group.Key;
-                    // Case-INSENSITIVE head match — a "Name" vs "name" mismatch previously dropped the whole key. (Bug hunt.)
-                    if (!obj.TryGetValue(head, System.StringComparison.OrdinalIgnoreCase, out var child)) continue; // missing → omit (lenient)
+                    // Case-INSENSITIVE head match — a "Name" vs "name" mismatch previously dropped the whole key. Use
+                    // the payload's ACTUAL key for output so the projection preserves real casing instead of RENAMING
+                    // the field to the caller's requested casing. (Bug hunt: case match + rename.)
+                    string actualKey = null; JToken child = null;
+                    foreach (var prop in obj.Properties())
+                        if (string.Equals(prop.Name, head, System.StringComparison.OrdinalIgnoreCase)) { actualKey = prop.Name; child = prop.Value; break; }
+                    if (actualKey == null) continue; // missing → omit (lenient)
 
                     // A leaf selection ("head") includes the whole subtree; deeper paths refine.
                     // If both are present for the same head, the leaf wins (whole subtree).
                     var leaf = group.Any(p => p.Length == 1);
                     var tails = group.Where(p => p.Length > 1).Select(p => p.Skip(1).ToArray()).ToList();
-                    result[head] = (leaf || tails.Count == 0)
+                    result[actualKey] = (leaf || tails.Count == 0)
                         ? child
                         : ProjectSegments(child, tails);
                 }

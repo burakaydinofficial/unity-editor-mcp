@@ -1032,14 +1032,17 @@ namespace UnityEditorMCP.Handlers
                 string closedPath = target.path;
                 string closedName = target.name;
                 bool ok = EditorSceneManager.CloseScene(target, removeScene);
+                // A failed close is a FAILURE, not an Ok envelope carrying success:false. (Bug hunt: ignored result.)
+                if (!ok)
+                    return HandlerOutcome.Fail($"Failed to close scene '{closedName}' — Unity refused the close.", "INTERNAL_ERROR");
                 return HandlerOutcome.Ok(new
                 {
-                    success = ok,
+                    success = true,
                     closedScene = closedPath,
                     name = closedName,
                     removed = removeScene,
                     remainingLoaded = CountLoadedScenes(),
-                    message = ok ? $"Closed scene: {closedName}" : $"Failed to close scene: {closedName}"
+                    message = $"Closed scene: {closedName}"
                 });
             }
             catch (Exception e)

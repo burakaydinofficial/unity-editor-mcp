@@ -418,9 +418,14 @@ namespace UnityEditorMCP.Handlers
                 // Parent (resolved + validated above; reparent==true allows null -> unparent)
                 if (reparent)
                 {
-                    if (obj.transform.parent != (resolvedParent ? resolvedParent.transform : null))
+                    var desiredParent = resolvedParent ? resolvedParent.transform : null;
+                    if (obj.transform.parent != desiredParent)
                     {
-                        obj.transform.SetParent(resolvedParent ? resolvedParent.transform : null, true);
+                        obj.transform.SetParent(desiredParent, true);
+                        // Unity silently REFUSES an invalid reparent (e.g. into the object's own descendant) — verify it
+                        // actually took rather than reporting modified:true for a no-op. (Bug hunt: unverified SetParent.)
+                        if (obj.transform.parent != desiredParent)
+                            return HandlerOutcome.Fail("Reparent refused by Unity — cannot parent a GameObject under its own descendant.", "INVALID_STATE");
                         modified = true;
                     }
                 }

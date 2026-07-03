@@ -261,6 +261,11 @@ namespace UnityEditorMCP.Handlers
                     plan.Add((t.Obj, path, set[path]));
                 }
 
+            // An empty match (e.g. a mistyped componentType) that reaches the commit is a FALSE SUCCESS — applied:true
+            // with nothing changed. Surface it. (The preview path already returned count:0 above.) (Bug hunt: empty match.)
+            if (targets.Count == 0)
+                return HandlerOutcome.Fail("match resolved zero GameObjects — nothing to write (check the selector).", "NO_MATCH");
+
             if (!dryRun)
             {
                 var dirty = new List<Object>();

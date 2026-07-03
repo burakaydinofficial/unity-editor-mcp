@@ -32,8 +32,11 @@ namespace UnityEditorMCP.Handlers
                     return HandlerOutcome.Fail($"Type not found: {typeName}", "NOT_FOUND");
 
                 var argsArr = parameters["args"] as JArray ?? new JArray();
+                // PUBLIC static only: including NonPublic exposed private/internal static helpers (which often skip
+                // input validation, trusting internal callers) to an allow-list grant reasoned about in terms of the
+                // type's PUBLIC API — a broader ACE surface than the author intended. (Bug hunt: ACE over-exposure.)
                 var candidates = type
-                    .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                    .GetMethods(BindingFlags.Public | BindingFlags.Static)
                     .Where(m => m.Name == methodName && m.GetParameters().Length == argsArr.Count)
                     .ToList();
                 if (candidates.Count == 0)

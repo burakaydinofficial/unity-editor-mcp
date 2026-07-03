@@ -96,7 +96,14 @@ export class UnityConnectionManager {
     const k = this.key(host, port);
     const existing = this.connections.get(k);
     if (existing) {
-      if (expectedProjectPath && !existing._expectedProjectPath) existing._expectedProjectPath = expectedProjectPath;
+      if (expectedProjectPath && existing._expectedProjectPath !== expectedProjectPath) {
+        // A path-ref now targets a connection FIRST opened by a port-ref (or a different project) — its manifest was
+        // cached WITHOUT the project check. Re-verify identity: force a fresh handshake with the expected path rather
+        // than trusting the unchecked cache (else a stale registry drives the wrong editor). (Bug hunt: cache bypass.)
+        existing._expectedProjectPath = expectedProjectPath;
+        existing.editorInfo = null;
+        existing._handshakeNextAttempt = 0;
+      }
       return existing;
     }
     const conn = this.wireHandshake(this.createConnection({ host, port }), k);

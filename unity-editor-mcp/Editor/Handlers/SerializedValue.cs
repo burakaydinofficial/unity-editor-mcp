@@ -137,7 +137,7 @@ namespace UnityEditorMCP.Handlers
             {
                 long mask = 0;
                 foreach (var ev in Enum.GetValues(enumType)) mask |= Convert.ToInt64(ev);
-                return value != 0 && (value & ~mask) == 0; // a combination of defined bits
+                return (value & ~mask) == 0; // any combination of defined bits, INCLUDING 0 (clear all flags). (Bug hunt: flags-0.)
             }
             return false;
         }
