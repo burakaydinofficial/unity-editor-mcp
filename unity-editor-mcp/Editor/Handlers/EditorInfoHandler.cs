@@ -166,19 +166,29 @@ namespace UnityEditorMCP.Handlers
             {
                 var action = parameters["action"]?.ToString()?.ToLowerInvariant();
                 if (string.IsNullOrEmpty(action)) return Err("Missing required parameter: action", "VALIDATION_ERROR");
-                var packageId = parameters["packageId"]?.ToString();
+                var packageId = parameters["packageId"]?.ToString()?.Trim();
                 if (string.IsNullOrEmpty(packageId)) return Err("Missing required parameter: packageId", "VALIDATION_ERROR");
+                // Light sanity before handing it to the PackageManager Client — a registry name, name@version, git
+                // URL, or file:/tarball path are all valid, so only reject clearly-malformed input: over-length, or an
+                // embedded control char/newline that could smuggle a second value past the confirm gate. (Bug hunt.)
+                if (packageId.Length > 512) return Err("packageId is too long (max 512 chars)", "VALIDATION_ERROR");
+                foreach (var ch in packageId)
+                    if (ch < 0x20 || ch == 0x7f) return Err("packageId contains a control character", "VALIDATION_ERROR");
 
                 switch (action)
                 {
                     case "add":
-                        // Fire-and-forget: the PackageManager resolves asynchronously and triggers a domain
-                        // reload; the bridge reconnects on its own. Verify the outcome with list_packages.
+                    case "update":
+                        // add + update both route through Client.Add: an explicit "name@version" pins/upgrades, a bare
+                        // "name" resolves the latest compatible version — so "update" is Add without needing a version.
+                        // Both stay confirm-gated (H3, at the dispatcher) because a git-URL/tarball package can run
+                        // editor code on import. Fire-and-forget: the PackageManager resolves asynchronously and
+                        // triggers a domain reload; the bridge reconnects on its own. Verify with list_packages.
                         UnityEditor.PackageManager.Client.Add(packageId);
                         return HandlerOutcome.Ok(new JObject
                         {
-                            ["message"] = $"Requested add of '{packageId}'. Resolution is asynchronous (the editor will recompile/reload); verify with list_packages.",
-                            ["action"] = "add",
+                            ["message"] = $"Requested {action} of '{packageId}'. Resolution is asynchronous (the editor will recompile/reload); verify with list_packages.",
+                            ["action"] = action,
                             ["packageId"] = packageId
                         });
                     case "remove":
@@ -190,7 +200,7 @@ namespace UnityEditorMCP.Handlers
                             ["packageId"] = packageId
                         });
                     default:
-                        return Err($"Unknown action: {action}. Supported: add, remove.", "VALIDATION_ERROR");
+                        return Err($"Unknown action: {action}. Supported: add, update, remove.", "VALIDATION_ERROR");
                 }
             }
             catch (Exception e) { return Err($"Error managing packages: {e.Message}"); }

@@ -101,16 +101,20 @@ scale/hardening gaps):
 
 ## Package management + read-scope (design note, 2026-07-05)
 
-Agents already add/update/remove packages via **`manage_packages`** (`UnityEditor.PackageManager.Client.Add/Remove`,
-add-with-`name@version` = update) + **`list_packages`** — the safe API path. The round's script-containment fix
-(`update_script`/`delete_script` → Assets-only) is **complementary**: it blocks corrupting `Packages/manifest.json` /
-`.git/` by raw file write, while the Package Manager API stays the intended interface. Principle: mutate non-Assets
-project state through **dedicated, validated tools**, never by loosening the general file read/write path (that
-reopens the `.git`/secrets info-disclosure + write-anywhere holes). Polish for `manage_packages` when features resume:
-an explicit `update` action + available-version query, an **H3 confirm-gate on `remove`** (its one destructive
-action, currently ungated), `packageId` validation, and awaiting the async `Client` request to report real
-success/failure instead of fire-and-forget. If a real need arises to READ other project folders (ProjectSettings,
-build config), add a purpose-built reader with an allowlist rather than widening `read_script`.
+Agents add/update/remove packages via **`manage_packages`** (`UnityEditor.PackageManager.Client.Add/Remove`) +
+**`list_packages`** — the safe API path. The script-containment fix (`update_script`/`delete_script` → Assets-only)
+is **complementary**: it blocks corrupting `Packages/manifest.json` / `.git/` by raw file write, while the Package
+Manager API stays the intended interface. Principle: mutate non-Assets project state through **dedicated, validated
+tools**, never by loosening the general file read/write path (that reopens the `.git`/secrets info-disclosure +
+write-anywhere holes). **Delivered polish:** an explicit `update` action (add/update both route through `Client.Add`)
+and `packageId` sanity validation (length + control-char). **Confirm gate:** `manage_packages` is registered
+`requiresConfirm:true`, so the CommandDispatcher already gates **all three** actions behind `confirm:true` — kept on
+`add`/`update` **deliberately**, because a git-URL/tarball package can run editor code on import (an ACE control, not
+mere friction). **Still deferred** (need async-command support the current synchronous main-thread model lacks): an
+available-version query (`Client.Search` is async and can't be spin-waited on the main thread) and real async result
+reporting — fire-and-forget is architecturally correct here since add/remove trigger a domain reload. If a real need
+arises to READ other project folders (ProjectSettings, build config), add a purpose-built reader with an allowlist
+rather than widening `read_script`.
 
 ## Hotfix release runbook (during the pause)
 
