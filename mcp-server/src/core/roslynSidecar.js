@@ -95,11 +95,15 @@ export function platformRid() {
 
 function httpsGetJson(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'User-Agent': 'unity-editor-mcp' } }, (res) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'unity-editor-mcp' }, timeout: 30_000 }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) { httpsGetJson(res.headers.location).then(resolve, reject); return; }
       if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
       let d = ''; res.on('data', (c) => (d += c)); res.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { reject(e); } });
-    }).on('error', reject);
+    });
+    req.on('error', reject);
+    // https.get's `timeout` fires 'timeout' but does NOT abort — destroy explicitly so a stalled fetch can't wedge
+    // Roslyn permanently in INDEXING. (Bug hunt: download DoS.)
+    req.on('timeout', () => req.destroy(new Error('roslyn manifest fetch timed out')));
   });
 }
 
@@ -108,13 +112,17 @@ function defaultDownload(url, dest) {
     const file = createWriteStream(dest);
     let settled = false;
     const fail = (e) => { if (settled) return; settled = true; file.destroy(); fs.rm(dest, { force: true }).catch(() => {}).finally(() => reject(e)); };
-    const go = (u) => https.get(u, { headers: { 'User-Agent': 'unity-editor-mcp' } }, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) { go(res.headers.location); return; }
-      if (res.statusCode !== 200) { fail(new Error(`HTTP ${res.statusCode}`)); return; }
-      res.on('error', fail);
-      res.pipe(file);
-      file.on('finish', () => { if (settled) return; settled = true; file.close(() => resolve()); });
-    }).on('error', fail);
+    const go = (u) => {
+      const req = https.get(u, { headers: { 'User-Agent': 'unity-editor-mcp' }, timeout: 60_000 }, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) { go(res.headers.location); return; }
+        if (res.statusCode !== 200) { fail(new Error(`HTTP ${res.statusCode}`)); return; }
+        res.on('error', fail);
+        res.pipe(file);
+        file.on('finish', () => { if (settled) return; settled = true; file.close(() => resolve()); });
+      });
+      req.on('error', fail);
+      req.on('timeout', () => { req.destroy(); fail(new Error('roslyn binary download timed out')); }); // (Bug hunt: download DoS)
+    };
     file.on('error', fail);
     go(url);
   });

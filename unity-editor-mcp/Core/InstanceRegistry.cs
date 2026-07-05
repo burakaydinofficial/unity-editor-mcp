@@ -236,7 +236,16 @@ namespace UnityEditorMCP.Core
                 }
                 if (dead)
                 {
-                    try { File.Delete(file); reaped++; } catch { /* held elsewhere — skip */ }
+                    try
+                    {
+                        // Re-verify right before delete: a descriptor republished between the read above and here (a
+                        // restarted editor for the same project) must not be reaped. Mirrors the Node reapStale. (Bug hunt: TOCTOU.)
+                        bool stillDead = true;
+                        try { stillDead = !IsLive(InstanceDescriptor.FromJson(File.ReadAllText(file)), nowUtc, currentHost, isProcessAlive); }
+                        catch { stillDead = true; }
+                        if (stillDead) { File.Delete(file); reaped++; }
+                    }
+                    catch { /* held elsewhere — skip */ }
                 }
             }
 

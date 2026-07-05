@@ -76,6 +76,29 @@ Everything below is floor-compatible with `#if` / optional-dependency guards, so
    lower priority.
 5. **Video/recording capture** (optional `com.unity.recorder`) and **Animator/animation authoring**.
 
+## Robustness backlog — new-dimensions audit (2026-07-05)
+
+A fresh adversarial audit on the dimensions the correctness campaign didn't cover (performance/scale, concurrency,
+resource-exhaustion/DoS, attacker-model security, protocol fuzzing) found 12 issues. The **bounded** ones were fixed
+immediately (Assets/-containment on `update_script`/`delete_script`/`read_script`; caps on `modify_serialized_array`
+resize, `capture_screenshot` dims; `mesh.triangles`→`GetIndexCount`; Roslyn fetch timeouts; O(1) framing-recovery
+scan; C# reapStale TOCTOU). These **need design/refactor** and are deferred (not bugs in shipped behavior, just
+scale/hardening gaps):
+
+- **`get_object_references` uncapped deep scan** (`SceneAnalysisHandler`) — walks every property of every component of
+  every scene object with `SerializedObject.Next(true)`; no node budget. Needs a budget/cap **without** breaking the
+  "which objects are unreferenced" correctness (a naive cap gives wrong answers). The only find/analyze member with no cap.
+- **`find_by_component` (searchScope all/prefabs)** loads + deep-scans **every** project prefab regardless of `limit`
+  (the cap only trims output). An early-out changes result semantics (post-sort) — needs a deliberate "first-N-by-scan"
+  vs "N-after-sort" decision.
+- **Editor `TcpTransport`** — no connection cap and no idle/read timeout; a local peer can exhaust tasks/sockets with
+  idle or slowloris connections. Needs a max-connections + read-timeout design.
+- **Node framing** `Buffer.concat` on every `data` event — O(n²/chunk) copy while a large frame streams (bounded by the
+  1MB cap, so low priority; a chunk-list + single concat fixes it).
+- **Critic-flagged, unexamined:** `CommandQueue` unbounded enqueue + unbudgeted `DrainAll`; `McpBridge` JSON ingest has
+  no `MaxDepth` (deep-nesting parse); asset-mutation handler containment parity (verify the asset handlers guard
+  caller paths like the script/screenshot ones now do); `StaticInvokeHandler` return-value serialization edges.
+
 ## Hotfix release runbook (during the pause)
 
 If a bug fix must ship while paused, the exact process that cut 0.21.0:

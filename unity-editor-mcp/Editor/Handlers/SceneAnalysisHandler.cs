@@ -339,6 +339,16 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Gets the full path of a GameObject
         /// </summary>
+        // Count triangles WITHOUT allocating the full index buffer: mesh.triangles copies the whole int[] per access,
+        // a GC/allocation storm on big scenes. GetIndexCount is 2019.3+ (floor-safe) and allocation-free. (Bug hunt: perf.)
+        private static long MeshTriangleCount(Mesh m)
+        {
+            if (m == null) return 0;
+            long indices = 0;
+            for (int si = 0; si < m.subMeshCount; si++) indices += m.GetIndexCount(si);
+            return indices / 3;
+        }
+
         private static string GetGameObjectPath(GameObject obj)
         {
             var path = "/" + obj.name;
@@ -567,7 +577,7 @@ namespace UnityEditorMCP.Handlers
                 rendering["textures"] = uniqueTextures;
                 rendering["meshes"] = uniqueMeshes.Length;
                 rendering["vertices"] = uniqueMeshes.Sum(m => m.vertexCount);
-                rendering["triangles"] = uniqueMeshes.Sum(m => m.triangles.Length / 3);
+                rendering["triangles"] = uniqueMeshes.Sum(m => MeshTriangleCount(m));
 
                 result["rendering"] = rendering;
 

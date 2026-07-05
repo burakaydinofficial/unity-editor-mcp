@@ -112,9 +112,11 @@ namespace UnityEditorMCP.Handlers
                     // Read by path
                     relativePath = scriptPath;
                     fullPath = Path.Combine(Application.dataPath, "../", scriptPath);
-                    if (!PathSafety.IsWithinProject(fullPath))
+                    // Reads are legit under Assets/ or Packages/ (code intelligence), but must not escape into .git/,
+                    // Library/, ProjectSettings/, or project-root files (info disclosure). (Bug hunt: containment.)
+                    if (!IsUnderProjectCodeRoot(fullPath, allowPackages: true))
                     {
-                        return HandlerOutcome.Fail("scriptPath must stay within the project root", "VALIDATION_ERROR");
+                        return HandlerOutcome.Fail("scriptPath must stay under Assets/ or Packages/", "VALIDATION_ERROR");
                     }
                 }
                 else if (!string.IsNullOrEmpty(scriptName))
@@ -173,6 +175,17 @@ namespace UnityEditorMCP.Handlers
         /// <summary>
         /// Updates an existing C# script file
         /// </summary>
+        // Scripts belong under Assets/ (writes/deletes) or Assets/+Packages/ (reads). Canonicalize + require the
+        // resolved path under those roots — a raw local TCP client bypasses the Node layer, so this C# check is the SOLE
+        // guard. Defeats "..", absolute, rooted-segment, and the .git/ Library/ ProjectSettings/ escapes. (Bug hunt: write-anywhere.)
+        private static bool IsUnderProjectCodeRoot(string fullPath, bool allowPackages)
+        {
+            var canon = Path.GetFullPath(fullPath).Replace('\\', '/');
+            var proj = Path.GetFullPath(Application.dataPath + "/..").Replace('\\', '/').TrimEnd('/');
+            bool under(string root) => canon.Equals(root, StringComparison.OrdinalIgnoreCase) || canon.StartsWith(root + "/", StringComparison.OrdinalIgnoreCase);
+            return under(proj + "/Assets") || (allowPackages && under(proj + "/Packages"));
+        }
+
         public static HandlerOutcome UpdateScript(JObject parameters)
         {
             try
@@ -196,9 +209,11 @@ namespace UnityEditorMCP.Handlers
                 {
                     relativePath = scriptPath;
                     fullPath = Path.Combine(Application.dataPath, "../", scriptPath);
-                    if (!PathSafety.IsWithinProject(fullPath))
+                    // WRITE containment: Assets/ ONLY. Whole-project IsWithinProject let a raw TCP client OVERWRITE
+                    // .git/config, .git/hooks, Packages/manifest.json, any existing project file. (Bug hunt: write-anywhere.)
+                    if (!IsUnderProjectCodeRoot(fullPath, allowPackages: false))
                     {
-                        return HandlerOutcome.Fail("scriptPath must stay within the project root", "VALIDATION_ERROR");
+                        return HandlerOutcome.Fail("scriptPath must stay under Assets/", "VALIDATION_ERROR");
                     }
                 }
                 else if (!string.IsNullOrEmpty(scriptName))
@@ -299,9 +314,10 @@ namespace UnityEditorMCP.Handlers
                 {
                     relativePath = scriptPath;
                     fullPath = Path.Combine(Application.dataPath, "../", scriptPath);
-                    if (!PathSafety.IsWithinProject(fullPath))
+                    // DELETE containment: Assets/ ONLY (see update_script — whole-project allowed deleting .git/ etc.). (Bug hunt.)
+                    if (!IsUnderProjectCodeRoot(fullPath, allowPackages: false))
                     {
-                        return HandlerOutcome.Fail("scriptPath must stay within the project root", "VALIDATION_ERROR");
+                        return HandlerOutcome.Fail("scriptPath must stay under Assets/", "VALIDATION_ERROR");
                     }
                 }
                 else if (!string.IsNullOrEmpty(scriptName))

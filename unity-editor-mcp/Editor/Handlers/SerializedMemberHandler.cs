@@ -376,6 +376,8 @@ namespace UnityEditorMCP.Handlers
             catch (System.Exception e) { return HandlerOutcome.Fail($"modify array failed: {e.Message}"); }
         }
 
+        private const int MaxArraySize = 1_000_000; // resize/insert cap — an unbounded arraySize OOM-freezes the editor (Bug hunt: DoS)
+
         private static bool ValidateArrayOp(string op, JObject o, int size, out int newSize, out string error, out string code)
         {
             newSize = size; error = null; code = "VALIDATION_ERROR";
@@ -384,6 +386,7 @@ namespace UnityEditorMCP.Handlers
                 case "resize":
                     var count = o["count"]?.ToObject<int?>() ?? -1;
                     if (count < 0) { error = "resize needs count >= 0"; return false; }
+                    if (count > MaxArraySize) { error = $"resize count {count} exceeds the {MaxArraySize} cap (guards against an OOM freeze)"; return false; }
                     newSize = count; return true;
                 case "insert":
                     var ii = o["index"]?.ToObject<int?>() ?? size;

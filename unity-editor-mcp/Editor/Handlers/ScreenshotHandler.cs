@@ -24,6 +24,11 @@ namespace UnityEditorMCP.Handlers
                 string captureMode = parameters["captureMode"]?.ToString() ?? "game"; // game, scene, or window
                 int width = parameters["width"]?.ToObject<int>() ?? 0;
                 int height = parameters["height"]?.ToObject<int>() ?? 0;
+                // Cap dimensions: an unbounded width/height flows into new RenderTexture/Texture2D and OOMs the editor.
+                // 16384 is the max texture dimension on virtually all GPUs. (Bug hunt: screenshot DoS.)
+                const int MaxDim = 16384;
+                if (width > MaxDim || height > MaxDim)
+                    return HandlerOutcome.Fail($"width/height must be <= {MaxDim}", "VALIDATION_ERROR");
                 bool includeUI = parameters["includeUI"]?.ToObject<bool>() ?? true;
                 string windowName = parameters["windowName"]?.ToString();
                 bool encodeAsBase64 = parameters["encodeAsBase64"]?.ToObject<bool>() ?? true; // default on -> the agent SEES the capture (G5)

@@ -80,7 +80,7 @@ namespace UnityEditorMCP.Tests
             var outcome = ScriptHandler.ReadScript(new JObject { ["scriptPath"] = "Assets/../../secret.txt" });
             Assert.IsTrue(outcome.IsError, "a traversal scriptPath must be rejected (arbitrary file READ)");
             Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
-            StringAssert.Contains("project root", outcome.Error);
+            StringAssert.Contains("Assets", outcome.Error);
         }
 
         [Test]
@@ -89,7 +89,19 @@ namespace UnityEditorMCP.Tests
             var outcome = ScriptHandler.UpdateScript(new JObject { ["scriptPath"] = "Assets/../../evil.cs", ["scriptContent"] = "x" });
             Assert.IsTrue(outcome.IsError, "a traversal scriptPath must be rejected (arbitrary file WRITE)");
             Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
-            StringAssert.Contains("project root", outcome.Error);
+            StringAssert.Contains("Assets", outcome.Error);
+        }
+
+        // The real new-dimensions fix: a WITHIN-project path OUTSIDE Assets/ (e.g. Packages/, .git/) must NOT be
+        // writable — the old whole-project IsWithinProject let a raw TCP client overwrite .git/config, .git/hooks,
+        // Packages/manifest.json, any existing project file. (Bug hunt: write-anywhere.)
+        [Test]
+        public void UpdateScript_WithinProjectButOutsideAssets_IsRejected()
+        {
+            var outcome = ScriptHandler.UpdateScript(new JObject { ["scriptPath"] = "Packages/manifest.json", ["scriptContent"] = "x" });
+            Assert.IsTrue(outcome.IsError, "a within-project write outside Assets/ must be rejected");
+            Assert.AreEqual("VALIDATION_ERROR", outcome.Code);
+            StringAssert.Contains("Assets", outcome.Error);
         }
 
         [Test]

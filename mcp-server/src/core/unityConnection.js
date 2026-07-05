@@ -336,8 +336,11 @@ export class UnityConnection extends EventEmitter {
           if (testLength > 0 && testLength <= 1024 * 1024) {
             // Check if this could be a valid JSON message
             if (i + 4 + testLength <= this.messageBuffer.length) {
-              const testData = this.messageBuffer.slice(i + 4, i + 4 + testLength).toString('utf8');
-              if (testData.trim().startsWith('{')) {
+              // O(1) FIRST-BYTE check (not O(bodyLength) string materialization, which is O(N*L) across all offsets ->
+              // an event-loop block on a corrupt/desynced buffer). Full JSON validity is confirmed when the frame is
+              // actually processed; a wrong resync self-corrects on the next pass. Matches the partial check below. (Bug hunt.)
+              const b = this.messageBuffer[i + 4];
+              if (b === 0x7b || b === 0x20) { // '{' or ' '
                 recoveryIndex = i;
                 break;
               }
