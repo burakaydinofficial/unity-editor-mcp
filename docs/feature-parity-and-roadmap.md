@@ -99,6 +99,19 @@ scale/hardening gaps):
   no `MaxDepth` (deep-nesting parse); asset-mutation handler containment parity (verify the asset handlers guard
   caller paths like the script/screenshot ones now do); `StaticInvokeHandler` return-value serialization edges.
 
+## Package management + read-scope (design note, 2026-07-05)
+
+Agents already add/update/remove packages via **`manage_packages`** (`UnityEditor.PackageManager.Client.Add/Remove`,
+add-with-`name@version` = update) + **`list_packages`** — the safe API path. The round's script-containment fix
+(`update_script`/`delete_script` → Assets-only) is **complementary**: it blocks corrupting `Packages/manifest.json` /
+`.git/` by raw file write, while the Package Manager API stays the intended interface. Principle: mutate non-Assets
+project state through **dedicated, validated tools**, never by loosening the general file read/write path (that
+reopens the `.git`/secrets info-disclosure + write-anywhere holes). Polish for `manage_packages` when features resume:
+an explicit `update` action + available-version query, an **H3 confirm-gate on `remove`** (its one destructive
+action, currently ungated), `packageId` validation, and awaiting the async `Client` request to report real
+success/failure instead of fire-and-forget. If a real need arises to READ other project folders (ProjectSettings,
+build config), add a purpose-built reader with an allowlist rather than widening `read_script`.
+
 ## Hotfix release runbook (during the pause)
 
 If a bug fix must ship while paused, the exact process that cut 0.21.0:
