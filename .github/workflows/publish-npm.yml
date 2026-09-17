@@ -33,11 +33,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org
 
-      # Trusted Publishing needs npm >= 11.5.1 (newer than the runner's bundled npm).
-      - run: npm install -g npm@latest
+      # Trusted Publishing needs npm >= 11.5.1 (newer than the runner's bundled npm). Pin to the 11.x line rather than
+      # @latest: npm@12 requires Node >=22.22.2 and would EBADENGINE on the runner's Node. npm 11.x is TP-capable and
+      # runs on Node 22. (Node 20 was EOL, so the job also moved to Node 22 LTS.)
+      - run: npm install -g npm@11
 
       # devDependencies are needed because `prepublishOnly` runs `npm run test:ci` before publishing.
       - run: npm install
