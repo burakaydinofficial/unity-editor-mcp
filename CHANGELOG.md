@@ -6,6 +6,45 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; CI-verified on 2019.4 / 2020.3 / 2021.3 / 2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
+## [0.21.1] — SDK modernization, a fresh-dimensions hardening pass, and Unity 6 CI
+
+Maintenance release: no wire/protocol change (still 1.0.0, 102 catalog commands, 0 drift) and no new tool surface.
+Rolls up everything since 0.21.0 — a dependency modernization, a security fix, a performance/DoS hardening pass on the
+dimensions the 0.21.0 correctness campaign didn't cover, and the first Unity 6 CI verification.
+
+### Security
+- **`update_script` / `delete_script` are now contained to `Assets/`** (previously gated on the whole project root).
+  A raw local TCP client — which bypasses the Node layer — could otherwise overwrite `.git/config`, `.git/hooks`,
+  `Packages/manifest.json`, or any existing project file. `read_script` is contained to `Assets/` + `Packages/`.
+  Extends the 0.5.0 `create_script` containment to its siblings.
+
+### Changed
+- **npm (`@burakaydinofficial/unity-editor-mcp`): `@modelcontextprotocol/sdk` `0.5.0` → `1.x`** — 25 versions of
+  drift closed. Clears the high-severity DNS-rebinding advisory that surfaced in consumers' `npm audit` (not reachable
+  here — the server is stdio-only; that advisory only affects the HTTP/SSE transport). No `server.js` change was
+  required (the low-level `Server` + `StdioServerTransport` API is stable across the jump); verified with 314/314 unit
+  tests and a live stdio MCP handshake. `npm audit` now reports 0 vulnerabilities (runtime + dev). Node floor
+  unchanged (`>=18`).
+- **`manage_packages`** gains an explicit `update` action (add/update both route through `Client.Add`) and `packageId`
+  sanity validation (length + control-character).
+
+### Fixed
+- Resource/DoS + performance hardening (a fresh adversarial audit of scale / concurrency / DoS / security / fuzzing):
+  `modify_serialized_array` resize is capped (unbounded `arraySize` OOM-freeze); `capture_screenshot` dimensions are
+  capped at 16384 (giant RenderTexture/Texture2D OOM); `analyze_scene_contents` counts triangles via `GetIndexCount`
+  instead of allocating each mesh's full index buffer; the Roslyn manifest/binary fetches now time out (a stall no
+  longer wedges Roslyn in INDEXING); the Node framing-recovery scan is O(1)-per-offset (a corrupt buffer no longer
+  blocks the event loop); `InstanceRegistry.ReapStale` re-verifies before delete (multi-editor reap TOCTOU).
+
+### CI
+- **Unity 6.0 (`6000.0.78f1`) added to the floor-matrix** — it now cold-compiles + EditMode-tests
+  2019.4 / 2020.3 / 2021.3 / 2022.3 / 6000.0, the first machine verification of the `UNITY_6000_0_OR_NEWER` guard
+  branches (297/297 EditMode green on Unity 6).
+
+### Notes
+- No protocol/wire change (1.0.0). The npm server and the UPM package `com.burakk.unity-editor-mcp` ship together at
+  0.21.1.
+
 ## [0.21.0] — Live-editor E2E harness, reload-recovery, and an 8-round hardening campaign
 
 The largest correctness pass in the fork's history. A new **live-editor E2E harness** drives the real MCP chain
