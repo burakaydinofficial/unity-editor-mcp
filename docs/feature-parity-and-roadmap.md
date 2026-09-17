@@ -116,6 +116,35 @@ reporting — fire-and-forget is architecturally correct here since add/remove t
 arises to READ other project folders (ProjectSettings, build config), add a purpose-built reader with an allowlist
 rather than widening `read_script`.
 
+## Production-feedback triage (2026-09-17)
+
+From an agent using the tool in production. Triaged against our design + acted on (shipped in 0.21.2 where noted).
+
+**Shipped (0.21.2):**
+- **Compile-wait (feedback #1/#3):** `get_compilation_state` gains a `waitForIdle` mode — a server-side poll that
+  blocks until compilation + asset import finish, tolerating the domain-reload reconnect, so `refresh_assets` → wait
+  replaces sleep-and-hope. Node-logic override (an editor-side wait can't span the reload that kills it). Compile
+  errors are in its `messages`/`errorCount` — the reliable channel.
+- **Menu output (feedback #3):** `execute_menu_item` returns the console output emitted during the invoke
+  (`logs` + `errorCount`). Menu methods are void — no return value — but their logs are captured.
+- **Composite write (feedback #2):** `SerializedValue.Write` recurses into a nested `[Serializable]` `Generic`, so
+  `set_serialized_properties` + `modify_serialized_array insert` set a composite element/field in one call (was
+  "Generic is read-only"). Insert values are already type-probed up-front, so a bad value is skipped/reported, never
+  silently applied — #2 was an ergonomics gap, not a silent-loss bug.
+- **`.meta` hygiene (feedback #5):** the missing `.meta` was already committed (0.21.1); added CI `meta-check`
+  (`scripts/meta-check.mjs`). Package tests are gated by `UNITY_INCLUDE_TESTS`, so they don't compile in a consumer's
+  project.
+
+**Considered, deferred/declined (reasons):**
+- **Compile-error console mapping (feedback #4):** `enhanced_read_logs logType:"Error"` classifies compile errors as
+  `Exception`. Not fixed — `get_compilation_state` is the reliable compile-error channel; the console mode-bit fix is
+  fragile/version-dependent for no added value.
+- **Batch asset creation (design #1):** deferred — batching done right is a *generic* `batch` command (fits the
+  3-tool surface, needs partial-failure semantics), a proper feature for a later cycle, not a per-command plural. The
+  round-trip cost is performance, not correctness.
+- **Asset snapshot/rollback (design #2):** declined — git + Unity Undo cover in-session self-correction; a file
+  snapshot overlaps VCS and gets hard for scenes/prefabs.
+
 ## Hotfix release runbook (during the pause)
 
 If a bug fix must ship while paused, the exact process that cut 0.21.0:

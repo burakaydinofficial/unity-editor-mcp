@@ -101,6 +101,22 @@ namespace UnityEditorMCP.Handlers
                         if (!GradientReflection.Set(p, g)) { error = "TYPE_MISMATCH: gradientValue not accessible on this Unity version"; return false; }
                         return true;
                     }
+                    case SerializedPropertyType.Generic:
+                    {
+                        // A nested [Serializable] struct/class: recurse into its named fields so a composite element or
+                        // field can be written in one call (previously "Generic is read-only"). No silent-ignore — an
+                        // unknown field errors (no false success). Arrays are NOT handled here — use modify_serialized_array.
+                        // (Feedback #2: composite write; also upgrades set_serialized_properties.)
+                        if (p.isArray) { error = "cannot write an array via a value object — use modify_serialized_array"; return false; }
+                        if (!(v is JObject jo)) { error = $"TYPE_MISMATCH: {p.type} expects an object of fields"; return false; }
+                        foreach (var prop in jo.Properties())
+                        {
+                            var child = p.FindPropertyRelative(prop.Name);
+                            if (child == null) { error = $"UNKNOWN_FIELD: '{prop.Name}' is not a serialized field of {p.type}"; return false; }
+                            if (!Write(child, prop.Value, out error)) return false;
+                        }
+                        return true;
+                    }
                     default: error = $"{p.propertyType} is read-only"; return false;
                 }
             }

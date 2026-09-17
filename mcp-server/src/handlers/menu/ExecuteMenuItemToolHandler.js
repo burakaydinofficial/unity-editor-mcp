@@ -204,6 +204,13 @@ export class ExecuteMenuItemToolHandler extends BaseToolHandler {
       if (response.menuExists !== undefined) {
         result.menuExists = response.menuExists;
       }
+      // Console output the menu emitted during execution (esp. errors) — so the agent needn't a separate log read.
+      if (response.logs !== undefined) {
+        result.logs = response.logs;
+      }
+      if (response.errorCount !== undefined) {
+        result.errorCount = response.errorCount;
+      }
       if (response.alias) {
         result.alias = response.alias;
       }

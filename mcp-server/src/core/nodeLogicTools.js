@@ -1,6 +1,7 @@
 import { ExecuteMenuItemToolHandler } from '../handlers/menu/ExecuteMenuItemToolHandler.js';
 import { CreateScriptToolHandler } from '../handlers/scripting/CreateScriptToolHandler.js';
 import { AnalyzeScreenshotToolHandler } from '../handlers/screenshot/AnalyzeScreenshotToolHandler.js';
+import { GetCompilationStateToolHandler } from '../handlers/compilation/GetCompilationStateToolHandler.js';
 
 /**
  * The few tools that carry genuine Node-side logic and therefore are NOT pure editor passthroughs
@@ -9,6 +10,8 @@ import { AnalyzeScreenshotToolHandler } from '../handlers/screenshot/AnalyzeScre
  *     before the path reaches the editor);
  *   - create_script: generates the full C# source from a template spec Node-side;
  *   - analyze_screenshot: a base64 offline branch + analysis that need not contact the editor.
+ *   - get_compilation_state: a server-side `waitForIdle` poll that spans the domain-reload reconnect (an editor-side
+ *     wait can't survive the reload that kills it); passthrough otherwise.
  *
  * They are NOT advertised as MCP tools. The agent discovers them through `list_unity_tools` and invokes
  * them through `call_unity_tool` like every editor command — but call_unity_tool dispatches them to a
@@ -20,6 +23,7 @@ export const NODE_LOGIC_TOOLS = {
   execute_menu_item: { handler: ExecuteMenuItemToolHandler, category: 'menu' },
   create_script: { handler: CreateScriptToolHandler, category: 'scripting' },
   analyze_screenshot: { handler: AnalyzeScreenshotToolHandler, category: 'screenshot' },
+  get_compilation_state: { handler: GetCompilationStateToolHandler, category: 'compilation' },
 };
 
 export function isNodeLogicTool(name) {

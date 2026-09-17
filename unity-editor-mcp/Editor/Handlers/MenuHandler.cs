@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -114,68 +115,66 @@ namespace UnityEditorMCP.Handlers
                 // Record execution start time
                 var startTime = DateTime.UtcNow;
 
+                // Capture console output emitted DURING the menu invoke, so the agent sees what the menu did
+                // (especially errors) without a separate log read. MenuItem methods are void — there's no return value
+                // to surface — but their console output is capturable. logMessageReceived fires on the main thread,
+                // where the menu executes synchronously. (Feedback #3.)
+                var capturedLogs = new List<JObject>();
+                Application.LogCallback logCb = (condition, stackTrace, type) =>
+                    capturedLogs.Add(new JObject { ["message"] = condition, ["logType"] = type.ToString() });
+
                 // Execute the menu item
                 bool executed = false;
                 bool menuExists = true;
 
+                Application.logMessageReceived += logCb;
                 try
                 {
-                    // Try to execute the menu item
-                    executed = EditorApplication.ExecuteMenuItem(menuPath);
-
-                    if (!executed)
+                    try
                     {
-                        // Menu item exists but couldn't be executed (might be disabled or context-dependent)
-                        Debug.LogWarning($"[MenuHandler] Menu item '{menuPath}' could not be executed - it may be disabled or context-dependent");
+                        executed = EditorApplication.ExecuteMenuItem(menuPath);
+                        if (!executed)
+                            Debug.LogWarning($"[MenuHandler] Menu item '{menuPath}' could not be executed - it may be disabled or context-dependent");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[MenuHandler] Failed to execute menu item '{menuPath}': {ex.Message}");
+                        menuExists = false;
+                        executed = false;
                     }
                 }
-                catch (Exception ex)
-                {
-                    // Menu item might not exist
-                    Debug.LogWarning($"[MenuHandler] Failed to execute menu item '{menuPath}': {ex.Message}");
-                    menuExists = false;
-                    executed = false;
-                }
+                finally { Application.logMessageReceived -= logCb; }
 
                 // Calculate execution time
                 var executionTime = (int)(DateTime.UtcNow - startTime).TotalMilliseconds;
+                var errorLogs = capturedLogs.Where(l => { var t = l["logType"]?.ToString(); return t == "Error" || t == "Exception" || t == "Assert"; }).ToList();
 
-                // F1: don't report success when the menu did NOT run (was success:true with executed:false).
+                // F1: don't report success when the menu did NOT run. Surface any error the menu logged in the failure
+                // message so the agent doesn't need a separate read.
                 if (!executed)
-                    return HandlerOutcome.Fail(
-                        menuExists ? "Menu item found but could not be executed (may be disabled or context-dependent)"
-                                   : "Menu item not found or execution failed",
-                        menuExists ? "INVALID_STATE" : "NOT_FOUND");
-
-                // Build response
-                var result = new
                 {
-                    success = true,
-                    menuPath = menuPath,
-                    executed = executed,
-                    menuExists = menuExists,
-                    executionTime = executionTime,
-                    message = executed
-                        ? "Menu item executed successfully"
-                        : menuExists
-                            ? "Menu item found but could not be executed (may be disabled or context-dependent)"
-                            : "Menu item not found or execution failed"
-                };
-
-                // Add alias if provided
-                if (!string.IsNullOrEmpty(alias))
-                {
-                    return HandlerOutcome.Ok(new
-                    {
-                        result.success,
-                        result.menuPath,
-                        result.executed,
-                        result.menuExists,
-                        result.executionTime,
-                        result.message,
-                        alias = alias
-                    });
+                    var why = menuExists ? "Menu item found but could not be executed (may be disabled or context-dependent)"
+                                         : "Menu item not found or execution failed";
+                    if (errorLogs.Count > 0)
+                        why += " | logged: " + string.Join(" ; ", errorLogs.Select(l => l["message"]?.ToString()));
+                    return HandlerOutcome.Fail(why, menuExists ? "INVALID_STATE" : "NOT_FOUND");
                 }
+
+                // Build response (now includes the logs the menu emitted)
+                var logsArr = new JArray();
+                foreach (var l in capturedLogs) logsArr.Add(l);
+                var result = new JObject
+                {
+                    ["success"] = true,
+                    ["menuPath"] = menuPath,
+                    ["executed"] = executed,
+                    ["menuExists"] = menuExists,
+                    ["executionTime"] = executionTime,
+                    ["logs"] = logsArr,
+                    ["errorCount"] = errorLogs.Count,
+                    ["message"] = "Menu item executed successfully"
+                };
+                if (!string.IsNullOrEmpty(alias)) result["alias"] = alias;
 
                 return HandlerOutcome.Ok(result);
             }

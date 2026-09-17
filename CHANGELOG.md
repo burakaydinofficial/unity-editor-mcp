@@ -6,6 +6,31 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; CI-verified on 2019.4 / 2020.3 / 2021.3 / 2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
+## [0.21.2] — Production-feedback polish: compile-wait, menu-log capture, composite writes
+
+Acts on feedback from an agent using the tool in production. No wire/protocol change (1.0.0, 102 catalog commands,
+0 drift) and no new tool surface.
+
+### Added
+- **`get_compilation_state` `waitForIdle` mode** — a server-side poll that blocks until compilation + asset import
+  finish, reconnecting across the domain reload, so an agent can `refresh_assets` then wait instead of sleep-and-hope.
+  Compile errors are in `messages` (type "Error") + `errorCount` — the reliable compile-error channel.
+- **`scripts/meta-check.mjs`** (CI, in compat-lint) — fails if a package `.cs`/`.asmdef` lacks its `.meta` (a missing
+  `.meta` warns in every consumer's editor on import).
+
+### Changed
+- **`execute_menu_item`** now returns the console output emitted during the invoke (`logs` + `errorCount`). Menu
+  methods are void — there's no return value — but their logs are captured, so an agent needn't a separate read to see
+  what a menu did (including errors).
+- **`SerializedValue.Write`** recurses into a nested `[Serializable]` struct/class (`Generic`): `set_serialized_properties`
+  and `modify_serialized_array insert` can set a composite element/field in one call (was "Generic is read-only",
+  which forced insert-empty-then-set). Unknown/wrong-type composite fields are rejected up-front, never silently applied.
+
+### Notes
+- No protocol/wire change (1.0.0). Both packages ship at 0.21.2. Deferred with reasons (see
+  `docs/feature-parity-and-roadmap.md`): the compile-error *console* mapping (use `get_compilation_state`), batch asset
+  creation (a generic `batch` deserves its own cycle), and asset snapshot/rollback (git + Undo cover it).
+
 ## [0.21.1] — SDK modernization, a fresh-dimensions hardening pass, and Unity 6 CI
 
 Maintenance release: no wire/protocol change (still 1.0.0, 102 catalog commands, 0 drift) and no new tool surface.

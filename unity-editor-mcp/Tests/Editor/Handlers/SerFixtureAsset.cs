@@ -10,6 +10,10 @@ namespace UnityEditorMCP.Tests
     [System.Serializable] public class SerStrategyA : ISerStrategy { public int A = 1; }
     [System.Serializable] public class SerStrategyB : ISerStrategy { public string B = "x"; }
 
+    // A plain [Serializable] composite used as a VALUE field (SerializedPropertyType.Generic) — drives the
+    // composite-write tests (Feedback #2): set its fields in one call, and insert a composite array element.
+    [System.Serializable] public struct SerNested { public int N; public string Label; }
+
     // Drives the serialized-property tests. The PRIVATE [SerializeField] is the headline (D6).
     // Must be in a file named SerFixtureAsset.cs so Unity creates its MonoScript (needed to serialize to assets).
     public class SerFixtureAsset : ScriptableObject
@@ -36,6 +40,8 @@ namespace UnityEditorMCP.Tests
         public AnimationCurve CurveField = AnimationCurve.Linear(0, 0, 1, 1);
         public Gradient GradientField = new Gradient();
         [SerializeReference] public ISerStrategy Strategy;
+        public SerNested NestedField;      // Generic composite value field (Feedback #2)
+        public SerNested[] NestedArray;    // array of Generic composites
 
         public float ReadPrivateFloat() => privateFloat; // test-only proof the private write landed
     }

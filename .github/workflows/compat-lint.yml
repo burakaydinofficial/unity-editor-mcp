@@ -23,3 +23,6 @@ jobs:
 
       - name: Lint floor-divergent Unity APIs
         run: node scripts/compat-lint.mjs
+
+      - name: Package .meta completeness
+        run: node scripts/meta-check.mjs

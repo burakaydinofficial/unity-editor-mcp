@@ -68,6 +68,54 @@ namespace UnityEditorMCP.Tests
             Assert.AreEqual(new Vector3(4, 5, 6), _asset.Vec3Field);
         }
 
+        // Feedback #2: a nested [Serializable] composite (SerializedPropertyType.Generic) can be written in one call
+        // (previously "Generic is read-only"). force skips the CAS so we don't need to echo the composite's current value.
+        [Test] public void Set_NestedComposite_WritesFieldsInOneCall()
+        {
+            var outcome = SerializedMemberHandler.Set(new JObject { ["force"] = true, ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["NestedField"] = new JObject {
+                                  ["value"] = new JObject { ["N"] = 5, ["Label"] = "hi" } } } } } });
+            Assert.IsFalse(outcome.IsError, outcome.Error);
+            Assert.AreEqual(5, _asset.NestedField.N);
+            Assert.AreEqual("hi", _asset.NestedField.Label);
+        }
+
+        // No silent-ignore: an unknown composite field is an error, not a swallowed no-op.
+        [Test] public void Set_NestedComposite_UnknownField_Fails()
+        {
+            var outcome = SerializedMemberHandler.Set(new JObject { ["force"] = true, ["allOrNothing"] = true, ["edits"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath },
+                              ["set"] = new JObject { ["NestedField"] = new JObject {
+                                  ["value"] = new JObject { ["N"] = 1, ["Bogus"] = 2 } } } } } });
+            Assert.IsTrue(outcome.IsError, "an unknown composite field must not be silently ignored");
+        }
+
+        // Feedback #2a/#2b: array insert writes a composite element in ONE call...
+        [Test] public void ModifyArray_InsertComposite_WritesElementFields()
+        {
+            var r = SerializedMemberHandler.ModifyArray(new JObject { ["ops"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath }, ["arrayPath"] = "NestedArray",
+                              ["op"] = "insert", ["index"] = 0, ["expectedSize"] = 0,
+                              ["value"] = new JObject { ["N"] = 9, ["Label"] = "z" } } } });
+            Assert.IsFalse(r.IsError, r.Error);
+            Assert.AreEqual(1, _asset.NestedArray.Length);
+            Assert.AreEqual(9, _asset.NestedArray[0].N);
+            Assert.AreEqual("z", _asset.NestedArray[0].Label);
+        }
+
+        // A bad composite insert value is rejected up-front by ModifyArray's type-probe (with allOrNothing it surfaces
+        // as an error; otherwise it is reported in `skipped`) — the value is never silently applied.
+        [Test] public void ModifyArray_InsertComposite_BadValue_IsRejected()
+        {
+            var r = SerializedMemberHandler.ModifyArray(new JObject { ["allOrNothing"] = true, ["ops"] = new JArray {
+                new JObject { ["target"] = new JObject { ["assetPath"] = _assetPath }, ["arrayPath"] = "NestedArray",
+                              ["op"] = "insert", ["index"] = 0, ["expectedSize"] = 0,
+                              ["value"] = new JObject { ["N"] = "not-a-number" } } } });
+            Assert.IsTrue(r.IsError, "a bad composite insert value must be rejected (type-probed up front), not applied");
+            Assert.AreEqual(0, _asset.NestedArray?.Length ?? 0, "nothing should have been inserted");
+        }
+
         [Test] public void Set_StaleExpected_SkipsWithStale()
         {
             var outcome = SerializedMemberHandler.Set(new JObject { ["edits"] = new JArray {

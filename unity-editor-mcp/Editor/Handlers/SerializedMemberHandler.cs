@@ -416,6 +416,9 @@ namespace UnityEditorMCP.Handlers
                 case "insert":
                     var ii = o["index"]?.ToObject<int?>() ?? sp.arraySize;
                     sp.InsertArrayElementAtIndex(ii);
+                    // The insert value is pre-validated up-front by the type-probe in ModifyArray (a bad value is
+                    // skipped there, honestly, before the plan runs), so it is known-writable here. (Composite writes
+                    // are supported via SerializedValue.Write's Generic case — feedback #2.)
                     if (o["value"] != null) SerializedValue.Write(sp.GetArrayElementAtIndex(ii), o["value"], out _);
                     break;
                 case "remove":
