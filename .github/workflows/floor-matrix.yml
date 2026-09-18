@@ -34,13 +34,17 @@ jobs:
     if: ${{ github.repository == 'burakaydinofficial/unity-editor-mcp' }}
     strategy:
       fail-fast: false
+      # Serial (one job at a time). Unity Personal has a tiny activation-seat pool and no self-service seat release, so
+      # a CONCURRENT 5-job matrix exhausts it ("No seat available" — 4 fit, the 5th doesn't; max-parallel:2 also failed,
+      # so it's the seat pool, not simple concurrency). max-parallel:1 keeps at most one activation live at a time so
+      # the single seat is reused across versions. CI-minutes are unaffected (each version still runs once); only
+      # wall-clock is longer. If seats still flake serially (activations leaking rather than returning on exit), drop
+      # 2020.3 to the local bar (docs/floor-testing.md) — 2019.4 + 2021.3 bracket it (guards are `_OR_NEWER`).
+      max-parallel: 1
       matrix:
         unity:
           - 2019.4.41f2
-          # 2020.3.49f1 is off the CI gate (locally-verified — docs/floor-testing.md). The Unity Personal account's
-          # activation-seat pool can't cover a 5-job matrix — GameCI doesn't reliably return the license on exit, so
-          # activations accumulate and the last job consistently got "No seat available"; Personal has no self-service
-          # seat release. 2019.4 + 2021.3 bracket it (guards are `_OR_NEWER`), so coverage of every guard branch stands.
+          - 2020.3.49f1
           - 2021.3.45f2
           - 2022.3.62f2
           - 6000.0.78f1     # Unity 6.0 LTS — verifies the UNITY_6000_0_OR_NEWER guard branches (Rigidbody damping / Light rectangle)
