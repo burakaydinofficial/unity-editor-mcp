@@ -34,14 +34,13 @@ jobs:
     if: ${{ github.repository == 'burakaydinofficial/unity-editor-mcp' }}
     strategy:
       fail-fast: false
-      # Unity Personal has a limited concurrent license-activation seat pool; launching all 5 jobs at once exhausted
-      # it and one (2020.3) got "No seat available". Cap concurrency well below the ~4 that activated fine, so seats
-      # free between batches. Same total CI-minutes (each version still runs once) — only fewer run concurrently.
-      max-parallel: 2
       matrix:
         unity:
           - 2019.4.41f2
-          - 2020.3.49f1
+          # 2020.3.49f1 is off the CI gate (locally-verified — docs/floor-testing.md). The Unity Personal account's
+          # activation-seat pool can't cover a 5-job matrix — GameCI doesn't reliably return the license on exit, so
+          # activations accumulate and the last job consistently got "No seat available"; Personal has no self-service
+          # seat release. 2019.4 + 2021.3 bracket it (guards are `_OR_NEWER`), so coverage of every guard branch stands.
           - 2021.3.45f2
           - 2022.3.62f2
           - 6000.0.78f1     # Unity 6.0 LTS — verifies the UNITY_6000_0_OR_NEWER guard branches (Rigidbody damping / Light rectangle)

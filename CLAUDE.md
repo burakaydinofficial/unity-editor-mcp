@@ -10,7 +10,7 @@ projects**. That document is the authoritative roadmap (requirements A1–K6, pr
 Consult it before designing or implementing any feature.
 
 Compatibility target: **Unity 2019 through the latest versions**. The **floor-matrix CI compiles + runs the
-EditMode suite on 2019.4 / 2020.3 / 2021.3 / 2022.3** — **2019.4 is the declared floor**. Supporting old editors
+EditMode suite on 2019.4 / 2021.3 / 2022.3 / 6000.0** (2020.3 is supported + locally-verified, off the CI gate) — **2019.4 is the declared floor**. Supporting old editors
 (down to 2019.4) is the purpose of this fork — never silently raise the version floor:
 
 - Every version-divergent Unity API goes behind `#if UNITY_X_Y_OR_NEWER` guards with **both
@@ -24,8 +24,8 @@ EditMode suite on 2019.4 / 2020.3 / 2021.3 / 2022.3** — **2019.4 is the declar
   `FindObjectsOfType<T>(includeInactive)` (`UNITY_2020_1_OR_NEWER`).
 - The Unity package `unity` field (`unity-editor-mcp/package.json`, `2019.4`), the README support claims, and
   actual code compatibility must agree. The **floor-matrix CI** (`.github/workflows/floor-matrix.yml`) now
-  cold-compiles + EditMode-tests **2019.4–2022.3 + Unity 6.0 (`6000.0.78f1`)** every release tag; see
-  `COMPATIBILITY.md`.
+  cold-compiles + EditMode-tests **2019.4 / 2021.3 / 2022.3 / 6000.0** every release tag (2020.3 is locally-verified,
+  off the CI gate — a Unity Personal license-seat limit caps the GameCI matrix size); see `COMPATIBILITY.md`.
 
 ## Repository Layout
 

@@ -33,7 +33,6 @@ Unity Editor MCP (Model Context Protocol) enables AI assistants like Claude and 
 | Unity LTS | CI patch | Editor C# + EditMode |
 |---|---|---|
 | 2019.4 LTS | `2019.4.41f2` | ✅ compiles + EditMode tests green |
-| 2020.3 LTS | `2020.3.49f1` | ✅ compiles + EditMode tests green |
 | 2021.3 LTS | `2021.3.45f2` | ✅ compiles + EditMode tests green |
 | 2022.3 LTS | `2022.3.62f2` | ✅ compiles + EditMode tests green |
 | 6000.0 LTS | `6000.0.78f1` | ✅ compiles + EditMode tests green |
@@ -41,7 +40,8 @@ Unity Editor MCP (Model Context Protocol) enables AI assistants like Claude and 
 **Floor = 2019.4 LTS** — the lowest version in the CI matrix. The versions above run the full EditMode suite in
 the [floor-matrix CI](.github/workflows/floor-matrix.yml) on every release tag, each version-divergent API
 guarded under `#if` with both branches (see [`COMPATIBILITY.md`](COMPATIBILITY.md)). **Unity 6.0** is CI-verified
-in the matrix above; newer 6.x releases remain API-guarded.
+in the matrix above; newer 6.x releases remain API-guarded. **2020.3 LTS** is supported and locally verified
+(`docs/floor-testing.md`), but off the CI gate — a Unity Personal license-seat limit caps the GameCI matrix size.
 <!-- SUPPORT-TABLE:END -->
 
 ## 🚀 Quick Start

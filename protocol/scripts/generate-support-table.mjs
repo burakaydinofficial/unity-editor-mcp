@@ -38,7 +38,8 @@ const table = [
   '**Floor = 2019.4 LTS** — the lowest version in the CI matrix. The versions above run the full EditMode suite in',
   'the [floor-matrix CI](.github/workflows/floor-matrix.yml) on every release tag, each version-divergent API',
   'guarded under `#if` with both branches (see [`COMPATIBILITY.md`](COMPATIBILITY.md)). **Unity 6.0** is CI-verified',
-  'in the matrix above; newer 6.x releases remain API-guarded.',
+  'in the matrix above; newer 6.x releases remain API-guarded. **2020.3 LTS** is supported and locally verified',
+  '(`docs/floor-testing.md`), but off the CI gate — a Unity Personal license-seat limit caps the GameCI matrix size.',
   '<!-- SUPPORT-TABLE:END -->',
 ].join('\n');
 

@@ -5,9 +5,10 @@ if the C# editor side actually *compiles and passes its EditMode tests* on each 
 version. This doc is how that is proven. (`COMPATIBILITY.md` lists the guarded APIs; this is
 the verification that the guards are correct on every floor.)
 
-Supported matrix: **2019.4, 2020.3, 2021.3, 2022.3, 6000.0** (LTS) — all in the automated floor-matrix CI
-(cold compile + EditMode green on each). 2019.4 is the declared floor (C# 7.3); Unity 6.0 (`6000.0.78f1`) is
-CI-verified as of 0.21.0; newer 6.x remain API-guarded.
+Supported matrix: **2019.4, 2021.3, 2022.3, 6000.0** in the automated floor-matrix CI (cold compile + EditMode green
+on each). **2020.3** is supported and locally verified but off the CI gate — a Unity Personal license-seat limit caps
+the GameCI matrix size (Personal can't activate enough seats for a 5-job run, and has no self-service seat release).
+2019.4 is the declared floor (C# 7.3); Unity 6.0 (`6000.0.78f1`) is CI-verified as of 0.21.0; newer 6.x API-guarded.
 
 ## A. Local matrix (works today — the v1 proof)
 

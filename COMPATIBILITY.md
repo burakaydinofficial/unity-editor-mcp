@@ -47,7 +47,8 @@ Tracked openly so the list is the work list:
 
 1. **Floor CI-verified (2019.4 → Unity 6.0).** The **floor-matrix**
    (`.github/workflows/floor-matrix.yml`) cold-compiles the package and runs the full
-   EditMode suite on **2019.4 / 2020.3 / 2021.3 / 2022.3 / 6000.0** (GameCI, per-version host
+   EditMode suite on **2019.4 / 2021.3 / 2022.3 / 6000.0** (2020.3 supported + locally-verified,
+   off the CI gate — a Unity Personal license-seat limit caps the GameCI matrix size) (GameCI, per-version host
    projects under `ci/unity-host-<ver>/`) on every release tag and on PRs touching the
    package. Backed by two pure-Node PR gates: **compat-lint** (`scripts/compat-lint.mjs`,
    flags unguarded floor-divergent APIs) and the **Core `dotnet test`** lane. Unity 6.0
