@@ -42,6 +42,28 @@ namespace UnityEditorMCP.Handlers
             set { SessionState.SetBool(RunningKey, value); }
         }
 
+        // Heartbeat (feedback: the persistent "running" latch could stick true — a missed RunFinished, an empty run
+        // that fired no callbacks, or an interrupted run — and, being SessionState, outlive the run for the whole
+        // editor process, so a later agent saw "running" having started nothing, with no way to clear it). We now
+        // record the time of the last Test Runner callback and believe "running" ONLY while the latch is set AND a
+        // callback fired recently. A latch with no callback PROGRESS for StaleAfterSeconds is treated as stale and
+        // self-heals. Measuring progress (not total duration) means a legitimately long suite — which fires
+        // TestStarted/TestFinished throughout — is never falsely cleared, unlike the old wall-clock check.
+        private const string LastActivityKey = "UnityEditorMCP.TestRunner.LastActivityUtc";
+        private const double StaleAfterSeconds = 300; // 5 min with no callback progress => the running latch is stale
+
+        private static void MarkActivity() => SessionState.SetString(LastActivityKey, DateTime.UtcNow.ToString("o"));
+
+        private static double SecondsSinceActivity()
+        {
+            var s = SessionState.GetString(LastActivityKey, "");
+            return DateTime.TryParse(s, null, System.Globalization.DateTimeStyles.RoundtripKind, out var t)
+                ? (DateTime.UtcNow - t).TotalSeconds : double.MaxValue;
+        }
+
+        // The reconciled, self-healing "is a run actually live": the latch is set AND a callback fired recently.
+        private static bool IsRunLive => IsRunningTests && SecondsSinceActivity() < StaleAfterSeconds;
+
         private static string ResultsFilePath
         {
             get
@@ -130,12 +152,17 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                // Reconcile the persistent latch against reality: a set-but-STALE flag (no callback PROGRESS for
+                // StaleAfterSeconds — a missed RunFinished, an empty run, or an interrupted run) self-heals so it can't
+                // wedge run_tests forever. A genuinely live run (recent callbacks) still refuses; `force` overrides.
                 if (IsRunningTests)
                 {
-                    // Hard refuse — NEVER auto-clear on wall-clock (that clobbered a legitimately long-running suite,
-                    // a fresh regression). A stopped/crashed PlayMode run is cleared by the play-mode-exit hook below;
-                    // a normal completion by RunFinished; an editor restart clears the SessionState guard. (Bug hunt.)
-                    return HandlerOutcome.Fail("Tests are already running. Please wait for them to complete or cancel.", "INVALID_STATE");
+                    var forceStart = parameters["force"]?.ToObject<bool>() ?? false;
+                    if (IsRunLive && !forceStart)
+                        return HandlerOutcome.Fail("Tests are already running — wait for completion or call cancel_tests (or pass force:true).", "INVALID_STATE");
+                    if (!IsRunLive)
+                        Debug.LogWarning($"[TestRunner] Clearing a stale 'running' flag (no callback activity for {SecondsSinceActivity():F0}s) before a new run.");
+                    IsRunningTests = false;
                 }
 
                 var testMode = ParseTestMode(parameters["testMode"]?.ToString());
@@ -179,6 +206,23 @@ namespace UnityEditorMCP.Handlers
                     categoryNames = filterCategoryNames
                 };
 
+                // Don't latch a run that will match NOTHING: Unity may fire no RunFinished for an empty run, which would
+                // wedge the running flag ("thought tests were running, none started"). Verify at least one test matches
+                // up front, using the same nunit-attribute reflection the Test Runner filters against. (Feedback.)
+                var candidateTests = DiscoverTests(testMode, null, includeCategories, excludeCategories);
+                if (filterTestNames != null && filterTestNames.Length > 0)
+                    candidateTests = candidateTests.Where(t => filterTestNames.Contains(t.Name)).ToList();
+                if (candidateTests.Count == 0)
+                {
+                    return HandlerOutcome.Ok(new
+                    {
+                        message = "No tests matched the requested filters — nothing to run.",
+                        testMode = testMode.ToString(),
+                        testCount = 0,
+                        runAll = runAll
+                    });
+                }
+
                 // Clear previous results (memory + journal — a new run invalidates the old file)
                 lastTestResults.Clear();
                 try { System.IO.File.Delete(ResultsFilePath); } catch { /* best effort */ }
@@ -186,6 +230,7 @@ namespace UnityEditorMCP.Handlers
                 EnsureCallbacksRegistered();
 
                 IsRunningTests = true;
+                MarkActivity(); // start the heartbeat so an immediate poll doesn't read the fresh run as stale
                 SessionState.SetString(RunModeKey, testMode.ToString());
 
                 // Execute tests
@@ -196,7 +241,7 @@ namespace UnityEditorMCP.Handlers
                 {
                     message = "Test execution started",
                     testMode = testMode.ToString(),
-                    testCount = testNames?.Length ?? 0,
+                    testCount = candidateTests.Count,
                     runAll = runAll,
                     timestamp = DateTime.UtcNow.ToString("o")
                 });
@@ -284,6 +329,11 @@ namespace UnityEditorMCP.Handlers
                 var includeDetails = parameters["includeDetails"]?.ToObject<bool>() ?? true;
                 var filterStatus = parameters["filterStatus"]?.ToString();
 
+                // Reconcile the persistent latch: report the self-healing "is running" (a stale latch reads false), and
+                // heal it so a later run_tests isn't blocked by a flag no live run backs. (Feedback: stale state.)
+                bool live = IsRunLive;
+                if (IsRunningTests && !live) IsRunningTests = false;
+
                 // A domain reload after RunFinished wipes the in-memory dictionary — fall back to the journal the
                 // callback wrote to Library/ so results survive any number of reloads. (Core-2)
                 if (lastTestResults.Count == 0)
@@ -293,9 +343,11 @@ namespace UnityEditorMCP.Handlers
                 {
                     return HandlerOutcome.Ok(new
                     {
-                        message = "No test results available. Run tests first.",
+                        message = live
+                            ? "Tests are running — no results have arrived yet. Poll get_test_results again shortly."
+                            : "No test results available. Run tests first.",
                         hasResults = false,
-                        isRunning = IsRunningTests
+                        isRunning = live
                     });
                 }
 
@@ -348,7 +400,7 @@ namespace UnityEditorMCP.Handlers
                 {
                     results = results.ToArray(),
                     summary = summary,
-                    isRunning = IsRunningTests,
+                    isRunning = live,
                     totalTests = lastTestResults.Count,
                     message = "Test results retrieved successfully"
                 });
@@ -370,32 +422,47 @@ namespace UnityEditorMCP.Handlers
                 {
                     return HandlerOutcome.Ok(new
                     {
-                        message = "No tests are currently running",
+                        message = "No tests are currently running.",
                         wasCancelled = false
                     });
                 }
 
+                var force = parameters["force"]?.ToObject<bool>() ?? false;
+                bool live = IsRunLive;
                 var runMode = SessionState.GetString(RunModeKey, "");
                 bool isPlayMode = runMode.IndexOf("PlayMode", StringComparison.OrdinalIgnoreCase) >= 0;
 
-                if (!isPlayMode)
+                if (isPlayMode)
                 {
-                    // Unity has NO API to abort an in-progress EDITMODE run. Stopping play mode does nothing, and
-                    // unregistering the callback (as the old code did) only DROPS the still-arriving results and clears
-                    // the guard while the run continues -> lost results + a possible double-run. Refuse honestly and
-                    // leave the run + callback intact. (Bug hunt P.)
-                    return HandlerOutcome.Fail("An EditMode test run cannot be cancelled — Unity has no abort API. It will finish on its own; poll get_test_results.", "UNSUPPORTED");
+                    // PlayMode run: exiting play mode aborts it. The (always-registered) callback still delivers partial
+                    // results; the play-exit hook + RunFinished also settle the latch. (Bug hunt H.)
+                    EditorApplication.isPlaying = false;
+                    IsRunningTests = false;
+                    return HandlerOutcome.Ok(new
+                    {
+                        message = "Play-mode test run cancelled (exiting play mode).",
+                        wasCancelled = true,
+                        timestamp = DateTime.UtcNow.ToString("o")
+                    });
                 }
 
-                // PlayMode run: exiting play mode aborts it. RunFinished (partial) and/or the play-exit guard clear
-                // (Bug hunt H) settle IsRunningTests; keep the (always-registered) callback so partial results arrive.
-                EditorApplication.isPlaying = false;
-                IsRunningTests = false;
+                // EditMode: Unity has no abort API. If the run is genuinely LIVE (recent callbacks), refuse — clearing
+                // the latch would let a second run start concurrently. But if the latch is STALE (no callback progress —
+                // a stuck flag no run backs, the reported failure mode), RESET it so run_tests is unblocked. Safe because
+                // the callback is permanently registered, so any still-live run's results still arrive. (Feedback: stuck state.)
+                if (live && !force)
+                    return HandlerOutcome.Fail(
+                        "A live EditMode run can't be aborted (Unity has no abort API) — it will finish; poll get_test_results. "
+                        + "If the running state is stuck with no active run, re-call with force:true to reset it.", "UNSUPPORTED");
 
+                IsRunningTests = false;
                 return HandlerOutcome.Ok(new
                 {
-                    message = "Play-mode test cancellation requested (exiting play mode).",
-                    wasCancelled = true,
+                    message = force
+                        ? "EditMode run can't be aborted, but the running state was force-reset — run_tests is unblocked. Any live run's results still arrive via the callback."
+                        : "Cleared a stale 'running' state (no active EditMode run detected) — run_tests is unblocked.",
+                    wasCancelled = false,
+                    stateReset = true,
                     timestamp = DateTime.UtcNow.ToString("o")
                 });
             }
@@ -579,12 +646,14 @@ namespace UnityEditorMCP.Handlers
             public void RunStarted(ITestAdaptor testsToRun)
             {
                 Debug.Log($"[TestRunner] Starting test run");
+                MarkActivity();
                 lastTestResults.Clear();
             }
 
             public void RunFinished(ITestResultAdaptor result)
             {
                 Debug.Log($"[TestRunner] Test run completed");
+                MarkActivity();
                 ProcessTestResults(result);
                 // Journal the full result set: a later reload (script edit, play exit) wipes the in-memory
                 // dictionary, and get_test_results falls back to this file. (Core-2)
@@ -595,11 +664,13 @@ namespace UnityEditorMCP.Handlers
             public void TestStarted(ITestAdaptor test)
             {
                 Debug.Log($"[TestRunner] Test started: {test.FullName}");
+                MarkActivity(); // heartbeat: a long single test still refreshes activity at its start
             }
 
             public void TestFinished(ITestResultAdaptor result)
             {
                 Debug.Log($"[TestRunner] Test finished: {result.Test.FullName} - {result.TestStatus}");
+                MarkActivity();
 
                 if (result.HasChildren || result.Test == null)
                     return;

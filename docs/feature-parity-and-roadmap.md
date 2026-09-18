@@ -145,6 +145,20 @@ From an agent using the tool in production. Triaged against our design + acted o
 - **Asset snapshot/rollback (design #2):** declined — git + Unity Undo cover in-session self-correction; a file
   snapshot overlaps VCS and gets hard for scenes/prefabs.
 
+## Test-runner reliability + save tools (feedback, 2026-09-18)
+
+An agent saw the test runner stuck "running" with no run active, couldn't stop it, and fell back to `File/Save`.
+Findings + fixes (shipped 0.21.3):
+- **Root cause:** "is a run in progress" was a single persistent `SessionState` latch that only `RunFinished` could
+  clear — a missed `RunFinished` (empty run, reload race, interrupted run) left it stuck `true` across reloads, and
+  `cancel_tests` refused EditMode so it couldn't be cleared. Over-stateful + unreconcilable, exactly as suspected.
+  Fixed: the latch is reconciled against a callback **heartbeat** (self-heals when stale — measures progress, not
+  duration, so long suites aren't clobbered); `run_tests` won't latch a **no-match** run; `cancel_tests` clears a
+  stale/stuck latch (force resets regardless); + a `get_test_results waitForCompletion` run-and-wait primitive.
+- **Save:** `save_scene` + `save_assets` are the dedicated tools; `File/Save` via `execute_menu_item` is a valid
+  fallback — not the only way, not menu-only-by-design. The only gap is discoverability (no single "Save All" tool),
+  deferred as a per-command nicety the two tools already cover.
+
 ## Hotfix release runbook (during the pause)
 
 If a bug fix must ship while paused, the exact process that cut 0.21.0:

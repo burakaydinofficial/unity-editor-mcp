@@ -4,14 +4,15 @@ import { isNodeLogicTool, mergeNodeLogicSurface, NODE_LOGIC_TOOLS } from '../../
 import { CreateScriptToolHandler } from '../../../src/handlers/scripting/CreateScriptToolHandler.js';
 
 describe('nodeLogicTools', () => {
-  it('identifies exactly the 4 Node-logic tools', () => {
+  it('identifies exactly the 5 Node-logic tools', () => {
     assert.equal(isNodeLogicTool('execute_menu_item'), true);
     assert.equal(isNodeLogicTool('create_script'), true);
     assert.equal(isNodeLogicTool('analyze_screenshot'), true);
     assert.equal(isNodeLogicTool('get_compilation_state'), true); // waitForIdle poll spans the reload reconnect
+    assert.equal(isNodeLogicTool('get_test_results'), true);      // waitForCompletion poll spans the reload reconnect
     assert.equal(isNodeLogicTool('ping'), false);
     assert.equal(isNodeLogicTool('create_gameobject'), false);
-    assert.equal(Object.keys(NODE_LOGIC_TOOLS).length, 4);
+    assert.equal(Object.keys(NODE_LOGIC_TOOLS).length, 5);
   });
 
   it('overrides a Node-logic entry in place with the Node handler schema, leaving others untouched', () => {

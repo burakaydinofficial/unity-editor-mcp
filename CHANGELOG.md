@@ -6,6 +6,37 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; CI-verified on 2019.4 / 2020.3 / 2021.3 / 2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
+## [0.21.3] — Test-runner reliability: self-healing run state + a run-and-wait primitive
+
+Acts on production feedback that the test runner could get stuck reporting "running" when no run was active, with no
+way to stop or clear it. No wire/protocol change (1.0.0, 102 catalog commands, 0 drift).
+
+### Fixed
+- **Self-healing "running" state.** The `IsRunningTests` latch (SessionState) could stick `true` — a missed
+  `RunFinished`, an empty run that fired no callbacks, or an interrupted run — and, persisting across domain reloads,
+  make a later agent see "running" having started nothing, unable to clear it. It's now reconciled against a callback
+  *heartbeat*: "running" is believed only while the latch is set AND a Test Runner callback fired within ~5 min
+  (progress, not total duration — a long suite fires per-test callbacks, so it's never falsely cleared). A stale latch
+  self-heals on the next `run_tests` and reads `false` from `get_test_results`.
+- **`run_tests` no longer latches a run that matches nothing** — it verifies ≥1 test matches up front (Unity may fire
+  no `RunFinished` for an empty run — the likely wedge trigger). Returns "nothing to run" without starting.
+- **`cancel_tests` can clear a stuck EditMode state.** Unity has no EditMode abort API, so a *live* run is still
+  refused (poll `get_test_results`), but a *stale* latch is reset so `run_tests` is unblocked — the callback is
+  permanently registered, so a real run's results still arrive. `force:true` resets regardless. (Previously EditMode
+  cancel refused unconditionally, leaving a wedge unrecoverable without an editor restart.)
+- **Honest `get_test_results` messaging** — an in-progress run with no results yet no longer says "run tests first";
+  `isRunning` is the reconciled value; `run_tests` reports the real matched `testCount` (was `0` for `runAll`).
+
+### Added
+- **`get_test_results` `waitForCompletion` mode** — a server-side poll that blocks until the run finishes, tolerating
+  the domain-reload reconnect (PlayMode / recompiling tests), then returns the final results + summary. `run_tests`
+  then wait, instead of hand-polling `isRunning`. (Mirrors 0.21.2's `get_compilation_state waitForIdle`.)
+- **`force` on `run_tests` / `cancel_tests`** to override / reset a stuck running state.
+
+### Notes
+- No protocol/wire change (1.0.0). Both packages ship at 0.21.3. Aside (feedback): `save_scene` + `save_assets` are
+  the dedicated save tools — `File/Save` via `execute_menu_item` is a valid fallback, not the only way.
+
 ## [0.21.2] — Production-feedback polish: compile-wait, menu-log capture, composite writes
 
 Acts on feedback from an agent using the tool in production. No wire/protocol change (1.0.0, 102 catalog commands,

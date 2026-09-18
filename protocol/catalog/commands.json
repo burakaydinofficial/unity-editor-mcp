@@ -7196,10 +7196,15 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": false,
-      "description": "Cancel currently running tests in Unity",
+      "description": "Cancel running tests. PlayMode: exits play mode (aborts). EditMode: Unity has no abort API — a live run is refused (poll get_test_results), but a stale/stuck 'running' flag is reset so run_tests is unblocked; force:true resets it regardless.",
       "params": {
         "type": "object",
-        "properties": {},
+        "properties": {
+          "force": {
+            "type": "boolean",
+            "description": "Reset the internal 'running' state even if a live EditMode run is detected (unwedges a stuck flag). Does not abort a real run — its results still arrive."
+          }
+        },
         "required": []
       },
       "result": {
@@ -7216,6 +7221,10 @@
           "timestamp": {
             "type": "string",
             "description": "ISO 8601 timestamp when cancellation occurred (present only when wasCancelled is true)"
+          },
+          "stateReset": {
+            "type": "boolean",
+            "description": "True when a stuck/stale 'running' flag was cleared (EditMode) rather than a live run aborted"
           }
         },
         "required": [
@@ -7502,7 +7511,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": false,
-      "description": "Run tests in Unity Test Runner",
+      "description": "Run tests in Unity Test Runner (async — returns immediately once started; poll get_test_results, which has a waitForCompletion mode). A filter matching no tests returns 'nothing to run' without starting; a stale 'running' flag self-heals.",
       "params": {
         "type": "object",
         "properties": {
@@ -7526,6 +7535,10 @@
             "type": "boolean",
             "description": "Run all tests in the specified mode",
             "default": false
+          },
+          "force": {
+            "type": "boolean",
+            "description": "Start even if a 'running' flag is set but stale (no active run). A genuinely live run still blocks unless force is set."
           },
           "includeCategories": {
             "type": "array",
