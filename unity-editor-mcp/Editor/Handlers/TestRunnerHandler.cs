@@ -36,6 +36,7 @@ namespace UnityEditorMCP.Handlers
         //    when a later reload has wiped the in-memory dictionary.
         private const string RunningKey = "UnityEditorMCP.TestRunner.IsRunning";
         private const string RunModeKey = "UnityEditorMCP.TestRunner.RunMode";
+        private const string RunIdKey = "UnityEditorMCP.TestRunner.RunId"; // tags results with the run that produced them (feedback Symptom 3)
         private static bool IsRunningTests
         {
             get { return SessionState.GetBool(RunningKey, false); }
@@ -152,6 +153,13 @@ namespace UnityEditorMCP.Handlers
         {
             try
             {
+                // A run started while compilation/asset-import is pending is silently dropped by Unity (no RunFinished
+                // fires), which then wedged the latch. Refuse up front and point at the wait primitive. (Feedback Symptom 4.)
+                if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+                    return HandlerOutcome.Fail(
+                        "Editor is compiling or importing assets — a test run would be dropped. Wait for it to finish (get_compilation_state with waitForIdle:true) then retry.",
+                        "COMPILING");
+
                 // Reconcile the persistent latch against reality: a set-but-STALE flag (no callback PROGRESS for
                 // StaleAfterSeconds — a missed RunFinished, an empty run, or an interrupted run) self-heals so it can't
                 // wedge run_tests forever. A genuinely live run (recent callbacks) still refuses; `force` overrides.
@@ -229,9 +237,11 @@ namespace UnityEditorMCP.Handlers
 
                 EnsureCallbacksRegistered();
 
+                var runId = Guid.NewGuid().ToString("N").Substring(0, 12);
                 IsRunningTests = true;
                 MarkActivity(); // start the heartbeat so an immediate poll doesn't read the fresh run as stale
                 SessionState.SetString(RunModeKey, testMode.ToString());
+                SessionState.SetString(RunIdKey, runId); // tag this run so get_test_results is self-identifying (Symptom 3)
 
                 // Execute tests
                 var executionSettings = new ExecutionSettings(filter);
@@ -240,6 +250,7 @@ namespace UnityEditorMCP.Handlers
                 return HandlerOutcome.Ok(new
                 {
                     message = "Test execution started",
+                    runId = runId,
                     testMode = testMode.ToString(),
                     testCount = candidateTests.Count,
                     runAll = runAll,
@@ -274,7 +285,7 @@ namespace UnityEditorMCP.Handlers
                         ["output"] = r.Output
                     });
                 }
-                var doc = new JObject { ["finishedAt"] = DateTime.UtcNow.ToString("o"), ["results"] = arr };
+                var doc = new JObject { ["finishedAt"] = DateTime.UtcNow.ToString("o"), ["runId"] = SessionState.GetString(RunIdKey, ""), ["testMode"] = SessionState.GetString(RunModeKey, ""), ["results"] = arr };
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(ResultsFilePath));
                 System.IO.File.WriteAllText(ResultsFilePath, doc.ToString());
             }
@@ -291,6 +302,12 @@ namespace UnityEditorMCP.Handlers
             {
                 if (!System.IO.File.Exists(ResultsFilePath)) return;
                 var doc = JObject.Parse(System.IO.File.ReadAllText(ResultsFilePath));
+                // Restore the run's identity so get_test_results stays self-tagging even after an editor restart wiped
+                // SessionState (the journal survives restart; SessionState does not). (Symptom 3.)
+                if (string.IsNullOrEmpty(SessionState.GetString(RunIdKey, "")) && doc["runId"] != null)
+                    SessionState.SetString(RunIdKey, doc["runId"].ToString());
+                if (string.IsNullOrEmpty(SessionState.GetString(RunModeKey, "")) && doc["testMode"] != null)
+                    SessionState.SetString(RunModeKey, doc["testMode"].ToString());
                 var arr = doc["results"] as JArray;
                 if (arr == null) return;
                 foreach (var t in arr)
@@ -339,6 +356,13 @@ namespace UnityEditorMCP.Handlers
                 if (lastTestResults.Count == 0)
                     LoadResultsFromJournal();
 
+                // Self-identifying results (Symptom 3): tag with the run's id + mode so a caller can tell whether the
+                // stored results are the run it asked about (a different/older run served silently was the reported bug).
+                var runId = SessionState.GetString(RunIdKey, "");
+                var runMode = SessionState.GetString(RunModeKey, "");
+                var expectRunId = parameters["expectRunId"]?.ToString();
+                bool runIdMismatch = !string.IsNullOrEmpty(expectRunId) && !string.IsNullOrEmpty(runId) && !expectRunId.Equals(runId, StringComparison.Ordinal);
+
                 if (lastTestResults.Count == 0)
                 {
                     return HandlerOutcome.Ok(new
@@ -347,7 +371,10 @@ namespace UnityEditorMCP.Handlers
                             ? "Tests are running — no results have arrived yet. Poll get_test_results again shortly."
                             : "No test results available. Run tests first.",
                         hasResults = false,
-                        isRunning = live
+                        isRunning = live,
+                        runId = runId,
+                        testMode = runMode,
+                        runIdMismatch = runIdMismatch
                     });
                 }
 
@@ -402,7 +429,12 @@ namespace UnityEditorMCP.Handlers
                     summary = summary,
                     isRunning = live,
                     totalTests = lastTestResults.Count,
-                    message = "Test results retrieved successfully"
+                    runId = runId,
+                    testMode = runMode,
+                    runIdMismatch = runIdMismatch,
+                    message = runIdMismatch
+                        ? "Test results retrieved, but runId != expectRunId — these are a DIFFERENT run's results."
+                        : "Test results retrieved successfully"
                 });
             }
             catch (Exception ex)

@@ -7240,7 +7240,7 @@
       "sides": ["editor"],
       "internal": false,
       "destructive": false,
-      "description": "Get results from the last test run in Unity",
+      "description": "Get results from the last test run in Unity. Results are self-identifying: they carry the runId + testMode of the run that produced them (pass expectRunId to get a runIdMismatch flag). Persisted to Library/ so they survive domain reloads. Node-side waitForCompletion polls until the run finishes.",
       "params": {
         "type": "object",
         "properties": {
@@ -7258,6 +7258,10 @@
               "Skipped",
               "Inconclusive"
             ]
+          },
+          "expectRunId": {
+            "type": "string",
+            "description": "The runId returned by run_tests; sets runIdMismatch:true when the stored results are from a different run than you asked about."
           }
         },
         "required": []
@@ -7378,6 +7382,18 @@
           "hasResults": {
             "type": "boolean",
             "description": "Whether any results are available (only when no results exist)"
+          },
+          "runId": {
+            "type": "string",
+            "description": "Id of the run that produced these results (empty if none)"
+          },
+          "testMode": {
+            "type": "string",
+            "description": "Test mode of the stored run (EditMode/PlayMode/EditAndPlayMode)"
+          },
+          "runIdMismatch": {
+            "type": "boolean",
+            "description": "True when expectRunId was given and differs from runId — these are a different run's results"
           }
         },
         "required": [
@@ -7570,11 +7586,15 @@
           },
           "testCount": {
             "type": "integer",
-            "description": "Number of tests specified to run (0 if runAll is true or all are run)"
+            "description": "Number of tests that matched the filter and will run (0 = nothing matched, run not started)"
           },
           "runAll": {
             "type": "boolean",
             "description": "Whether all tests are being run"
+          },
+          "runId": {
+            "type": "string",
+            "description": "Id assigned to this run — pass as get_test_results.expectRunId to confirm results are from this run (present when a run starts)"
           },
           "timestamp": {
             "type": "string",

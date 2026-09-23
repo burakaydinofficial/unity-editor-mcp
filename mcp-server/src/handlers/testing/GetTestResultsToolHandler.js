@@ -25,6 +25,7 @@ export class GetTestResultsToolHandler extends BaseToolHandler {
         properties: {
           includeDetails: { type: 'boolean', default: true, description: 'Include per-test message/stackTrace/output.' },
           filterStatus: { type: 'string', description: 'Only return results with this status (Passed/Failed/Skipped/Inconclusive).' },
+          expectRunId: { type: 'string', description: 'The runId returned by run_tests; results carry runId + testMode, and runIdMismatch:true means the stored results are from a different run than you asked about.' },
           waitForCompletion: { type: 'boolean', default: false, description: 'Poll until the run finishes (isRunning=false), tolerating the domain-reload reconnect, then return the final results.' },
           timeoutMs: { type: 'number', default: 300000, description: 'Max wait when waitForCompletion (ms). On timeout the latest snapshot is returned with timedOut:true.' },
           pollIntervalMs: { type: 'number', default: 1000, description: 'Poll interval when waitForCompletion (ms).' },
@@ -43,9 +44,10 @@ export class GetTestResultsToolHandler extends BaseToolHandler {
   }
 
   async execute(params) {
-    const { includeDetails = true, filterStatus, waitForCompletion = false, timeoutMs = 300000, pollIntervalMs = 1000 } = params;
+    const { includeDetails = true, filterStatus, expectRunId, waitForCompletion = false, timeoutMs = 300000, pollIntervalMs = 1000 } = params;
     const snapParams = { includeDetails };
     if (filterStatus !== undefined) snapParams.filterStatus = filterStatus;
+    if (expectRunId !== undefined) snapParams.expectRunId = expectRunId;
     const snapshot = () => this.unityConnection.sendCommand('get_test_results', snapParams);
 
     if (!waitForCompletion) {

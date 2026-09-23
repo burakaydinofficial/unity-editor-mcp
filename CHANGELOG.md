@@ -6,6 +6,26 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; CI-verified on 2019.4 / 2020.3 / 2021.3 / 2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
+## [0.21.4] — Test-runner: refuse-while-compiling + self-identifying results
+
+More production feedback on the test runner. No wire/protocol change (1.0.0, 102 catalog commands, 0 drift).
+
+### Fixed
+- **`run_tests` refuses while the editor is compiling / importing** (`COMPILING`) instead of silently dropping the run
+  — Unity fires no `RunFinished` for a run started mid-compile, which then wedged the state. Wait with
+  `get_compilation_state waitForIdle:true`, then retry.
+
+### Added
+- **Self-identifying test results.** `run_tests` returns a `runId`; `get_test_results` returns the stored run's
+  `runId` + `testMode`, and — given `expectRunId` — a `runIdMismatch` flag, so a caller can no longer be silently
+  served a *different* run's (or mode's) results. `runId` + mode are journaled, surviving domain reloads and editor
+  restarts. `run_tests`' `testCount` now reports the real matched count (was `0` for `runAll`).
+
+### Notes
+- No protocol/wire change (1.0.0). Both packages ship at 0.21.4. The deeper timeout feedback (calls landing during
+  compile/reload) needs a wire-contract change (an `editorState` envelope + busy-fast-return) — scoped in
+  `docs/feature-parity-and-roadmap.md`, deferred as a deliberate design.
+
 ## [0.21.3] — Test-runner reliability: self-healing run state + a run-and-wait primitive
 
 Acts on production feedback that the test runner could get stuck reporting "running" when no run was active, with no

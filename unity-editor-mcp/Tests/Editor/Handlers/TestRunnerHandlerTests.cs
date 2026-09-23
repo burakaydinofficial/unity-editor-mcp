@@ -17,12 +17,16 @@ namespace UnityEditorMCP.Tests
         private const string RunningKey = "UnityEditorMCP.TestRunner.IsRunning";
         private const string RunModeKey = "UnityEditorMCP.TestRunner.RunMode";
         private const string LastActivityKey = "UnityEditorMCP.TestRunner.LastActivityUtc";
+        private const string RunIdKey = "UnityEditorMCP.TestRunner.RunId";
 
         [SetUp] public void Setup()
         {
-            // Clean slate so tests are isolated and never inherit a latched flag.
+            // Clean slate so tests are isolated and never inherit a latched flag or a stale results journal.
             SessionState.SetBool(RunningKey, false);
             SessionState.EraseString(LastActivityKey);
+            SessionState.EraseString(RunIdKey);
+            SessionState.EraseString(RunModeKey);
+            try { System.IO.File.Delete(System.IO.Path.Combine(System.IO.Directory.GetParent(UnityEngine.Application.dataPath).FullName, "Library", "UnityEditorMCP", "last-test-results.json")); } catch { }
         }
 
         [Test] public void RunTests_NoMatchingFilter_DoesNotLatch()
@@ -60,6 +64,23 @@ namespace UnityEditorMCP.Tests
             var data = JObject.FromObject(r.Payload);
             Assert.IsTrue((bool)data["stateReset"], "a stale stuck flag must be cleared, not refused");
             Assert.IsFalse(SessionState.GetBool(RunningKey, false), "the running flag must be reset");
+        }
+
+        [Test] public void GetTestResults_TagsRunId_AndDetectsMismatch()
+        {
+            // Feedback Symptom 3: results must be self-identifying (runId + mode) so a different run's results can't be
+            // served silently. Simulate a stored run's identity without a nested run.
+            SessionState.SetString(RunIdKey, "run-abc");
+            SessionState.SetString(RunModeKey, "EditMode");
+
+            var ok = JObject.FromObject(TestRunnerHandler.GetTestResults(new JObject { ["expectRunId"] = "run-abc" }).Payload);
+            Assert.AreEqual("run-abc", ok["runId"].ToString());
+            Assert.AreEqual("EditMode", ok["testMode"].ToString());
+            Assert.IsFalse((bool)ok["runIdMismatch"], "matching expectRunId must not flag a mismatch");
+
+            var mism = JObject.FromObject(TestRunnerHandler.GetTestResults(new JObject { ["expectRunId"] = "other-run" }).Payload);
+            Assert.AreEqual("run-abc", mism["runId"].ToString());
+            Assert.IsTrue((bool)mism["runIdMismatch"], "a different expectRunId must flag a mismatch");
         }
     }
 }

@@ -159,6 +159,38 @@ Findings + fixes (shipped 0.21.3):
   fallback — not the only way, not menu-only-by-design. The only gap is discoverability (no single "Save All" tool),
   deferred as a per-command nicety the two tools already cover.
 
+## Extended test-runner feedback triage (2026-09-23)
+
+A longer feedback pass (an extension of the 2026-09-18 one, partly predating 0.21.1–0.21.3). Triaged:
+- **Already fixed** (agent was pre-0.21.1): stale test runner (0.21.3 self-heal + no-match no-latch + cancel reset —
+  literally their ask), `.meta` pollution (0.21.1 + CI meta-check), compile-error visibility (`get_compilation_state`
+  + `waitForIdle`), results-lost-across-reloads (journal + the stale-state fix).
+- **False positives:** "no `save_scene`" (it exists; `save_assets` too — the menu was an undiscovered fallback);
+  "editorState missing" (`get_editor_info` exposes `isCompiling`/`isPlaying` on demand).
+- **Shipped in 0.21.4:** `run_tests` refuses while compiling (was a silent drop — Symptom 4); results tagged with
+  `runId` + `testMode` + a `runIdMismatch` check (a different run's results could be served silently — Symptom 3).
+
+## Design scope: `editorState` envelope + busy-fast-return (deferred — needs a decision)
+
+Symptom 1 (calls landing during compile/reload exceed the client's 60s timeout → retries) needs a **wire-contract**
+change, not a handler tweak. There's already a real mitigation — the 30s `STALE_COMMAND` gate prevents *phantom
+mutations* (a mutation the client was told failed) — but it doesn't remove the timeout/retry. Three layers, rising cost:
+
+1. **`editorState` on every response (cheapest, highest value — recommended first).** `DispatchViaCore` (editor-side)
+   already sees `EditorApplication.isCompiling/isUpdating/isPlaying`; inject an `editorState` envelope field
+   (`idle|compiling|importing|playing`) into every result. Agents read state on *every* call instead of a separate
+   `get_editor_info`. Cost: one envelope field + Node surfacing + tests + a catalog note. No new command, no async model.
+2. **Busy-fast-return (medium).** A mutating command arriving while `isCompiling/isUpdating` returns
+   `{status:"busy",phase}` immediately rather than queueing behind the reload. Needs a per-command
+   "safe-to-defer vs refuse-when-busy" classification. `run_tests` already does this (0.21.4) — generalize it.
+3. **Job-id polling for arbitrary long ops (largest).** Return `{accepted:true,runId}` + client polls — already the
+   model on the *observe* side (`get_test_results waitForCompletion`, `get_compilation_state waitForIdle`).
+   Generalizing to any long op is a real protocol addition (job registry, possible wire-version bump); defer until a
+   concrete need beyond tests/compile appears.
+
+Recommendation: do **#1** as a focused change when features resume (removes most retry guesswork, least risk); **#2**
+generalizes the 0.21.4 compile-guard; **#3** is a bigger protocol decision, defer.
+
 ## Hotfix release runbook (during the pause)
 
 If a bug fix must ship while paused, the exact process that cut 0.21.0:
