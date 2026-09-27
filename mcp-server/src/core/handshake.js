@@ -109,12 +109,10 @@ export function evaluateHandshake(handshake, options = {}) {
  *   code?:string|null, message:string, handshake?:object}>}
  */
 export async function performHandshake(connection, options = {}) {
-  // An explicit expectedProjectPath (even null) is authoritative: the connection manager passes null
-  // for explicitly-targeted instances so they are not checked against the global UNITY_PROJECT_PATH
-  // (the ACTIVE project), which would wrongly flag every other editor as a mismatch (audit #11).
-  const expectedProjectPath = ('expectedProjectPath' in options)
-    ? options.expectedProjectPath
-    : ((typeof process !== 'undefined' ? process.env.UNITY_PROJECT_PATH : null) ?? null);
+  // expectedProjectPath is authoritative and comes ONLY from options: the connection manager passes the
+  // targeted project path (so the handshake verifies the connected editor really is that project), or null
+  // when targeting by port / with no project to check (ADR 0006 — there is no global default instance).
+  const expectedProjectPath = options.expectedProjectPath ?? null;
   const localProtocolVersion = options.localProtocolVersion || PROTOCOL_VERSION;
 
   let handshake;

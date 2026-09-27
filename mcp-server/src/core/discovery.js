@@ -195,29 +195,16 @@ export function findInstanceByProjectPath(registryDir, projectPath) {
 /**
  * Resolves the Unity port for this server instance:
  * 1. UNITY_PORT (explicit) wins;
- * 2. else with UNITY_PROJECT_PATH: a fresh registry descriptor's actual port,
- *    falling back to the project-derived default port;
- * 3. else the legacy fixed default (6400).
+ * 2. else the legacy fixed default (6400).
+ *
+ * The advertised surface (ADR 0006) never relies on this: every editor is targeted
+ * per-call by an explicit `instance` (a project path or port) and located via the
+ * discovery registry. This default only seeds a standalone/diagnostic connection.
  */
 export function resolveUnityPort(env = process.env) {
   const explicit = parseInt(env.UNITY_PORT, 10);
   // A valid TCP target port is 1..65535; ignore 0 (and out-of-range) so an empty/
-  // bogus UNITY_PORT falls through to discovery/derivation rather than being used.
+  // bogus UNITY_PORT falls through to the legacy default rather than being used.
   if (Number.isFinite(explicit) && explicit > 0 && explicit < 65536) return explicit;
-
-  const projectPath = env.UNITY_PROJECT_PATH;
-  if (projectPath) {
-    try {
-      const instance = findInstanceByProjectPath(defaultRegistryDirectory(env), projectPath);
-      // Only a LOCAL, live editor is reachable on loopback — a remote descriptor's port would connect to the wrong
-      // editor (or nothing) on this machine. (Bug hunt: remote-to-loopback.)
-      if (instance && isLive(instance) && isSameHost(instance) && Number.isFinite(instance.port)) {
-        return instance.port;
-      }
-    } catch {
-      // Unreadable registry — fall back to derivation.
-    }
-    return derivePort(projectPath);
-  }
   return DEFAULT_BASE_PORT;
 }

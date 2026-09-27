@@ -273,8 +273,11 @@ the agent discovers each connected editor's real tools — with schemas, learned
 The bridge uses a **per-project derived port** (range 6400–7423), published to a local
 discovery registry — there is no single fixed port:
 1. Ensure the Unity Editor is running with the package installed.
-2. Set `UNITY_PROJECT_PATH` so the server resolves the right editor from the registry,
-   or set `UNITY_PORT` to pin a specific port explicitly.
+2. The server discovers running editors automatically — call `list_unity_instances`, then pass the
+   editor's project path or port as the required `instance` on `list_unity_tools` / `call_unity_tool`.
+   Just ensure the editor and server resolve the **same** registry directory (the default per-user
+   location, or set `UNITY_MCP_REGISTRY_DIR` identically on both); pin a port with `UNITY_PORT` only
+   for a standalone/diagnostic connection.
 3. If a port seems stuck, close stray Unity instances and restart the editor.
 
 ### Connection Failed

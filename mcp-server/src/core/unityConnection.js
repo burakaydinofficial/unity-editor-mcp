@@ -1,7 +1,7 @@
 import net from 'net';
 import { EventEmitter } from 'events';
 import { config, logger } from './config.js';
-import { resolveUnityPort, reapStale, defaultRegistryDirectory } from './discovery.js';
+import { resolveUnityPort } from './discovery.js';
 
 /**
  * Detects a handler-level error returned by the Unity editor under a
@@ -48,21 +48,17 @@ export class UnityConnection extends EventEmitter {
   }
 
   /**
-   * Resolves the port to (re)connect to. Re-evaluated on every attempt so a
-   * restarted editor that moved to a new ephemeral port is picked up via the
-   * discovery registry; opportunistically reaps dead descriptors while there
-   * (ADR 0003). Explicit UNITY_PORT short-circuits to a fixed port.
+   * Resolves the port to (re)connect to. An explicit per-connection target (set by
+   * the connection manager, which handles moved-editor re-resolution via the registry)
+   * wins; otherwise env/default resolution applies: explicit UNITY_PORT, else the
+   * legacy default. Re-evaluated on every attempt.
    * @param {object} env
    * @returns {number}
    */
   resolveTargetPort(env = process.env) {
-    // An explicit per-connection target (set by the connection manager) wins over
-    // env/registry resolution.
+    // An explicit per-connection target (set by the connection manager) wins over env resolution.
     if (this.targetPort) return this.targetPort;
     try {
-      if (env.UNITY_PROJECT_PATH && !env.UNITY_PORT) {
-        try { reapStale(defaultRegistryDirectory(env)); } catch { /* best effort */ }
-      }
       return resolveUnityPort(env);
     } catch {
       return config.unity.port;

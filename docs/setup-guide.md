@@ -70,7 +70,6 @@ The server resolves the editor automatically, but you can override:
 
 | Variable | Effect |
 | --- | --- |
-| `UNITY_PROJECT_PATH` | Resolve the target editor by project path (via the registry / derived port) |
 | `UNITY_PORT` | Connect to an explicit port (wins over discovery) |
 | `UNITY_HOST` | Host to connect to (default `localhost`) |
 | `UNITY_MCP_REGISTRY_DIR` | Override the discovery registry directory |

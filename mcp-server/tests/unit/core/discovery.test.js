@@ -19,7 +19,6 @@ import {
   DEFAULT_BASE_PORT,
   DEFAULT_PORT_RANGE,
 } from '../../../src/core/discovery.js';
-import { hostname } from 'node:os';
 
 const slashes = (p) => p.replace(/\\/g, '/');
 
@@ -141,38 +140,9 @@ describe('discovery', () => {
       assert.ok(Number.isFinite(Date.parse(descriptor().startedAt)));
     });
 
-    it('resolveUnityPort: explicit > registry > derived > legacy 6400', () => {
-      withRegistry((dir) => {
-        const desc = descriptor();
-        writeFileSync(join(dir, instanceFileName(desc.projectPath)), JSON.stringify(desc));
-        assert.strictEqual(resolveUnityPort({ UNITY_PORT: '7777' }), 7777);
-        assert.strictEqual(resolveUnityPort({ UNITY_PROJECT_PATH: 'C:/projects/game', UNITY_MCP_REGISTRY_DIR: dir }), 6512);
-        assert.strictEqual(
-          resolveUnityPort({ UNITY_PROJECT_PATH: 'C:/projects/other', UNITY_MCP_REGISTRY_DIR: dir }),
-          derivePort('C:/projects/other'));
-        assert.strictEqual(resolveUnityPort({}), DEFAULT_BASE_PORT);
-      });
-    });
-
-    it('resolveUnityPort ignores a stale registry entry and derives instead', () => {
-      withRegistry((dir) => {
-        const desc = descriptor({ lastHeartbeat: new Date(Date.now() - 400_000).toISOString() });
-        writeFileSync(join(dir, instanceFileName(desc.projectPath)), JSON.stringify(desc));
-        assert.strictEqual(
-          resolveUnityPort({ UNITY_PROJECT_PATH: 'C:/projects/game', UNITY_MCP_REGISTRY_DIR: dir }),
-          derivePort('C:/projects/game'));
-      });
-    });
-
-    it('resolveUnityPort ignores a same-host descriptor whose pid is dead', () => {
-      withRegistry((dir) => {
-        // Fresh heartbeat, but the process is gone — must not be used.
-        const desc = descriptor({ host: hostname(), pid: 999_999_999 });
-        writeFileSync(join(dir, instanceFileName(desc.projectPath)), JSON.stringify(desc));
-        assert.strictEqual(
-          resolveUnityPort({ UNITY_PROJECT_PATH: 'C:/projects/game', UNITY_MCP_REGISTRY_DIR: dir }),
-          derivePort('C:/projects/game'));
-      });
+    it('resolveUnityPort: explicit > legacy 6400', () => {
+      assert.strictEqual(resolveUnityPort({ UNITY_PORT: '7777' }), 7777);
+      assert.strictEqual(resolveUnityPort({}), DEFAULT_BASE_PORT);
     });
   });
 

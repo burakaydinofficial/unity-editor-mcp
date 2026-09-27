@@ -72,8 +72,7 @@ npm run dev                 # run with --watch
 Test environment notes: `NODE_ENV=test` or `CI=true` makes `UnityConnection.connect()` refuse to
 connect (so unit/integration tests never need a live editor); `DISABLE_AUTO_RECONNECT=true`
 disables the reconnect loop. Server config env vars: `UNITY_HOST`, `UNITY_PORT` (explicit port,
-wins over discovery), `UNITY_PROJECT_PATH` (resolve the target editor via the discovery registry
-or the derived per-project port — ADR 0003), `UNITY_MCP_REGISTRY_DIR` (registry dir override),
+wins over discovery), `UNITY_MCP_REGISTRY_DIR` (registry dir override),
 `LOG_LEVEL` (`info`/`debug`). The advertised MCP surface is always the three generic meta-tools
 (ADR 0004/0006); editor commands are reached via `call_unity_tool` after on-demand discovery. Editor-side
 env: `UNITY_MCP_PORT` overrides the derived port.

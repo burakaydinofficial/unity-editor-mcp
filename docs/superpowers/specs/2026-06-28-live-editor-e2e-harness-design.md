@@ -63,7 +63,7 @@ shortcut). Per run:
 
 1. The **runner** launches **one headed editor** (real window — batch-mode freezes on play-mode entry) on a
    **dedicated `e2e-host` project**, waits for the bridge (`Editor.log` shows `TcpTransport listening on …`), then
-   spawns the **MCP server** (`UNITY_PROJECT_PATH` = the host) and connects an **MCP client** to it. It drives tools
+   spawns the **MCP server** (`UNITY_PORT` = the host editor's port) and connects an **MCP client** to it. It drives tools
    via `list_unity_tools` / `call_unity_tool`.
 2. **One editor boot per run.** Every tool-induced **domain reload** happens *inside* that single editor — a reload
    is seconds, **not** a reboot. The MCP server's existing auto-reconnect re-establishes its TCP to the editor

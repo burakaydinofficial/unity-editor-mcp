@@ -36,8 +36,9 @@ Three layers, each independently overridable:
    being fatal; the registry makes the port knowable anyway.
 
 Server resolution order (`mcp-server/src/core/discovery.js`, mirrored from C#):
-`UNITY_PORT` (explicit) → fresh registry descriptor for `UNITY_PROJECT_PATH` →
-derived port for that path → legacy 6400. The `Handshake` project-path check
+a per-call `instance` resolves the target editor by project path (fresh registry
+descriptor) or by an explicit port; the standalone default connection falls back to
+`UNITY_PORT` (explicit) → legacy 6400. The `Handshake` project-path check
 (`PROJECT_PATH_MISMATCH`) backstops wrong-editor connections.
 
 Cross-language parity is pinned by tests on both sides: canonical FNV-1a vectors

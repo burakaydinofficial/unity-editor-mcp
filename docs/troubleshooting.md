@@ -18,7 +18,7 @@ down to "which link is down." This matrix lists the common failure smells, what 
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Want a fixed port instead of the derived one | Default is a **per-project derived port** (range 6400–7423) | Pin it: `UNITY_MCP_PORT` (editor side) + `UNITY_PORT` (server side, wins over discovery). |
-| Server can't resolve the editor by project | Registry dir mismatch | Set `UNITY_PROJECT_PATH` (resolves via the registry / derived port) or `UNITY_MCP_REGISTRY_DIR`. |
+| Server can't resolve the editor by project | Registry dir mismatch between editor and server | Ensure both resolve the **same** registry dir (the default `%LOCALAPPDATA%`/`$HOME` location, or set `UNITY_MCP_REGISTRY_DIR` identically on both), then select the editor per call via `list_unity_instances` + the `instance` arg. |
 | "Port already in use" | Another editor/process on the derived port | Close the other editor, or pin distinct ports. |
 
 ## Compilation & commands

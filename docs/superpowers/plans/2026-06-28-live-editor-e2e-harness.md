@@ -444,7 +444,7 @@ export class McpDriver {
   async start(hostPath) {
     this.transport = new StdioClientTransport({
       command: 'node', args: [SERVER],
-      env: { ...process.env, UNITY_PROJECT_PATH: hostPath }, // server derives the same per-project port as the editor
+      env: { ...process.env }, // server discovers the editor via the registry (no per-project env needed)
     });
     this.client = new Client({ name: 'e2e-live', version: '1.0.0' }, { capabilities: {} });
     await this.client.connect(this.transport);
