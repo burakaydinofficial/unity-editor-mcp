@@ -54,18 +54,6 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-### Alternative (if globally installed)
-
-```json
-{
-  "mcpServers": {
-    "unity-editor-mcp": {
-      "command": "unity-editor-mcp"
-    }
-  }
-}
-```
-
 ## Tool surface
 
 **The server advertises a small generic surface (v0.5.0 — ADR 0006):**
