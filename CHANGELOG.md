@@ -6,6 +6,36 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; CI-verified on 2019.4 / 2020.3 / 2021.3 / 2022.3 LTS). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
+## [0.21.5] — Registry-directory parity (Windows editor visibility) + drop the vestigial UNITY_PROJECT_PATH knob
+
+Fixes a discovery bug where an editor could be invisible to the server on the same machine — with no error — and
+removes a dead configuration knob. No wire/protocol change (1.0.0, 102 catalog commands, 0 drift).
+
+### Fixed
+- **The editor and the server could resolve DIFFERENT registry directories.** Both use identical rules, but detected
+  the OS differently — the C# side (`InstanceRegistry.DefaultDirectory`) via `RuntimeInformation.IsOSPlatform`, the
+  Node side (`defaultRegistryDirectory`) via `process.platform`. If they disagreed (e.g. `RuntimeInformation`
+  misreporting under Unity's Mono while `HOME` is set), the editor published its discovery descriptor to a directory
+  the server never read — the editor was simply invisible, no error surfaced. The C# side now detects the OS with
+  primitives stable across every Unity Mono version down to the 2019.4 floor (`Path.DirectorySeparatorChar` /
+  `Environment.OSVersion.Platform`, plus a macOS path probe), and both sides are pinned to the SAME per-platform path
+  by parity tests (asserting the full base, not just the shared suffix — the gap that let this through).
+- The editor now **logs its resolved registry directory once at startup**, so a mismatch is diagnosable from the
+  console instead of failing silently.
+
+### Removed
+- **`UNITY_PROJECT_PATH` env resolution.** It was vestigial under the generic 3-tool surface (ADR 0006): every editor
+  is targeted per-call by an explicit `instance` (project path or port), and `list_unity_instances` enumerates the
+  whole registry, so a startup-pinned project path never applied — and pinning it only risked collapsing the
+  multi-editor design to a single project. `UNITY_PORT` (explicit override) and the discovery registry are unchanged.
+- The README's "alternative (if globally installed)" client config (a bare `unity-editor-mcp` command) — a bin name
+  that collides with an unrelated global package and can launch the wrong server. Use
+  `npx @burakaydinofficial/unity-editor-mcp`.
+- Dead internal helper `isSameHost` (orphaned by the `UNITY_PROJECT_PATH` removal).
+
+### Notes
+- No protocol/wire change (1.0.0). Both packages ship at 0.21.5.
+
 ## [0.21.4] — Test-runner: refuse-while-compiling + self-identifying results
 
 More production feedback on the test runner. No wire/protocol change (1.0.0, 102 catalog commands, 0 drift).
