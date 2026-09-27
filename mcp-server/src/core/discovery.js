@@ -117,16 +117,6 @@ export function isLive(descriptor, nowMs = Date.now(), currentHost = hostname(),
   return isFresh(descriptor, nowMs);
 }
 
-/**
- * True if the descriptor was published by THIS machine, so its port is reachable on loopback. A descriptor with no
- * host predates host-tagging and is treated as local (single-machine registry). A remote descriptor resolved to a
- * localhost port would connect to the WRONG editor (or nothing). (Bug hunt: remote-to-loopback.)
- */
-export function isSameHost(descriptor, currentHost = hostname()) {
-  if (!descriptor?.host) return true; // legacy / local descriptor
-  return asciiLower(descriptor.host) === asciiLower(currentHost);
-}
-
 /** All readable descriptors in the registry; corrupt/foreign files are skipped. */
 export function readInstances(registryDir) {
   if (!existsSync(registryDir)) return [];

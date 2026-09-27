@@ -77,11 +77,16 @@ describe('discovery', () => {
       assert.strictEqual(defaultRegistryDirectory({ UNITY_MCP_REGISTRY_DIR: 'X:/o' }), 'X:/o');
     });
 
-    it('uses platform-conventional base dirs ending in unity-editor-mcp/instances', () => {
-      assert.ok(slashes(defaultRegistryDirectory({ LOCALAPPDATA: 'C:\\U\\AppData\\Local' }, 'win32')).endsWith('unity-editor-mcp/instances'));
-      assert.ok(slashes(defaultRegistryDirectory({ HOME: '/Users/x' }, 'darwin')).includes('Library/Application Support'));
-      assert.ok(slashes(defaultRegistryDirectory({ HOME: '/home/x' }, 'linux')).includes('.local/share'));
-      assert.ok(slashes(defaultRegistryDirectory({ XDG_DATA_HOME: '/xdg/data', HOME: '/home/x' }, 'linux')).startsWith('/xdg/data'));
+    // Parity vectors — these MUST match dotnet/UnityEditorMCP.Core.Tests/InstanceRegistryTests.cs
+    // (the ResolveDirectory_* tests). The C# InstanceRegistry.DefaultDirectory and this function must
+    // resolve the SAME path per platform; asserting the full base (not just the suffix) is what would
+    // have caught the Windows registry-dir divergence between the two sides.
+    it('resolves the exact per-platform base dir (parity with the C# registry)', () => {
+      assert.strictEqual(slashes(defaultRegistryDirectory({ LOCALAPPDATA: 'C:/u/AppData/Local' }, 'win32')), 'C:/u/AppData/Local/unity-editor-mcp/instances');
+      assert.strictEqual(slashes(defaultRegistryDirectory({ USERPROFILE: 'C:/u' }, 'win32')), 'C:/u/AppData/Local/unity-editor-mcp/instances');
+      assert.strictEqual(slashes(defaultRegistryDirectory({ HOME: '/Users/x' }, 'darwin')), '/Users/x/Library/Application Support/unity-editor-mcp/instances');
+      assert.strictEqual(slashes(defaultRegistryDirectory({ HOME: '/home/x' }, 'linux')), '/home/x/.local/share/unity-editor-mcp/instances');
+      assert.strictEqual(slashes(defaultRegistryDirectory({ XDG_DATA_HOME: '/xdg/data', HOME: '/home/x' }, 'linux')), '/xdg/data/unity-editor-mcp/instances');
     });
   });
 

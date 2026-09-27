@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 
 namespace UnityEditorMCP.Core
 {
@@ -34,7 +33,9 @@ namespace UnityEditorMCP.Core
 
         /// <summary>
         /// Resolves the default per-user registry directory. Mirrored by the Node
-        /// side — the rules must stay identical:
+        /// side (mcp-server/src/core/discovery.js defaultRegistryDirectory) — the
+        /// rules AND the resulting path must stay identical, or an editor publishes
+        /// to a directory the server never reads (an invisible editor, no error):
         /// 1. UNITY_MCP_REGISTRY_DIR if set;
         /// 2. Windows: %LOCALAPPDATA% (else %USERPROFILE%/AppData/Local);
         /// 3. macOS: $HOME/Library/Application Support;
@@ -43,35 +44,59 @@ namespace UnityEditorMCP.Core
         /// </summary>
         public static string DefaultDirectory()
         {
-            var env = Environment.GetEnvironmentVariable(DirectoryEnvVar);
-            if (!string.IsNullOrEmpty(env)) return env;
+            return ResolveDirectory(
+                Environment.GetEnvironmentVariable(DirectoryEnvVar),
+                DetectPlatform(),
+                name => Environment.GetEnvironmentVariable(name));
+        }
+
+        internal enum HostPlatform { Windows, MacOS, Other }
+
+        /// <summary>
+        /// OS classification for the registry path. Deliberately avoids
+        /// <c>RuntimeInformation.IsOSPlatform</c>, whose result under Unity's scripting
+        /// runtime is not guaranteed to agree with the Node side's <c>process.platform</c>;
+        /// a disagreement silently sends this editor's descriptor to a different directory
+        /// than the server reads. The directory separator and OSVersion.Platform are stable
+        /// across every Unity Mono version (down to the 2019.4 floor).
+        /// </summary>
+        internal static HostPlatform DetectPlatform()
+        {
+            if (Path.DirectorySeparatorChar == '\\' || Environment.OSVersion.Platform == PlatformID.Win32NT)
+                return HostPlatform.Windows;
+            // OSVersion.Platform reports Unix for both macOS and Linux; a macOS-only system
+            // path disambiguates the two without depending on RuntimeInformation. (Fully qualified:
+            // this type has an instance `Directory` property that would otherwise shadow System.IO.)
+            if (System.IO.Directory.Exists("/System/Library/CoreServices"))
+                return HostPlatform.MacOS;
+            return HostPlatform.Other;
+        }
+
+        /// <summary>
+        /// Pure resolver with injectable platform + env lookup, so this and the Node
+        /// <c>defaultRegistryDirectory</c> are pinned to the SAME output by parallel
+        /// tests (see InstanceRegistryTests.ResolveDirectory_* and discovery.test.js).
+        /// </summary>
+        internal static string ResolveDirectory(string overrideDir, HostPlatform platform, Func<string, string> getEnv)
+        {
+            if (!string.IsNullOrEmpty(overrideDir)) return overrideDir;
 
             string baseDir;
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            if (platform == HostPlatform.Windows)
             {
-                baseDir = Environment.GetEnvironmentVariable("LOCALAPPDATA");
+                baseDir = getEnv("LOCALAPPDATA");
                 if (string.IsNullOrEmpty(baseDir))
-                {
-                    baseDir = Path.Combine(
-                        Environment.GetEnvironmentVariable("USERPROFILE") ?? ".",
-                        "AppData", "Local");
-                }
+                    baseDir = Path.Combine(getEnv("USERPROFILE") ?? ".", "AppData", "Local");
             }
-            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            else if (platform == HostPlatform.MacOS)
             {
-                baseDir = Path.Combine(
-                    Environment.GetEnvironmentVariable("HOME") ?? ".",
-                    "Library", "Application Support");
+                baseDir = Path.Combine(getEnv("HOME") ?? ".", "Library", "Application Support");
             }
             else
             {
-                baseDir = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+                baseDir = getEnv("XDG_DATA_HOME");
                 if (string.IsNullOrEmpty(baseDir))
-                {
-                    baseDir = Path.Combine(
-                        Environment.GetEnvironmentVariable("HOME") ?? ".",
-                        ".local", "share");
-                }
+                    baseDir = Path.Combine(getEnv("HOME") ?? ".", ".local", "share");
             }
             return Path.Combine(baseDir, "unity-editor-mcp", "instances");
         }
