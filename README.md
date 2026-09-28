@@ -125,7 +125,9 @@ the agent discovers each connected editor's real tools — with schemas, learned
 > definitions instead of ~99, and **every call names its target editor explicitly** (a project path or
 > port — there is no default instance, so an agent can never act on the wrong project). The catalog below
 > documents what each editor exposes; those commands are reached through `call_unity_tool`, not advertised
-> as individual MCP tools.
+> as individual MCP tools. **No catalog entry below is a standalone MCP tool** — e.g. `ping` is invoked as
+> `call_unity_tool(instance: "<project path or port>", tool: "ping")`; a name of the form
+> `unity-editor-mcp__ping` does not exist and never has in a published release.
 >
 > **Discover the shape, then trim it.** `list_unity_tools(instance, name: "<tool>")` returns a tool's full
 > parameter schema **and** its result-field hints (the response shape — v0.5.0). Every call also accepts an
