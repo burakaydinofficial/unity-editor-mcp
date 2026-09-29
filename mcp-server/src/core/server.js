@@ -11,6 +11,7 @@ import { UnityConnectionManager } from './unityConnectionManager.js';
 import { roslynManager } from './roslynManager.js';
 import { createHandlers } from '../handlers/index.js';
 import { config, logger } from './config.js';
+import { defaultRegistryDirectory } from './discovery.js';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -106,7 +107,9 @@ export async function main() {
 
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    logger.info('MCP server started (no editor targeted until a tool names an instance)');
+    // Identify WHICH package is running and WHERE it looks for editors (stderr — stdout is JSON-RPC). An unrelated
+    // package shares the `unity-editor-mcp` bin name; this line is how a client log tells them apart.
+    logger.info(`MCP server started — ${config.server.packageName}@${config.server.version}, registry: ${defaultRegistryDirectory()} (no editor targeted until a tool names an instance)`);
 
     const shutdown = async () => {
       logger.info('Shutting down...');

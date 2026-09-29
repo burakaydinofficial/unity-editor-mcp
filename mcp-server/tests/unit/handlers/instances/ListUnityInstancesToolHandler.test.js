@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { ListUnityInstancesToolHandler } from '../../../../src/handlers/instances/ListUnityInstancesToolHandler.js';
 
 // A registry descriptor; __live drives the injected isLive() and is NOT a real field.
@@ -73,6 +74,15 @@ describe('ListUnityInstancesToolHandler', () => {
     assert.equal(r.count, 0);
     assert.deepEqual(r.instances, []);
     assert.equal(r.registryDir, '/fake/registry');
+  });
+
+  it('identifies the answering server package (name + version from package.json)', async () => {
+    // Lets a client tell THIS server apart from an unrelated package sharing the `unity-editor-mcp` bin name.
+    const pkg = JSON.parse(readFileSync(new URL('../../../../package.json', import.meta.url), 'utf8'));
+    const h = new ListUnityInstancesToolHandler(null, fakeDeps([]));
+    const r = await h.execute({});
+    assert.deepEqual(r.server, { package: '@burakaydinofficial/unity-editor-mcp', version: pkg.version });
+    assert.equal(r.server.package, pkg.name);
   });
 
   it('handle() wraps the result in the success envelope', async () => {

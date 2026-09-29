@@ -1,5 +1,6 @@
 import { BaseToolHandler } from '../base/BaseToolHandler.js';
 import * as discovery from '../../core/discovery.js';
+import { config } from '../../core/config.js';
 
 /**
  * Lists the Unity editor instances discoverable in the per-user registry (ADR 0003 / 0004).
@@ -14,7 +15,7 @@ export class ListUnityInstancesToolHandler extends BaseToolHandler {
   constructor(manager, deps = discovery) {
     super(
       'list_unity_instances',
-      'List the Unity editor instances currently running and discoverable (project path, Unity version, port). Use this to see what editors are available, then pass an instance\'s project path or port as the required "instance" on list_unity_tools / call_unity_tool. Works even when no editor is connected.',
+      'List the Unity editor instances currently running and discoverable (project path, Unity version, port). Use this to see what editors are available, then pass an instance\'s project path or port as the required "instance" on list_unity_tools / call_unity_tool. Works even when no editor is connected. Also reports which server package answered ("server") and the registry directory it read ("registryDir") — if an editor you expect is missing, compare registryDir with the "Instance registry directory" line in that editor\'s console.',
       {
         type: 'object',
         properties: {
@@ -56,6 +57,7 @@ export class ListUnityInstancesToolHandler extends BaseToolHandler {
       }))
       .sort((a, b) => String(a.projectPath).localeCompare(String(b.projectPath)));
 
-    return { instances, count: instances.length, registryDir };
+    const server = { package: config.server.packageName, version: config.server.version };
+    return { instances, count: instances.length, registryDir, server };
   }
 }

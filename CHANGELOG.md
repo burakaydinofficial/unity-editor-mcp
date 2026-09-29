@@ -8,6 +8,11 @@ package `com.burakk.unity-editor-mcp` ship together at the same version.
 
 ## [Unreleased]
 
+### Added
+- **Server self-identification.** `list_unity_instances` now returns `server: { package, version }` alongside
+  `registryDir`, and the startup log (stderr) states the package, version and registry directory. This tells a client
+  which server package answered — an unrelated package shares the `unity-editor-mcp` bin name.
+
 ### Changed
 - One shared `HostPlatformInfo` OS detector for both the registry directory (`InstanceRegistry`) and path-containment
   case handling (`PathContainment`), detected once per process.

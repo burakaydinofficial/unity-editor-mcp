@@ -29,6 +29,9 @@ export const config = {
   // Server settings
   server: {
     name: 'unity-editor-mcp-server',
+    // The npm package identity — reported by list_unity_instances + the startup log so a client can tell WHICH
+    // server package answered (an unrelated package shares the `unity-editor-mcp` bin name).
+    packageName: pkg.name,
     version: pkg.version,
     description: 'MCP server for Unity Editor integration',
   },

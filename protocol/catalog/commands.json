@@ -8044,7 +8044,7 @@
       "sides": ["server"],
       "internal": false,
       "destructive": false,
-      "description": "List the Unity editor instances currently running and discoverable (project path, Unity version, port). There is no default target — pass an instance from this list as the required \"instance\" to list_unity_tools / call_unity_tool. Works even when no editor is connected.",
+      "description": "List the Unity editor instances currently running and discoverable (project path, Unity version, port). There is no default target — pass an instance from this list as the required \"instance\" to list_unity_tools / call_unity_tool. Works even when no editor is connected. Also reports which server package answered (\"server\") and the registry directory it read (\"registryDir\") — if an expected editor is missing, compare registryDir with the \"Instance registry directory\" line in that editor's console.",
       "params": {
         "type": "object",
         "properties": {
@@ -8064,7 +8064,12 @@
             "description": "Discoverable editors with projectPath, unityVersion, port, pid, protocolVersion, host, startedAt, lastHeartbeat, live."
           },
           "count": { "type": "number" },
-          "registryDir": { "type": "string" }
+          "registryDir": { "type": "string", "description": "The discovery registry directory this server read." },
+          "server": {
+            "type": "object",
+            "properties": { "package": { "type": "string" }, "version": { "type": "string" } },
+            "description": "Identity of the MCP server package that answered (npm name + version)."
+          }
         }
       }
     },
