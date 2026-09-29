@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
 import {
   fnv1a,
@@ -68,6 +68,15 @@ describe('discovery', () => {
       assert.strictEqual(slashes(defaultRegistryDirectory({ HOME: '/Users/x' }, 'darwin')), '/Users/x/Library/Application Support/unity-editor-mcp/instances');
       assert.strictEqual(slashes(defaultRegistryDirectory({ HOME: '/home/x' }, 'linux')), '/home/x/.local/share/unity-editor-mcp/instances');
       assert.strictEqual(slashes(defaultRegistryDirectory({ XDG_DATA_HOME: '/xdg/data', HOME: '/home/x' }, 'linux')), '/xdg/data/unity-editor-mcp/instances');
+    });
+
+    // Parity with InstanceRegistryTests.ResolveDirectory_MissingOrEmptyProfile_FallsBackToHome.
+    it('falls back to homedir() when USERPROFILE/HOME is missing or empty', () => {
+      const h = slashes(homedir());
+      assert.strictEqual(slashes(defaultRegistryDirectory({}, 'win32')), `${h}/AppData/Local/unity-editor-mcp/instances`);
+      assert.strictEqual(slashes(defaultRegistryDirectory({ USERPROFILE: '' }, 'win32')), `${h}/AppData/Local/unity-editor-mcp/instances`);
+      assert.strictEqual(slashes(defaultRegistryDirectory({}, 'darwin')), `${h}/Library/Application Support/unity-editor-mcp/instances`);
+      assert.strictEqual(slashes(defaultRegistryDirectory({ HOME: '' }, 'linux')), `${h}/.local/share/unity-editor-mcp/instances`);
     });
   });
 

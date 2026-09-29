@@ -55,28 +55,46 @@ namespace UnityEditorMCP.Core
         /// <c>defaultRegistryDirectory</c> are pinned to the SAME output by parallel
         /// tests (see InstanceRegistryTests.ResolveDirectory_* and discovery.test.js).
         /// </summary>
-        internal static string ResolveDirectory(string overrideDir, HostPlatform platform, Func<string, string> getEnv)
+        internal static string ResolveDirectory(string overrideDir, HostPlatform platform, Func<string, string> getEnv,
+            Func<string> getHome = null)
         {
             if (!string.IsNullOrEmpty(overrideDir)) return overrideDir;
+
+            // A missing OR empty USERPROFILE/HOME falls back to the OS user-profile directory — the same thing
+            // Node's `env.X || homedir()` does. (Previously "." here: a relative path the Node side never used.)
+            Func<string> homeFn = getHome ?? (Func<string>)DefaultHome;
+            Func<string, string> envOrHome = name =>
+            {
+                var value = getEnv(name);
+                if (!string.IsNullOrEmpty(value)) return value;
+                var home = homeFn();
+                return string.IsNullOrEmpty(home) ? "." : home;
+            };
 
             string baseDir;
             if (platform == HostPlatform.Windows)
             {
                 baseDir = getEnv("LOCALAPPDATA");
                 if (string.IsNullOrEmpty(baseDir))
-                    baseDir = Path.Combine(getEnv("USERPROFILE") ?? ".", "AppData", "Local");
+                    baseDir = Path.Combine(envOrHome("USERPROFILE"), "AppData", "Local");
             }
             else if (platform == HostPlatform.MacOS)
             {
-                baseDir = Path.Combine(getEnv("HOME") ?? ".", "Library", "Application Support");
+                baseDir = Path.Combine(envOrHome("HOME"), "Library", "Application Support");
             }
             else
             {
                 baseDir = getEnv("XDG_DATA_HOME");
                 if (string.IsNullOrEmpty(baseDir))
-                    baseDir = Path.Combine(getEnv("HOME") ?? ".", ".local", "share");
+                    baseDir = Path.Combine(envOrHome("HOME"), ".local", "share");
             }
             return Path.Combine(baseDir, "unity-editor-mcp", "instances");
+        }
+
+        // Mirrors Node's os.homedir(): the OS user-profile directory.
+        private static string DefaultHome()
+        {
+            return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         }
 
         /// <summary>Registry filename for a project: fnv1a hex of the normalized path.</summary>

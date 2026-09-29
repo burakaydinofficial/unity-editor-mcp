@@ -277,5 +277,25 @@ namespace UnityEditorMCP.Core.Tests
                 n => n == "HOME" ? "/home/x" : null).Replace('\\', '/');
             Assert.Equal("/home/x/.local/share/unity-editor-mcp/instances", local);
         }
+
+        // Missing OR empty USERPROFILE/HOME falls back to the OS home dir, like Node's `env.X || homedir()`
+        // (see discovery.test.js "falls back to homedir()").
+        [Fact]
+        public void ResolveDirectory_MissingOrEmptyProfile_FallsBackToHome()
+        {
+            Func<string> home = () => "/h";
+            var winMissing = InstanceRegistry.ResolveDirectory(null, HostPlatform.Windows, _ => null, home).Replace('\\', '/');
+            Assert.Equal("/h/AppData/Local/unity-editor-mcp/instances", winMissing);
+
+            var winEmpty = InstanceRegistry.ResolveDirectory(null, HostPlatform.Windows,
+                n => n == "USERPROFILE" ? "" : null, home).Replace('\\', '/');
+            Assert.Equal("/h/AppData/Local/unity-editor-mcp/instances", winEmpty);
+
+            var mac = InstanceRegistry.ResolveDirectory(null, HostPlatform.MacOS, _ => null, home).Replace('\\', '/');
+            Assert.Equal("/h/Library/Application Support/unity-editor-mcp/instances", mac);
+
+            var linux = InstanceRegistry.ResolveDirectory(null, HostPlatform.Other, n => n == "HOME" ? "" : null, home).Replace('\\', '/');
+            Assert.Equal("/h/.local/share/unity-editor-mcp/instances", linux);
+        }
     }
 }
