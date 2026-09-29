@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/core/server.js",
   "bin": {
-    "unity-editor-mcp": "./bin/unity-editor-mcp"
+    "unity-editor-mcp-server": "./bin/unity-editor-mcp-server"
   },
   "scripts": {
     "start": "node src/core/server.js",
@@ -22,7 +22,7 @@
     "test:ci:all": "c8 --reporter=lcov node --test tests/unit/**/*.test.js",
     "test:verbose": "VERBOSE_TEST=true node --test tests/**/*.test.js",
     "prepublishOnly": "npm run test:ci",
-    "postinstall": "chmod +x bin/unity-editor-mcp || true"
+    "postinstall": "chmod +x bin/unity-editor-mcp-server || true"
   },
   "keywords": [
     "mcp",

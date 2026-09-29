@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The bin is the packaged entry point (npx unity-editor-mcp). server.js only
+// The bin is the packaged entry point (the `unity-editor-mcp-server` command; `npx @burakaydinofficial/unity-editor-mcp`). server.js only
 // auto-runs main() when executed DIRECTLY (its entry-point guard) so that test
 // imports don't start a server — so the bin must call main() explicitly.
 import { main } from '../src/core/server.js';

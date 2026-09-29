@@ -21,7 +21,7 @@ npx @burakaydinofficial/unity-editor-mcp
 
 ```bash
 npm install -g @burakaydinofficial/unity-editor-mcp
-unity-editor-mcp
+unity-editor-mcp-server
 ```
 
 ### Local Installation

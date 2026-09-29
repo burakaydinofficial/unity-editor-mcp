@@ -14,6 +14,10 @@ package `com.burakk.unity-editor-mcp` ship together at the same version.
   which server package answered — an unrelated package shares the `unity-editor-mcp` bin name.
 
 ### Changed
+- **The installed command is now `unity-editor-mcp-server`** (was `unity-editor-mcp`, a name also installed by the
+  unrelated `unity-editor-mcp` npm package). `npx @burakaydinofficial/unity-editor-mcp` is unaffected. A global install
+  now provides `unity-editor-mcp-server`; configs that invoke the bare `unity-editor-mcp` command must switch to it (or
+  to the `npx` form).
 - One shared `HostPlatformInfo` OS detector for both the registry directory (`InstanceRegistry`) and path-containment
   case handling (`PathContainment`), detected once per process.
 
