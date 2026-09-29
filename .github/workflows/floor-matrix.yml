@@ -29,7 +29,7 @@ permissions:
 jobs:
   editmode:
     name: EditMode @ Unity ${{ matrix.unity }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Only runs where the Unity license secrets exist (the canonical repo), so forks skip.
     if: ${{ github.repository == 'burakaydinofficial/unity-editor-mcp' }}
     strategy:

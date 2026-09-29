@@ -22,10 +22,12 @@ jobs:
             os: windows-latest
             ext: '.exe'
           - rid: linux-x64
-            os: ubuntu-latest
+            os: ubuntu-24.04
             ext: ''
+          # macos-13 (the last free Intel label) was retired; cross-publish x64 from the arm64 runner instead
+          # (dotnet publish -r osx-x64 --self-contained works cross-arch — verified to yield a Mach-O x86_64 binary).
           - rid: osx-x64
-            os: macos-13
+            os: macos-latest
             ext: ''
           - rid: osx-arm64
             os: macos-latest
@@ -54,7 +56,7 @@ jobs:
 
   release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
         with:
