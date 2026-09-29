@@ -8,11 +8,9 @@ namespace UnityEditorMCP.Core
 
     /// <summary>
     /// Reliable host-OS classification shared by the discovery-registry directory (<see cref="InstanceRegistry"/>)
-    /// and path-containment case handling (<see cref="PathContainment"/>) — one detector instead of two copies.
-    /// Hardening, not a fix for an observed failure: the registry directory must match the Node side
-    /// (<c>process.platform</c>) exactly, so it relies only on primitives that behave identically on every Unity
-    /// Mono down to the 2019.4 floor (<c>Path.DirectorySeparatorChar</c>, <c>Environment.OSVersion.Platform</c>)
-    /// rather than on <c>RuntimeInformation.IsOSPlatform</c>, whose support varies across scripting runtimes.
+    /// and path-containment case handling (<see cref="PathContainment"/>). The registry directory must match the
+    /// Node side (<c>process.platform</c>) exactly, so this uses only primitives that behave the same on every Unity
+    /// Mono down to the 2019.4 floor (<c>Path.DirectorySeparatorChar</c>, <c>Environment.OSVersion.Platform</c>).
     /// </summary>
     public static class HostPlatformInfo
     {

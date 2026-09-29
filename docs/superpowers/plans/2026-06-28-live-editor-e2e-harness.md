@@ -444,7 +444,7 @@ export class McpDriver {
   async start(hostPath) {
     this.transport = new StdioClientTransport({
       command: 'node', args: [SERVER],
-      env: { ...process.env }, // server discovers the editor via the registry (no per-project env needed)
+      env: { ...process.env }, // as built, tests/e2e/live/mcpDriver.mjs passes UNITY_PORT (the editor's port) and uses that port as the per-call `instance`
     });
     this.client = new Client({ name: 'e2e-live', version: '1.0.0' }, { capabilities: {} });
     await this.client.connect(this.transport);

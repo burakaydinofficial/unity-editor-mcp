@@ -5,9 +5,9 @@ Status: Accepted — implemented in v0.3.0 (Node `UnityConnectionManager` pools 
 ## Context
 
 Today the topology is **1:1 per session**. `server.js` creates a single shared
-`UnityConnection` resolved to one editor by `resolveUnityPort` (`UNITY_PORT` → 6400).
-Every handler shares that one
-socket. `list_unity_instances` (ADR 0004, v0.2.0) lets a session *see* every editor, but it
+`UnityConnection` resolved to one editor by `resolveUnityPort` (`UNITY_PORT` → registry
+descriptor for `UNITY_PROJECT_PATH` → derived port → 6400). Every handler shares that one
+socket. *(Update, 0.21.5: `UNITY_PROJECT_PATH` has since been removed — see ADR 0003.)* `list_unity_instances` (ADR 0004, v0.2.0) lets a session *see* every editor, but it
 can only *act* on the one it connected to — demonstrated live: three editors (2020.3 / 2021.3 /
 2022.3) discoverable, only 2020.3 reachable.
 

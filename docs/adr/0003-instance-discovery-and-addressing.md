@@ -36,10 +36,15 @@ Three layers, each independently overridable:
    being fatal; the registry makes the port knowable anyway.
 
 Server resolution order (`mcp-server/src/core/discovery.js`, mirrored from C#):
-a per-call `instance` resolves the target editor by project path (fresh registry
-descriptor) or by an explicit port; the standalone default connection falls back to
-`UNITY_PORT` (explicit) → legacy 6400. The `Handshake` project-path check
+`UNITY_PORT` (explicit) → fresh registry descriptor for `UNITY_PROJECT_PATH` →
+derived port for that path → legacy 6400. The `Handshake` project-path check
 (`PROJECT_PATH_MISMATCH`) backstops wrong-editor connections.
+
+> **Update (0.21.5):** `UNITY_PROJECT_PATH` and the Node-side derived-port fallback were removed.
+> Since ADR 0006 every call names its editor with a per-call `instance` (project path → fresh
+> registry descriptor, or an explicit port), so the startup-pinned project never applied. The
+> standalone default connection is now just `UNITY_PORT` → 6400. The editor still derives its
+> own initial listen port from the project path; the registry remains the source of truth.
 
 Cross-language parity is pinned by tests on both sides: canonical FNV-1a vectors
 (`EndpointAddressingTests.cs` ↔ `discovery.test.js`), identical directory rules,
