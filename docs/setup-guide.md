@@ -18,8 +18,10 @@ Protocol) bridge. For the architecture see the [ADRs](adr/) and the root
 Install via Unity Package Manager → **Add package from git URL**:
 
 ```
-https://github.com/burakaydinofficial/unity-editor-mcp.git?path=unity-editor-mcp
+https://github.com/burakaydinofficial/unity-editor-mcp.git?path=unity-editor-mcp#v0.22.0
 ```
+
+The `#v0.22.0` suffix pins a release — change it to a newer tag to update. (Without it you track `main`, which can be ahead of the latest release.)
 
 (Equivalently, add `"com.burakk.unity-editor-mcp"` to `Packages/manifest.json`
 pointing at that git URL. For local development you can reference a checkout via a

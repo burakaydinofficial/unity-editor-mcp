@@ -6,7 +6,9 @@ versioning. This fork is **the deep, floor-true MCP bridge for older Unity proje
 latest; CI-verified on 2019.4 / 2021.3 / 2022.3 / 6000.0; 2020.3 locally verified). The npm server `@burakaydinofficial/unity-editor-mcp` and the UPM
 package `com.burakk.unity-editor-mcp` ship together at the same version.
 
-## [Unreleased]
+## [0.22.0] — Server self-identification, command rename, Windows scene-folder fix
+
+No wire/protocol change (1.0.0, 102 catalog commands, 0 drift).
 
 ### Added
 - **Server self-identification.** `list_unity_instances` now returns `server: { package, version }` alongside
@@ -36,6 +38,11 @@ package `com.burakk.unity-editor-mcp` ship together at the same version.
 ### Removed
 - Dead Node `derivePort` / `DEFAULT_PORT_RANGE` (the Node mirror of the editor's port derivation — only reachable
   through the removed `UNITY_PROJECT_PATH` branch). The editor keeps its own `DerivePort` for its listen port.
+
+### Notes
+- **Breaking for global installs** that run the bare `unity-editor-mcp` command — use `unity-editor-mcp-server` or the
+  `npx @burakaydinofficial/unity-editor-mcp` form. Both packages ship at 0.22.0. The README install URL is now pinned to
+  the release tag.
 
 ## [0.21.5] — Registry-directory hardening + drop the vestigial UNITY_PROJECT_PATH knob
 

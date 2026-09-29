@@ -60,8 +60,10 @@ In Unity:
 
 1. Open **Window → Package Manager**
 2. Click **"+"** → **"Add package from git URL..."**
-3. Paste: `https://github.com/burakaydinofficial/unity-editor-mcp.git?path=unity-editor-mcp`
+3. Paste: `https://github.com/burakaydinofficial/unity-editor-mcp.git?path=unity-editor-mcp#v0.22.0`
 4. Click **Add**
+
+The `#v0.22.0` suffix pins a release — change it to a newer tag to update. (Without it you track `main`, which can be ahead of the latest release.)
 
 > ✨ Unity automatically starts the editor-side bridge on a **per-project port**
 > (derived from the project path, range 6400–7423) and publishes it to a local
