@@ -16,7 +16,6 @@ import { join } from 'node:path';
 import { homedir, hostname } from 'node:os';
 
 export const DEFAULT_BASE_PORT = 6400;
-export const DEFAULT_PORT_RANGE = 1024;
 export const STALE_AFTER_MS = 300_000;
 export const REGISTRY_DIR_ENV = 'UNITY_MCP_REGISTRY_DIR';
 
@@ -51,12 +50,6 @@ export function fnv1a(value) {
     hash = Math.imul(hash, 16777619) >>> 0;
   }
   return hash;
-}
-
-/** Deterministic per-project default port in [basePort, basePort+range). */
-export function derivePort(projectPath, basePort = DEFAULT_BASE_PORT, range = DEFAULT_PORT_RANGE) {
-  if (range < 1) range = 1;
-  return basePort + (fnv1a(normalizeProjectPath(projectPath)) % range);
 }
 
 /** Registry filename for a project (mirrors C# InstanceRegistry.FileNameFor). */

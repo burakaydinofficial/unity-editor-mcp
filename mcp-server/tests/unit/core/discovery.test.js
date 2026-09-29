@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   fnv1a,
-  derivePort,
   normalizeProjectPath,
   instanceFileName,
   defaultRegistryDirectory,
@@ -17,7 +16,6 @@ import {
   reapStale,
   resolveUnityPort,
   DEFAULT_BASE_PORT,
-  DEFAULT_PORT_RANGE,
 } from '../../../src/core/discovery.js';
 
 const slashes = (p) => p.replace(/\\/g, '/');
@@ -47,23 +45,6 @@ describe('discovery', () => {
     });
   });
 
-  describe('derivePort', () => {
-    it('is deterministic and normalization-insensitive', () => {
-      assert.strictEqual(derivePort('C:/projects/game'), derivePort('C:\\Projects\\Game\\'));
-    });
-
-    it('stays within [base, base+range)', () => {
-      for (let i = 0; i < 100; i++) {
-        const port = derivePort(`C:/projects/p${i}`);
-        assert.ok(port >= DEFAULT_BASE_PORT && port < DEFAULT_BASE_PORT + DEFAULT_PORT_RANGE);
-      }
-    });
-
-    it('differs between projects', () => {
-      assert.notStrictEqual(derivePort('C:/projects/2020'), derivePort('C:/projects/2021'));
-    });
-  });
-
   describe('instanceFileName', () => {
     it('is 8 lowercase hex digits + .json, stable across path spellings', () => {
       const name = instanceFileName('C:/projects/game');
@@ -79,8 +60,8 @@ describe('discovery', () => {
 
     // Parity vectors — these MUST match dotnet/UnityEditorMCP.Core.Tests/InstanceRegistryTests.cs
     // (the ResolveDirectory_* tests). The C# InstanceRegistry.DefaultDirectory and this function must
-    // resolve the SAME path per platform; asserting the full base (not just the suffix) is what would
-    // have caught the Windows registry-dir divergence between the two sides.
+    // resolve the SAME path per platform; asserting the full base (not just the shared suffix) makes any
+    // future drift between the two sides fail CI instead of producing an invisible editor.
     it('resolves the exact per-platform base dir (parity with the C# registry)', () => {
       assert.strictEqual(slashes(defaultRegistryDirectory({ LOCALAPPDATA: 'C:/u/AppData/Local' }, 'win32')), 'C:/u/AppData/Local/unity-editor-mcp/instances');
       assert.strictEqual(slashes(defaultRegistryDirectory({ USERPROFILE: 'C:/u' }, 'win32')), 'C:/u/AppData/Local/unity-editor-mcp/instances');
