@@ -80,23 +80,7 @@ namespace UnityEditorMCP.Handlers
                 }
 
                 // Ensure directory exists
-                var directory = Path.GetDirectoryName(scenePath);
-                if (!AssetDatabase.IsValidFolder(directory))
-                {
-                    // Create directory structure
-                    var folders = directory.Split('/');
-                    var currentPath = folders[0]; // "Assets"
-                    
-                    for (int i = 1; i < folders.Length; i++)
-                    {
-                        var nextPath = currentPath + "/" + folders[i];
-                        if (!AssetDatabase.IsValidFolder(nextPath))
-                        {
-                            AssetDatabase.CreateFolder(currentPath, folders[i]);
-                        }
-                        currentPath = nextPath;
-                    }
-                }
+                EnsureAssetFolder(Path.GetDirectoryName(scenePath));
 
                 // A loadScene:true create uses Single mode, which REPLACES all open scenes — guard their unsaved work
                 // (save:true saves first, force:true discards, else CONFIRMATION_REQUIRED), mirroring load_scene +
@@ -149,6 +133,28 @@ namespace UnityEditorMCP.Handlers
             catch (Exception ex)
             {
                 return HandlerOutcome.Fail($"Failed to create scene: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Creates each missing segment of an "Assets/..." folder. Path.GetDirectoryName returns '\'-separated paths on
+        /// Windows, so normalize first: splitting the raw value on '/' yielded a single segment there, created nothing,
+        /// and the subsequent SaveScene failed ("Parent directory must exist") for any not-yet-existing folder.
+        /// </summary>
+        private static void EnsureAssetFolder(string directory)
+        {
+            if (string.IsNullOrEmpty(directory)) return;
+            directory = directory.Replace('\\', '/');
+            if (AssetDatabase.IsValidFolder(directory)) return;
+
+            var folders = directory.Split('/');
+            var currentPath = folders[0]; // "Assets"
+            for (int i = 1; i < folders.Length; i++)
+            {
+                var nextPath = currentPath + "/" + folders[i];
+                if (!AssetDatabase.IsValidFolder(nextPath))
+                    AssetDatabase.CreateFolder(currentPath, folders[i]);
+                currentPath = nextPath;
             }
         }
 
@@ -367,23 +373,7 @@ namespace UnityEditorMCP.Handlers
                     }
                     
                     // Ensure directory exists
-                    var directory = Path.GetDirectoryName(savePath);
-                    if (!AssetDatabase.IsValidFolder(directory))
-                    {
-                        // Create directory structure
-                        var folders = directory.Split('/');
-                        var currentPath = folders[0]; // "Assets"
-                        
-                        for (int i = 1; i < folders.Length; i++)
-                        {
-                            var nextPath = currentPath + "/" + folders[i];
-                            if (!AssetDatabase.IsValidFolder(nextPath))
-                            {
-                                AssetDatabase.CreateFolder(currentPath, folders[i]);
-                            }
-                            currentPath = nextPath;
-                        }
-                    }
+                    EnsureAssetFolder(Path.GetDirectoryName(savePath));
                 }
                 
                 // Check if scene is dirty (has unsaved changes)

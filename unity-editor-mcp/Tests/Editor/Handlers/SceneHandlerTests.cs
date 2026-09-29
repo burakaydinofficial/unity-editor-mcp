@@ -69,7 +69,7 @@ namespace UnityEditorMCP.Tests
             var result = Create(parameters);
 
             Assert.IsNotNull(result);
-            Assert.IsNull(result["error"]);
+            Assert.IsNull(result["error"], "Unexpected handler error: " + result["error"]);
             Assert.AreEqual("TestScene", (string)result["sceneName"]);
             Assert.AreEqual(DefaultScenePath, (string)result["path"]);
             Assert.IsTrue((bool)result["isLoaded"]);
@@ -94,7 +94,7 @@ namespace UnityEditorMCP.Tests
             var result = Create(parameters);
 
             Assert.IsNotNull(result);
-            Assert.IsNull(result["error"]);
+            Assert.IsNull(result["error"], "Unexpected handler error: " + result["error"]);
             Assert.AreEqual("CustomScene", (string)result["sceneName"]);
             Assert.AreEqual(testSceneFolder + "/CustomScene.unity", (string)result["path"]);
 
@@ -117,7 +117,7 @@ namespace UnityEditorMCP.Tests
             var result = Create(parameters);
 
             Assert.IsNotNull(result);
-            Assert.IsNull(result["error"]);
+            Assert.IsNull(result["error"], "Unexpected handler error: " + result["error"]);
             Assert.IsFalse((bool)result["isLoaded"]);
 
             // Verify current scene didn't change
@@ -138,7 +138,7 @@ namespace UnityEditorMCP.Tests
             var result = Create(parameters);
 
             Assert.IsNotNull(result);
-            Assert.IsNull(result["error"]);
+            Assert.IsNull(result["error"], "Unexpected handler error: " + result["error"]);
             Assert.IsTrue((int)result["sceneIndex"] >= 0);
 
             // Verify scene is in build settings
@@ -223,6 +223,46 @@ namespace UnityEditorMCP.Tests
             Assert.IsNotNull(result);
             Assert.IsNotNull(result["error"]);
             Assert.IsTrue(((string)result["error"]).Contains("Scene name cannot be empty"));
+        }
+
+        // Regression (Windows): Path.GetDirectoryName returns '\'-separated paths there, and the folder-creation loop
+        // split only on '/', so a not-yet-existing folder was never created and SaveScene failed ("Failed to save scene").
+        // Hosts that already had the folder (or Linux CI) never hit it.
+        [Test]
+        public void CreateScene_CreatesMissingNestedFolders()
+        {
+            const string folder = "Assets/TestScenes/Nested/Deep";
+            Assert.IsFalse(AssetDatabase.IsValidFolder(folder), "precondition: folder must not exist yet");
+
+            var result = Create(new JObject
+            {
+                ["sceneName"] = "NestedScene",
+                ["path"] = folder + "/",
+                ["force"] = true
+            });
+
+            Assert.IsNull(result["error"], "Unexpected handler error: " + result["error"]);
+            Assert.IsTrue(AssetDatabase.IsValidFolder(folder));
+            Assert.IsTrue(File.Exists(folder + "/NestedScene.unity"));
+        }
+
+        [Test]
+        public void SaveScene_SaveAs_CreatesMissingNestedFolders()
+        {
+            const string folder = "Assets/TestScenes/SavedNested/Deep";
+            const string target = folder + "/SavedScene.unity";
+            Assert.IsFalse(AssetDatabase.IsValidFolder(folder), "precondition: folder must not exist yet");
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            var result = TestHelpers.Result(SceneHandler.SaveScene(new JObject
+            {
+                ["scenePath"] = target,
+                ["saveAs"] = true
+            }));
+
+            Assert.IsNull(result["error"], "Unexpected handler error: " + result["error"]);
+            Assert.IsTrue(AssetDatabase.IsValidFolder(folder));
+            Assert.IsTrue(File.Exists(target));
         }
     }
 }

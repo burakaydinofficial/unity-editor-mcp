@@ -22,6 +22,10 @@ package `com.burakk.unity-editor-mcp` ship together at the same version.
   case handling (`PathContainment`), detected once per process.
 
 ### Fixed
+- **`create_scene` / `save_scene` failed on Windows for a folder that didn't exist yet** ("Failed to save scene").
+  `Path.GetDirectoryName` returns `\`-separated paths on Windows and the folder-creation loop split only on `/`, so
+  no folder was created. Paths are now normalized first (one shared helper for both commands). Regression tests
+  added; scene-test assertions now print the handler's error message on failure.
 - **Registry-directory fallback parity:** with `USERPROFILE`/`HOME` missing or empty, the C# side fell back to `"."`
   (and treated an empty value as set) while Node uses `env.X || homedir()` — so in such environments the editor would
   publish to a different directory than the server reads. C# now falls back to the OS user-profile directory too.

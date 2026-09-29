@@ -76,7 +76,7 @@ namespace UnityEditorMCP.Tests
             var result = Load(parameters);
 
             Assert.IsNotNull(result);
-            Assert.IsNull(result["error"]);
+            Assert.IsNull(result["error"], "Unexpected handler error: " + result["error"]);
             Assert.AreEqual("LoadTestScene", (string)result["sceneName"]);
             Assert.AreEqual(testScenePath, (string)result["scenePath"]);
             Assert.AreEqual("Single", (string)result["loadMode"]);
@@ -98,7 +98,7 @@ namespace UnityEditorMCP.Tests
             var result = Load(parameters);
 
             Assert.IsNotNull(result);
-            Assert.IsNull(result["error"]);
+            Assert.IsNull(result["error"], "Unexpected handler error: " + result["error"]);
             Assert.AreEqual("LoadTestScene", (string)result["sceneName"]);
             Assert.IsTrue((bool)result["isLoaded"]);
         }
@@ -120,7 +120,7 @@ namespace UnityEditorMCP.Tests
             var result = Load(parameters);
 
             Assert.IsNotNull(result);
-            Assert.IsNull(result["error"]);
+            Assert.IsNull(result["error"], "Unexpected handler error: " + result["error"]);
             Assert.AreEqual("AdditiveTestScene", (string)result["sceneName"]);
             Assert.AreEqual("Additive", (string)result["loadMode"]);
             Assert.IsTrue((bool)result["isLoaded"]);
@@ -234,7 +234,7 @@ namespace UnityEditorMCP.Tests
             var result = Load(parameters);
 
             Assert.IsNotNull(result);
-            Assert.IsNull(result["error"]);
+            Assert.IsNull(result["error"], "Unexpected handler error: " + result["error"]);
             Assert.AreEqual(previousSceneName, (string)result["previousScene"]);
         }
     }
