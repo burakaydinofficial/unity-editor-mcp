@@ -310,10 +310,16 @@ namespace UnityEditorMCP.Core
                 if (instanceRegistry == null)
                 {
                     instanceRegistry = new InstanceRegistry(InstanceRegistry.DefaultDirectory());
-                    // Log the resolved registry directory once, so a client reading a DIFFERENT directory
-                    // (an OS-detection or env mismatch) is diagnosable from the console instead of silently
-                    // failing to see this editor.
-                    Debug.Log($"[Unity Editor MCP] Instance registry directory: {instanceRegistry.Directory}");
+                    // Log the resolved registry directory so a client reading a DIFFERENT directory (e.g. a
+                    // different MCP server package, or an env mismatch) is diagnosable from the console — compare
+                    // it with the `registryDir` that list_unity_instances returns. Once per editor session (and
+                    // again only if it changes), not on every domain reload.
+                    const string loggedDirKey = "UnityEditorMCP.Registry.LoggedDir";
+                    if (SessionState.GetString(loggedDirKey, null) != instanceRegistry.Directory)
+                    {
+                        SessionState.SetString(loggedDirKey, instanceRegistry.Directory);
+                        Debug.Log($"[Unity Editor MCP] Instance registry directory: {instanceRegistry.Directory}");
+                    }
                 }
                 var now = DateTime.UtcNow;
                 instanceRegistry.Publish(new InstanceDescriptor
