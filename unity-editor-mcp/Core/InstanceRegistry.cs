@@ -46,30 +46,8 @@ namespace UnityEditorMCP.Core
         {
             return ResolveDirectory(
                 Environment.GetEnvironmentVariable(DirectoryEnvVar),
-                DetectPlatform(),
+                HostPlatformInfo.Current,
                 name => Environment.GetEnvironmentVariable(name));
-        }
-
-        internal enum HostPlatform { Windows, MacOS, Other }
-
-        /// <summary>
-        /// OS classification for the registry path. Deliberately avoids
-        /// <c>RuntimeInformation.IsOSPlatform</c>, whose result under Unity's scripting
-        /// runtime is not guaranteed to agree with the Node side's <c>process.platform</c>;
-        /// a disagreement silently sends this editor's descriptor to a different directory
-        /// than the server reads. The directory separator and OSVersion.Platform are stable
-        /// across every Unity Mono version (down to the 2019.4 floor).
-        /// </summary>
-        internal static HostPlatform DetectPlatform()
-        {
-            if (Path.DirectorySeparatorChar == '\\' || Environment.OSVersion.Platform == PlatformID.Win32NT)
-                return HostPlatform.Windows;
-            // OSVersion.Platform reports Unix for both macOS and Linux; a macOS-only system
-            // path disambiguates the two without depending on RuntimeInformation. (Fully qualified:
-            // this type has an instance `Directory` property that would otherwise shadow System.IO.)
-            if (System.IO.Directory.Exists("/System/Library/CoreServices"))
-                return HostPlatform.MacOS;
-            return HostPlatform.Other;
         }
 
         /// <summary>

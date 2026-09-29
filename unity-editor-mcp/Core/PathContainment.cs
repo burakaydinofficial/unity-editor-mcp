@@ -12,17 +12,15 @@ namespace UnityEditorMCP.Core
     {
         // Case-insensitive on Windows/macOS (their filesystems fold case); case-SENSITIVE on Linux — where the
         // floor-matrix CI runs the EditMode suite — so a case-variant sibling ("proj" vs "PROJ/secret") is correctly
-        // denied there instead of over-accepted. (Bug hunt: security.)
+        // denied there instead of over-accepted. (Bug hunt: security.) OS detection is shared with the registry via
+        // HostPlatformInfo (one detector for both).
         private static readonly StringComparison PathComparison =
-            (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows)
-             || System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
-                ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            HostPlatformInfo.IsCaseInsensitiveFileSystem ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
         // Drive-relative ("C:foo") and NTFS alternate-data-stream (":stream") are WINDOWS-ONLY hazards. On Linux (the
         // floor-matrix EditMode host) ':' is a legal filename character, so applying those rejections there OVER-DENIES
         // legitimate in-project relative paths. Gate them to Windows. (Bug hunt: over-denial on Linux.)
-        private static readonly bool IsWindows =
-            System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows);
+        private static readonly bool IsWindows = HostPlatformInfo.Current == HostPlatform.Windows;
 
         public static bool IsWithin(string root, string candidate)
         {

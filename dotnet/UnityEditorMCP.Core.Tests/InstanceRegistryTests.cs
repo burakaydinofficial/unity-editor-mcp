@@ -230,18 +230,18 @@ namespace UnityEditorMCP.Core.Tests
         public void ResolveDirectory_Override_Wins()
         {
             Assert.Equal("X:/custom/registry",
-                InstanceRegistry.ResolveDirectory("X:/custom/registry", InstanceRegistry.HostPlatform.Windows, _ => null));
+                InstanceRegistry.ResolveDirectory("X:/custom/registry", HostPlatform.Windows, _ => null));
         }
 
         // Parity vectors — these MUST match mcp-server/tests/unit/core/discovery.test.js
         // ("resolves the exact per-platform base dir"). The two implementations must resolve the
-        // SAME path per platform; asserting the full base (not just the suffix) is what would have
-        // caught the Windows registry-dir divergence between the C# and Node sides.
+        // SAME path per platform; asserting the full base (not just the shared suffix) makes any
+        // future drift between the C# and Node sides fail CI instead of producing an invisible editor.
         [Fact]
         public void ResolveDirectory_Windows_UsesLocalAppData()
         {
             var dir = InstanceRegistry.ResolveDirectory(
-                null, InstanceRegistry.HostPlatform.Windows,
+                null, HostPlatform.Windows,
                 n => n == "LOCALAPPDATA" ? "C:/u/AppData/Local" : null).Replace('\\', '/');
             Assert.Equal("C:/u/AppData/Local/unity-editor-mcp/instances", dir);
         }
@@ -250,7 +250,7 @@ namespace UnityEditorMCP.Core.Tests
         public void ResolveDirectory_Windows_FallsBackToUserProfile()
         {
             var dir = InstanceRegistry.ResolveDirectory(
-                null, InstanceRegistry.HostPlatform.Windows,
+                null, HostPlatform.Windows,
                 n => n == "USERPROFILE" ? "C:/u" : null).Replace('\\', '/');
             Assert.Equal("C:/u/AppData/Local/unity-editor-mcp/instances", dir);
         }
@@ -259,7 +259,7 @@ namespace UnityEditorMCP.Core.Tests
         public void ResolveDirectory_MacOS_UsesApplicationSupport()
         {
             var dir = InstanceRegistry.ResolveDirectory(
-                null, InstanceRegistry.HostPlatform.MacOS,
+                null, HostPlatform.MacOS,
                 n => n == "HOME" ? "/Users/x" : null).Replace('\\', '/');
             Assert.Equal("/Users/x/Library/Application Support/unity-editor-mcp/instances", dir);
         }
@@ -268,12 +268,12 @@ namespace UnityEditorMCP.Core.Tests
         public void ResolveDirectory_Linux_PrefersXdgThenLocalShare()
         {
             var xdg = InstanceRegistry.ResolveDirectory(
-                null, InstanceRegistry.HostPlatform.Other,
+                null, HostPlatform.Other,
                 n => n == "XDG_DATA_HOME" ? "/xdg/data" : (n == "HOME" ? "/home/x" : null)).Replace('\\', '/');
             Assert.Equal("/xdg/data/unity-editor-mcp/instances", xdg);
 
             var local = InstanceRegistry.ResolveDirectory(
-                null, InstanceRegistry.HostPlatform.Other,
+                null, HostPlatform.Other,
                 n => n == "HOME" ? "/home/x" : null).Replace('\\', '/');
             Assert.Equal("/home/x/.local/share/unity-editor-mcp/instances", local);
         }
