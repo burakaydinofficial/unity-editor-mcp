@@ -45,9 +45,9 @@ jobs:
           - 2022.3.62f2
           - 6000.0.78f1     # Unity 6.0 LTS — verifies the UNITY_6000_0_OR_NEWER guard branches (Rigidbody damping / Light rectangle)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ci/unity-host-${{ matrix.unity }}/Library
           key: Library-${{ matrix.unity }}-${{ hashFiles('unity-editor-mcp/**') }}
@@ -67,7 +67,7 @@ jobs:
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           checkName: EditMode ${{ matrix.unity }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: editmode-results-${{ matrix.unity }}
